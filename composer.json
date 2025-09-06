@@ -1,0 +1,19 @@
+{
+	"name": "nextcloud/integration_itop",
+	"description": "iTop integration for Nextcloud",
+	"type": "project",
+	"license": "AGPL-3.0+",
+	"authors": [
+		{
+			"name": "Integration Bot"
+		}
+	],
+	"require": {
+		"php": "^8.0"
+	},
+	"autoload": {
+		"psr-4": {
+			"OCA\\Itop\\": "lib/"
+		}
+	}
+}

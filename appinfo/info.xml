@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<info>
+	<id>integration_itop</id>
+	<name>iTop integration</name>
+	<summary>Integration of iTop IT Service Management platform</summary>
+	<description><![CDATA[iTop integration provides a dashboard widget displaying your assigned tickets,
+a search provider for tickets and configuration items, and notifications for new assigned tickets.]]></description>
+	<version>1.0.0</version>
+	<licence>agpl</licence>
+	<author>Integration Bot</author>
+	<namespace>Itop</namespace>
+	<documentation>
+		<developer>https://github.com/nextcloud/integration_itop</developer>
+	</documentation>
+	<category>integration</category>
+	<category>dashboard</category>
+	<website>https://github.com/nextcloud/integration_itop</website>
+	<bugs>https://github.com/nextcloud/integration_itop/issues</bugs>
+	<screenshot>https://github.com/nextcloud/integration_itop/raw/main/img/screenshot1.jpg</screenshot>
+	<dependencies>
+		<nextcloud min-version="30" max-version="32"/>
+	</dependencies>
+	<background-jobs>
+		<job>OCA\Itop\BackgroundJob\CheckOpenTickets</job>
+	</background-jobs>
+	<settings>
+		<admin>OCA\Itop\Settings\Admin</admin>
+		<admin-section>OCA\Itop\Settings\AdminSection</admin-section>
+		<personal>OCA\Itop\Settings\Personal</personal>
+		<personal-section>OCA\Itop\Settings\PersonalSection</personal-section>
+	</settings>
+</info>
