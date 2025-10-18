@@ -43,6 +43,7 @@ Thumbs.db
 coverage/
 junit.xml
 .phpunit.result.cache
+docs/testing.md
 
 # Temporary files
 *.tmp

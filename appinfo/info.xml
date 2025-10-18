@@ -74,9 +74,6 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 
 	<namespace>Itop</namespace>
 
-	<types>
-		<prevent_group_restriction />
-	</types>
 
 	<category>integration</category>
 	<category>workflow</category>
