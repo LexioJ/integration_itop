@@ -1,0 +1,27 @@
+{
+  "translations": {
+    "%s integration": "%s-Integration",
+    "Admin configuration saved": "Admin-Konfiguration gespeichert",
+    "Application token not configured": "Anwendungs-Token nicht konfiguriert",
+    "Bad credentials": "Ungültige Anmeldedaten",
+    "Caller: %s": "Anrufer: %s",
+    "Configuration removed successfully": "Konfiguration erfolgreich entfernt",
+    "Configuration successful! You are now connected.": "Konfiguration erfolgreich! Du bist jetzt verbunden.",
+    "Created: %s": "Erstellt: %s",
+    "Invalid JSON response from iTop": "Ungültige JSON-Antwort von iTop",
+    "Invalid URL format": "Ungültiges URL-Format",
+    "Priority: %s": "Priorität: %s",
+    "Settings saved successfully": "Einstellungen erfolgreich gespeichert",
+    "Status: %s": "Status: %s",
+    "Token validation failed": "Token-Validierung fehlgeschlagen",
+    "User facing name is too long (max 100 characters)": "Anzeigename ist zu lang (maximal 100 Zeichen)",
+    "User not configured": "Benutzer nicht konfiguriert",
+    "closed %s": "geschlossen %s",
+    "created %s": "erstellt %s",
+    "iTop Integration": "iTop-Integration",
+    "iTop URL not configured": "iTop-URL nicht konfiguriert",
+    "iTop tickets": "iTop-Tickets",
+    "updated %s": "aktualisiert %s"
+  },
+  "pluralForm": "nplurals=2; plural=(n != 1);"
+}

@@ -1,0 +1,27 @@
+{
+  "translations": {
+    "%s integration": "%s integration",
+    "Admin configuration saved": "Admin configuration saved",
+    "Application token not configured": "Application token not configured",
+    "Bad credentials": "Bad credentials",
+    "Caller: %s": "Caller: %s",
+    "Configuration removed successfully": "Configuration removed successfully",
+    "Configuration successful! You are now connected.": "Configuration successful! You are now connected.",
+    "Created: %s": "Created: %s",
+    "Invalid JSON response from iTop": "Invalid JSON response from iTop",
+    "Invalid URL format": "Invalid URL format",
+    "Priority: %s": "Priority: %s",
+    "Settings saved successfully": "Settings saved successfully",
+    "Status: %s": "Status: %s",
+    "Token validation failed": "Token validation failed",
+    "User facing name is too long (max 100 characters)": "User facing name is too long (max 100 characters)",
+    "User not configured": "User not configured",
+    "closed %s": "closed %s",
+    "created %s": "created %s",
+    "iTop Integration": "iTop Integration",
+    "iTop URL not configured": "iTop URL not configured",
+    "iTop tickets": "iTop tickets",
+    "updated %s": "updated %s"
+  },
+  "pluralForm": "nplurals=2; plural=(n != 1);"
+}
