@@ -12,6 +12,8 @@
 
 namespace OCA\Itop\Settings;
 
+use OCA\Itop\AppInfo\Application;
+use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\Settings\IIconSection;
@@ -21,6 +23,7 @@ class PersonalSection implements IIconSection {
 	public function __construct(
 		private IL10N $l10n,
 		private IURLGenerator $urlGenerator,
+		private IConfig $config,
 	) {
 	}
 
@@ -29,11 +32,12 @@ class PersonalSection implements IIconSection {
 	}
 
 	public function getID(): string {
-		return 'connected-accounts';
+		return 'integration_itop';
 	}
 
 	public function getName(): string {
-		return $this->l10n->t('Connected accounts');
+		$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+		return $this->l10n->t('%s integration', [$displayName]);
 	}
 
 	public function getPriority(): int {

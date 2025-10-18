@@ -33,6 +33,7 @@ use OCP\Notification\IManager as INotificationManager;
 class Application extends App implements IBootstrap {
 
 	public const APP_ID = 'integration_itop';
+	public const VERSION = '1.0.0';
 	private IConfig $config;
 
 	public function __construct(array $urlParams = []) {

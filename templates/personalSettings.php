@@ -3,181 +3,141 @@
  * @var array $_ Template parameters
  */
 style('integration_itop', 'personal-settings');
+script('integration_itop', 'personal-settings');
 ?>
 
 <div id="itop_prefs" class="section">
-	<h2>
-		<span class="icon icon-itop"></span>
-		<?php p($l->t('iTop integration')); ?>
-	</h2>
-	<p class="settings-hint">
-		<?php p($l->t('Connect your iTop account to access tickets and configuration items')); ?>
-	</p>
-	
+	<div class="itop-personal-header">
+		<div class="icon-container">
+			<div class="app-icon"></div>
+		</div>
+		<div class="header-content">
+			<h2><?php p($l->t('%s Integration', [$_['display_name']])); ?></h2>
+			<p class="subtitle"><?php p($l->t('Configure your iTop system integration settings')); ?></p>
+		</div>
+		<div class="version-badge">V1.0.0</div>
+	</div>
+
+	<?php if (!$_['has_application_token']): ?>
+	<div class="itop-personal-warning">
+		<span class="icon icon-error"></span>
+		<div>
+			<strong><?php p($l->t('Administrator configuration required')); ?></strong>
+			<p><?php p($l->t('The administrator must configure the application token before users can connect. Please contact your administrator.')); ?></p>
+		</div>
+	</div>
+	<?php endif; ?>
+
+	<!-- Status Dashboard -->
+	<div class="itop-personal-status">
+		<h3>📊 Current Status</h3>
+		<div class="itop-personal-status-grid">
+			<div class="itop-personal-status-card itop-connection-status <?php echo $_['person_id_configured'] ? 'success' : ''; ?>" id="itop-personal-connection-status">
+				<div class="itop-status-header">
+					<span class="itop-status-icon">🔌</span>
+					<span class="itop-status-title">Connection</span>
+				</div>
+				<div class="itop-status-value" id="itop-personal-connection-value">
+					<?php echo $_['person_id_configured'] ? 'Configured' : 'Not configured'; ?>
+				</div>
+			</div>
+
+			<div class="itop-personal-status-card <?php echo $_['person_id_configured'] ? 'connected' : ''; ?>" id="itop-personal-user-info">
+				<div class="itop-status-header">
+					<span class="itop-status-icon">👤</span>
+					<span class="itop-status-title">Connected as</span>
+				</div>
+				<div class="itop-status-value" id="itop-personal-user-value">
+					<?php echo $_['person_id_configured'] ? 'Loading...' : '-'; ?>
+				</div>
+			</div>
+
+			<div class="itop-personal-status-card <?php echo $_['person_id_configured'] ? 'connected' : ''; ?>" id="itop-personal-tickets-info">
+				<div class="itop-status-header">
+					<span class="itop-status-icon">🎫</span>
+					<span class="itop-status-title">Open Tickets</span>
+				</div>
+				<div class="itop-status-value" id="itop-personal-tickets-value">
+					<?php echo $_['person_id_configured'] ? 'Loading...' : '-'; ?>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<div class="itop-personal-settings">
-		<?php if (!empty($_['admin_url'])): ?>
-		<div class="field">
-			<label><?php p($l->t('iTop instance URL (configured by admin)')); ?></label>
-			<input type="text" 
-				value="<?php p($_['admin_url']); ?>" 
-				disabled
-			/>
-		</div>
-		<?php else: ?>
-		<div class="field">
-			<label for="itop-instance-url">
-				<span class="icon icon-link"></span>
-				<?php p($l->t('iTop instance URL')); ?>
+		<h3>⚙️ My Settings</h3>
+
+		<div class="field token-field">
+			<label for="itop-personal-token" class="token-label">
+				<span class="token-icon">🔑</span>
+				<?php p($l->t('Personal Token (used once for verification)')); ?>
 			</label>
-			<input id="itop-instance-url"
-				type="url"
-				value="<?php p($_['url']); ?>"
-				placeholder="https://your-itop.example.com"
-			/>
-		</div>
-		<?php endif; ?>
-		
-		<div class="field">
-			<label for="itop-api-token">
-				<span class="icon icon-password"></span>
-				<?php p($l->t('Personal API token')); ?>
-			</label>
-			<input id="itop-api-token"
-				type="password"
-				placeholder="<?php echo $_['token'] ? '••••••••••••••••' : $l->t('Enter your iTop API token'); ?>"
+			<input id="itop-personal-token"
+				type="text"
+				value=""
+				placeholder="<?php echo $_['person_id_configured'] ? $l->t('(Configuration is saved - enter new token to update)') : $l->t('Paste your personal token here'); ?>"
+				class="password-style token-input"
+				autocomplete="off"
+				<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>
 			/>
 			<p class="hint">
-				<?php p($l->t('Personal API token from your iTop account')); ?> 
-				<a href="<?php echo $_['admin_url'] ?: $_['url']; ?>/pages/UI.php?c[menu]=MyShortcuts" target="_blank" rel="noopener noreferrer">
+				<strong><?php p($l->t('Security:')); ?></strong>
+				<?php p($l->t('Your personal token is used ONLY to verify your identity. It will NOT be stored. ')); ?>
+				<?php if (!empty($_['admin_url'])): ?>
+				<a href="<?php p($_['admin_url']); ?>/pages/exec.php/user/user-profile?sDisplayMode=_self&sTab=personal-tokens&exec_module=itop-portal-base&exec_page=index.php&portal_id=itop-portal" target="_blank" rel="noopener noreferrer">
 					<?php p($l->t('Get your token')); ?> ↗
 				</a>
+				<?php endif; ?>
 			</p>
 		</div>
-		
+
 		<div class="field">
-			<input id="itop-navigation-enabled" type="checkbox" <?php echo $_['navigation_enabled'] ? 'checked' : ''; ?>>
-			<label for="itop-navigation-enabled"><?php p($l->t('Enable navigation link')); ?></label>
-			<p class="hint"><?php p($l->t('Add iTop to the main navigation menu')); ?></p>
-		</div>
-		
-		<div class="field">
-			<input id="itop-notification-enabled" type="checkbox" <?php echo $_['notification_enabled'] ? 'checked' : ''; ?>>
+			<input id="itop-notification-enabled" type="checkbox" <?php echo $_['notification_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 			<label for="itop-notification-enabled"><?php p($l->t('Enable notifications')); ?></label>
 			<p class="hint"><?php p($l->t('Get notified when new tickets are assigned to you')); ?></p>
 		</div>
-		
-		<button id="itop-save" class="button">
+
+		<div class="field">
+			<input id="itop-search-enabled" type="checkbox" <?php echo $_['search_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+			<label for="itop-search-enabled"><?php p($l->t('Enable unified search')); ?></label>
+			<p class="hint"><?php p($l->t('Search your %s tickets from the search bar (tickets you created or are assigned to you)',[$_['display_name']])); ?></p>
+		</div>
+
+		<button id="itop-save" class="button" <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 			<span class="icon icon-checkmark"></span>
 			<?php p($l->t('Save')); ?>
 		</button>
-		
+
 		<div id="itop-result" class="result hidden">
 			<span class="icon"></span>
 			<span class="message"></span>
 		</div>
 	</div>
-	
+
 	<div class="itop-personal-info">
-		<h3><?php p($l->t('How to get your API token')); ?></h3>
+		<h3><?php p($l->t('How to get your Personal Token')); ?></h3>
 		<ol>
-			<li><?php p($l->t('Log into your iTop instance')); ?></li>
-			<li><?php p($l->t('Go to "My Account" menu')); ?></li>
-			<li><?php p($l->t('Create a new Personal Token with "REST API" scope')); ?></li>
-			<li><?php p($l->t('Copy and paste the token above')); ?></li>
+			<li><?php p($l->t('Log into %s', [$_['display_name']])); ?></li>
+			<li><?php p($l->t('Navigate to "My Account" → "Personal Tokens"')); ?></li>
+			<li><?php p($l->t('Click "Create New Token"')); ?></li>
+			<li><?php p($l->t('Configure your token:')); ?>
+				<ul>
+					<li><strong><?php p($l->t('Application name:')); ?></strong> <?php p($l->t('Nextcloud Integration')); ?></li>
+					<li><strong><?php p($l->t('Scope:')); ?></strong> <?php p($l->t('REST/JSON (Required!)')); ?></li>
+					<li><strong><?php p($l->t('Expiration:')); ?></strong> <?php p($l->t('Choose based on your policy')); ?></li>
+				</ul>
+			</li>
+			<li><?php p($l->t('Copy the generated token immediately (it won\'t be shown again)')); ?></li>
+			<li><?php p($l->t('Paste the token in the field above and click "Save"')); ?></li>
+			<li><strong><?php p($l->t('Important:')); ?></strong> <?php p($l->t('The token is used ONCE to verify your Identity, then discarded for security.')); ?></li>
 		</ol>
-		
+
 		<h3><?php p($l->t('Available features')); ?></h3>
 		<ul>
 			<li><?php p($l->t('Dashboard widget with your assigned tickets')); ?></li>
 			<li><?php p($l->t('Search tickets and CIs from Nextcloud search')); ?></li>
-			<li><?php p($l->t('Rich previews when sharing iTop links')); ?></li>
+			<li><?php p($l->t('Rich previews when sharing %s links', [$_['display_name']])); ?></li>
 			<li><?php p($l->t('Notifications for newly assigned tickets')); ?></li>
 		</ul>
 	</div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-	const saveButton = document.getElementById('itop-save');
-	const instanceUrlField = document.getElementById('itop-instance-url');
-	const apiTokenField = document.getElementById('itop-api-token');
-	const navigationEnabledField = document.getElementById('itop-navigation-enabled');
-	const notificationEnabledField = document.getElementById('itop-notification-enabled');
-	const resultDiv = document.getElementById('itop-result');
-	
-	function showResult(message, isError = false) {
-		const icon = resultDiv.querySelector('.icon');
-		const messageSpan = resultDiv.querySelector('.message');
-		
-		icon.className = 'icon ' + (isError ? 'icon-error' : 'icon-checkmark');
-		messageSpan.textContent = message;
-		resultDiv.classList.remove('hidden');
-		
-		setTimeout(() => {
-			resultDiv.classList.add('hidden');
-		}, 5000);
-	}
-	
-	saveButton.addEventListener('click', function() {
-		const instanceUrl = instanceUrlField ? instanceUrlField.value.trim() : '';
-		const apiToken = apiTokenField.value.trim();
-		const navigationEnabled = navigationEnabledField.checked ? '1' : '0';
-		const notificationEnabled = notificationEnabledField.checked ? '1' : '0';
-		
-		if (instanceUrl && !instanceUrl.match(/^https?:\/\/.+/)) {
-			showResult('<?php p($l->t('Please enter a valid URL')); ?>', true);
-			return;
-		}
-		
-		saveButton.disabled = true;
-		
-		const params = {
-			navigation_enabled: navigationEnabled,
-			notification_enabled: notificationEnabled
-		};
-		
-		if (instanceUrl) {
-			params.url = instanceUrl;
-		}
-		
-		if (apiToken && apiToken !== '••••••••••••••••') {
-			params.token = apiToken;
-		}
-		
-		const req = new XMLHttpRequest();
-		req.open('PUT', OC.generateUrl('/apps/integration_itop/config'));
-		req.setRequestHeader('requesttoken', OC.requestToken);
-		req.setRequestHeader('Content-Type', 'application/json');
-		
-		req.onreadystatechange = function() {
-			if (req.readyState === 4) {
-				saveButton.disabled = false;
-				if (req.status === 200) {
-					const response = JSON.parse(req.responseText);
-					showResult(response.message || '<?php p($l->t('Settings saved')); ?>');
-					
-					// Update token placeholder if token was saved
-					if (apiToken && apiToken !== '••••••••••••••••') {
-						apiTokenField.placeholder = '••••••••••••••••';
-						apiTokenField.value = '';
-					}
-				} else {
-					const response = req.responseText ? JSON.parse(req.responseText) : {};
-					showResult(response.message || '<?php p($l->t('Failed to save settings')); ?>', true);
-				}
-			}
-		};
-		
-		req.send(JSON.stringify(params));
-	});
-	
-	// Clear token field when focused to allow easy replacement
-	if (apiTokenField.placeholder === '••••••••••••••••') {
-		apiTokenField.addEventListener('focus', function() {
-			if (this.value === '') {
-				this.placeholder = '<?php p($l->t('Enter your iTop API token')); ?>';
-			}
-		});
-	}
-});
-</script>

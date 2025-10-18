@@ -49,7 +49,9 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 * @inheritDoc
 	 */
 	public function getTitle(): string {
-		return $this->l10n->t('iTop tickets and CIs');
+		// Use admin-configured display name, fallback to 'iTop'
+		$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+		return $displayName . ' tickets and CIs';
 	}
 
 	/**
@@ -117,6 +119,14 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	/**
 	 * @inheritDoc
 	 */
+	public function getSupportedSearchProviderIds(): array {
+		// Return the search provider IDs that this reference provider supports
+		return ['integration_itop'];
+	}
+
+	/**
+	 * @inheritDoc
+	 */
 	public function search(string $term): array {
 		if ($this->userId === null) {
 			return [];
@@ -129,7 +139,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 
 		try {
 			$searchResults = $this->itopAPIService->search($this->userId, $term, 0, 5);
-			
+
 			if (isset($searchResults['error'])) {
 				$this->logger->error('Error searching iTop for references: ' . $searchResults['error'], ['app' => Application::APP_ID]);
 				return [];
@@ -161,7 +171,8 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 * @return array|null
 	 */
 	private function getTicketIdFromUrl(string $url, string $itopUrl): ?array {
-		// Match URLs like: https://itop.example.com/pages/UI.php?operation=details&class=UserRequest&id=123
+		// Match URLs like: http://itop.example.com/pages/UI.php?operation=details&class=UserRequest&id=123
+		// Note: Nextcloud's reference system only sends plain URLs, not markdown-formatted links
 		$pattern = '#^' . preg_quote($itopUrl, '#') . '/pages/UI\.php\?.*operation=details.*class=([^&]+).*id=(\d+)#';
 		if (preg_match($pattern, $url, $matches)) {
 			return [
@@ -184,37 +195,65 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	private function getTicketReference(int $ticketId, string $class, string $url): ?IReference {
 		try {
 			// Get ticket details from iTop API
-			if ($class === 'UserRequest') {
-				$ticketInfo = $this->itopAPIService->getTicketInfo($this->userId, $ticketId);
+			if ($class === 'UserRequest' || $class === 'Incident') {
+				$ticketInfo = $this->itopAPIService->getTicketInfo($this->userId, $ticketId, $class);
 			} else {
 				// For other classes, we'd need a more generic API method
 				return null;
 			}
-			
-			if (isset($ticketInfo['error'])) {
+
+			// Check for errors or empty results
+			if (isset($ticketInfo['error']) || empty($ticketInfo['objects'])) {
+				$this->logger->debug('Ticket not found or error in iTop API response', [
+					'app' => Application::APP_ID,
+					'ticketId' => $ticketId,
+					'class' => $class,
+					'error' => $ticketInfo['error'] ?? 'No objects returned'
+				]);
 				return null;
 			}
 
 			$ticket = $ticketInfo['objects'][array_key_first($ticketInfo['objects'])];
-			$fields = $ticket['fields'];
+			$fields = $ticket['fields'] ?? [];
+
+			// Get iTop URL for building links
+			$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+			$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
+			$itopUrl = $userItopUrl ?: $adminItopUrl;
 
 			$reference = new Reference($url);
-			$reference->setTitle($fields['title'] ?? 'iTop ' . $class . ' #' . $ticketId);
-			$reference->setDescription($this->formatTicketDescription($fields));
-			$reference->setImageUrl($this->getIconUrl());
-			
+
+			// Set minimal OpenGraph data - this helps Nextcloud understand the reference type
+			// Without this, Talk may add "Enable interactive view" button
+			$ticketRef = $fields['ref'] ?? $class . '-' . $ticketId;
+			$ticketTitle = $fields['title'] ?? 'iTop Ticket';
+			$reference->setTitle('[' . $ticketRef . '] ' . $ticketTitle);
+
 			$reference->setRichObject(
 				self::RICH_OBJECT_TYPE,
 				[
 					'id' => $ticketId,
 					'class' => $class,
 					'title' => $fields['title'] ?? '',
+					'ref' => $fields['ref'] ?? '',
 					'status' => $fields['status'] ?? '',
 					'priority' => $fields['priority'] ?? '',
-					'caller' => $fields['caller_id_friendlyname'] ?? '',
+					'caller_id' => $fields['caller_id'] ?? '',
+					'caller_id_friendlyname' => $fields['caller_id_friendlyname'] ?? '',
+					'agent_id' => $fields['agent_id'] ?? '',
+					'agent_id_friendlyname' => $fields['agent_id_friendlyname'] ?? '',
+					'org_name' => $fields['org_name'] ?? '',
+					'org_id_friendlyname' => $fields['org_id_friendlyname'] ?? '',
+					'team_id_friendlyname' => $fields['team_id_friendlyname'] ?? '',
+					'service_name' => $fields['service_name'] ?? '',
+					'servicesubcategory_name' => $fields['servicesubcategory_name'] ?? '',
 					'description' => strip_tags($fields['description'] ?? ''),
 					'creation_date' => $fields['creation_date'] ?? '',
+					'last_update' => $fields['last_update'] ?? '',
+					'close_date' => $fields['close_date'] ?? '',
+					'start_date' => $fields['start_date'] ?? '',
 					'url' => $url,
+					'itop_url' => $itopUrl,
 				]
 			);
 

@@ -29,11 +29,11 @@ class AdminSection implements IIconSection {
 	}
 
 	public function getID(): string {
-		return 'connected-accounts';
+		return 'integration_itop';
 	}
 
 	public function getName(): string {
-		return $this->l10n->t('Connected accounts');
+		return $this->l10n->t('iTop Integration');
 	}
 
 	public function getPriority(): int {

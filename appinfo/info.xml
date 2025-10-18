@@ -1,32 +1,122 @@
 <?xml version="1.0"?>
-<info>
+<!--
+  - SPDX-FileCopyrightText: 2025 iTop Integration Contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<info xmlns:xsi= "http://www.w3.org/2001/XMLSchema-instance"
+	  xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>integration_itop</id>
-	<name>iTop integration</name>
-	<summary>Integration of iTop IT Service Management platform</summary>
-	<description><![CDATA[iTop integration provides a dashboard widget displaying your assigned tickets,
-a search provider for tickets and configuration items, and notifications for new assigned tickets.]]></description>
+	<name>iTop Integration</name>
+	<summary><![CDATA[🎟️ Transform your ITSM workflow with seamless iTop integration - rich link previews, unified search, and smart content insertion!]]></summary>
+	<description><![CDATA[### 🚀 Complete iTop ITSM Integration for Nextcloud
+
+Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Management system. This comprehensive integration brings ITSM functionality directly into your daily workflow without leaving Nextcloud.
+**⚠️ Requires iTop server with REST API enabled**
+
+### ✨ Key Features
+
+#### 🔗 Dynamic Reference Provider
+- **Rich Link Previews**: Paste iTop ticket links in Talk, Deck, or Collectives for instant rich previews
+- **Detailed Information**: View ticket status, priority, assignee, and description at a glance  
+- **Smart Navigation**: Direct links to full ticket details in iTop
+- **Universal Compatibility**: Works across all Nextcloud apps that support rich content
+
+#### 🔍 Unified Search Integration
+- **Quick Access**: Search your iTop tickets directly from Nextcloud's search bar
+- **Smart Results**: Filter by ticket type (Incidents, User Requests) with status indicators
+- **Personal Scope**: Only shows tickets you created or are assigned to
+- **Real-time Status**: Live priority and status badges in search results
+
+#### 🎯 Smart Picker & Content Integration  
+- **Content Creation**: Insert iTop references while writing in Text app or chatting in Talk
+- **Quick Browse**: Access recent tickets and CIs with smart suggestions
+- **Rich Insertion**: Add links that automatically become interactive previews
+- **Context Aware**: Relevant suggestions based on your current work
+
+#### ⚙️ Professional Settings Interface
+- **Personal Dashboard**: Real-time status with connection indicator and ticket counts
+- **Secure Authentication**: Token-based setup with one-time personal token validation
+- **User Profile Display**: See your iTop identity (name, email, organization)
+- **Notification Control**: Configure alerts for new assignments and updates
+
+#### 🛠️ Enterprise Admin Panel
+- **Centralized Configuration**: System-wide settings with encrypted token storage
+- **Connection Testing**: Real-time validation of iTop server connectivity  
+- **User Monitoring**: Track connected users and system health
+- **Professional UI**: Clean, theme-aware interface matching Nextcloud design
+
+#### 🔐 Security & Architecture
+- **Dual-Token Security**: Separate application and personal tokens for maximum security
+- **Data Isolation**: All queries filtered by Person ID - users only see their own data
+- **Portal User Support**: Works with SAML/external authentication via Portal Personal Tokens
+- **No Data Storage**: Personal tokens used once for verification, then discarded
+- **Enterprise Ready**: Designed for organizations with strict security requirements
+
+### 🏢 Perfect For
+- IT teams managing incidents and service requests
+- Help desk agents tracking assigned tickets  
+- Service managers monitoring team workload
+- End users checking their request status
+- Organizations using both Nextcloud and iTop ITSM
+
+### 🔧 Technical Requirements
+- **iTop Server**: Version 1.3+ with REST API enabled
+- **Nextcloud**: Version 30.0 or higher
+- **PHP**: 8.1 or higher
+- **Optional**: [iTop Portal Personal Tokens Extension](https://github.com/LexioJ/itop-portal-personal-tokens) for enhanced Portal user support
+
+#### Start streamlining your ITSM workflow - Connect iTop with Nextcloud and experience unified IT service management!]]></description>
+
 	<version>1.0.0</version>
 	<licence>agpl</licence>
-	<author>Integration Bot</author>
+
+	<author>iTop Integration Team</author>
+
 	<namespace>Itop</namespace>
-	<documentation>
-		<developer>https://github.com/nextcloud/integration_itop</developer>
-	</documentation>
+
+	<types>
+		<prevent_group_restriction />
+	</types>
+
 	<category>integration</category>
-	<category>dashboard</category>
-	<website>https://github.com/nextcloud/integration_itop</website>
-	<bugs>https://github.com/nextcloud/integration_itop/issues</bugs>
-	<screenshot>https://github.com/nextcloud/integration_itop/raw/main/img/screenshot1.jpg</screenshot>
-	<dependencies>
-		<nextcloud min-version="30" max-version="32"/>
+	<category>workflow</category>
+	<category>tools</category>
+
+	<website>https://github.com/lexioj/integration_itop</website>
+	<bugs>https://github.com/lexioj/integration_itop/issues</bugs>
+	<repository>https://github.com/lexioj/integration_itop.git</repository>
+
+	<screenshot small-thumbnail="https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/dynamic-reference-provider-thumb.png">https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/dynamic-reference-provider.png</screenshot>
+   <screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/unified-search.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/smart-picker.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/personal-settings.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/admin-settings1.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/admin-settings2.png</screenshot>
+	
+   <dependencies>
+		<nextcloud min-version="30" max-version="32" />
 	</dependencies>
+
 	<background-jobs>
 		<job>OCA\Itop\BackgroundJob\CheckOpenTickets</job>
 	</background-jobs>
+
 	<settings>
 		<admin>OCA\Itop\Settings\Admin</admin>
 		<admin-section>OCA\Itop\Settings\AdminSection</admin-section>
 		<personal>OCA\Itop\Settings\Personal</personal>
 		<personal-section>OCA\Itop\Settings\PersonalSection</personal-section>
 	</settings>
+
+	<reference>
+		<provider>OCA\Itop\Reference\ItopReferenceProvider</provider>
+	</reference>
+
+	<unified-search>
+		<provider>OCA\Itop\Search\ItopSearchProvider</provider>
+	</unified-search>
+
+	<dashboard>
+		<widget>OCA\Itop\Dashboard\ItopWidget</widget>
+	</dashboard>
 </info>

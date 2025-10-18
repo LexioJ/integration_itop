@@ -1,0 +1,60 @@
+/* Dashboard widget styles for iTop integration */
+.icon-integration_itop {
+    background-image: url('../img/app.svg');
+    background-size: 16px 16px;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.itop-widget-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.itop-widget-item:last-child {
+    border-bottom: none;
+}
+
+.itop-widget-item .icon {
+    width: 32px;
+    height: 32px;
+    margin-right: 12px;
+    background-size: cover;
+    border-radius: 50%;
+}
+
+.itop-widget-item .content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.itop-widget-item .title {
+    font-weight: 600;
+    color: var(--color-main-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.itop-widget-item .subtitle {
+    color: var(--color-text-lighter);
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.itop-widget-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--color-text-lighter);
+}
+
+.itop-widget-error {
+    text-align: center;
+    padding: 20px;
+    color: var(--color-error);
+}

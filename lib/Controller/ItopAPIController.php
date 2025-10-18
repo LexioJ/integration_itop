@@ -36,7 +36,7 @@ class ItopAPIController extends Controller {
 	}
 
 	/**
-	 * Get user assigned tickets
+	 * Get user created tickets
 	 *
 	 * @NoAdminRequired
 	 *
@@ -49,10 +49,31 @@ class ItopAPIController extends Controller {
 		}
 
 		try {
-			$tickets = $this->itopAPIService->getAssignedTickets($this->userId, null, $limit);
+			$tickets = $this->itopAPIService->getUserCreatedTickets($this->userId, null, $limit);
 			return new DataResponse($tickets);
 		} catch (\Exception $e) {
 			$this->logger->error('Error getting iTop tickets: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	/**
+	 * Get count of user created tickets
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function getTicketsCount(): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'Unauthorized'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
+			$ticketCount = $this->itopAPIService->getUserCreatedTicketsCount($this->userId);
+			return new DataResponse($ticketCount);
+		} catch (\Exception $e) {
+			$this->logger->error('Error getting iTop ticket count: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}

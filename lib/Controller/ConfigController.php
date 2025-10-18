@@ -41,49 +41,505 @@ class ConfigController extends Controller {
 	}
 
 	/**
-	 * Set user configuration values
+	 * Set user configuration values (Phase 2: Personal Token Validation)
+	 *
+	 * WORKFLOW:
+	 * 1. Receive personal token from user (NOT stored)
+	 * 2. Validate token using :current_contact_id → extracts Person ID directly
+	 * 3. Store ONLY person_id (NOT the token)
+	 * 4. Discard personal token immediately (security enhancement)
+	 *
+	 * WHY DUAL-TOKEN ARCHITECTURE?
+	 * ============================
+	 * Portal users are HARD-BLOCKED from REST API access by iTop core:
+	 * - webservices/rest.php line 103: $bIsAllowedToPortalUsers = false (hardcoded)
+	 * - Even valid personal tokens fail with: {"code":1,"message":"Error: Portal user is not allowed"}
+	 *
+	 * SOLUTION:
+	 * - Personal token: Identity verification ONLY (proves user is authorized)
+	 * - Application token: All subsequent queries (admin-level, bypasses Portal user block)
+	 * - Person ID filtering: Ensures data isolation between users
 	 *
 	 * @NoAdminRequired
 	 *
-	 * @param array $values key/value pairs to store in user preferences
 	 * @return DataResponse
 	 * @throws PreConditionNotMetException
 	 */
-	public function setConfig(array $values): DataResponse {
+	public function setConfig(): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse([], Http::STATUS_BAD_REQUEST);
 		}
 
+		// Get JSON data from request body
+		$input = json_decode(file_get_contents('php://input'), true);
+		if (!is_array($input)) {
+			return new DataResponse(['message' => 'Invalid request data'], Http::STATUS_BAD_REQUEST);
+		}
+
+		$this->logger->info('iTop setConfig called for user: ' . $this->userId, ['app' => Application::APP_ID]);
+
+		$values = $input;
+
+		// Save non-token settings first
 		foreach ($values as $key => $value) {
-			if ($key === 'token') {
-				if ($value === '') {
-					$this->config->deleteUserValue($this->userId, Application::APP_ID, 'token');
-				} else {
-					$encryptedToken = $this->crypto->encrypt($value);
-					$this->config->setUserValue($this->userId, Application::APP_ID, 'token', $encryptedToken);
-				}
-			} else {
+			if ($key !== 'token' && $key !== 'personal_token') {
 				$this->config->setUserValue($this->userId, Application::APP_ID, $key, $value);
 			}
 		}
 
-		// Test the connection if token was provided
-		if (isset($values['token']) && $values['token'] !== '') {
-			try {
-				$userInfo = $this->itopAPIService->getCurrentUser($this->userId);
-				if (isset($userInfo['error'])) {
-					return new DataResponse(['message' => $userInfo['error']], Http::STATUS_BAD_REQUEST);
-				}
-				$result = ['message' => $this->l10n->t('iTop connection successful')];
-			} catch (\Exception $e) {
-				$this->logger->error('Error testing iTop connection: ' . $e->getMessage(), ['app' => Application::APP_ID]);
-				return new DataResponse(['message' => $this->l10n->t('Failed to connect to iTop: ') . $e->getMessage()], Http::STATUS_BAD_REQUEST);
-			}
-		} else {
-			$result = ['message' => $this->l10n->t('Configuration saved')];
+		// Phase 2: Handle personal token validation
+		$personalToken = $values['personal_token'] ?? $values['token'] ?? null;
+
+		// Handle token deletion
+		if ($personalToken !== null && $personalToken === '') {
+			// Remove person_id and user_id
+			$this->config->deleteUserValue($this->userId, Application::APP_ID, 'person_id');
+			$this->config->deleteUserValue($this->userId, Application::APP_ID, 'user_id');
+			// Also clean up any old token storage (Phase 1 leftover)
+			$this->config->deleteUserValue($this->userId, Application::APP_ID, 'token');
+			$this->logger->info('iTop: Person ID and User ID removed for user', ['app' => Application::APP_ID]);
+			return new DataResponse([
+				'message' => $this->l10n->t('Configuration removed successfully'),
+				'person_id_configured' => false
+			]);
 		}
 
-		return new DataResponse($result);
+		// If no token provided, just return current status
+		if ($personalToken === null) {
+			$hasPersonId = $this->config->getUserValue($this->userId, Application::APP_ID, 'person_id', '') !== '';
+			return new DataResponse([
+				'message' => $this->l10n->t('Settings saved successfully'),
+				'person_id_configured' => $hasPersonId
+			]);
+		}
+
+		// Phase 2: Validate personal token and extract Person ID using :current_contact_id
+		$validation = $this->validatePersonalTokenAndExtractPersonId($personalToken);
+
+		if (!$validation['success']) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Token validation failed'),
+				'error' => $validation['error'],
+				'person_id_configured' => false
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Success! Store Person ID and User ID (NOT the token)
+		$personId = $validation['person_id'];
+		$userId = $validation['user_id'];
+		$this->config->setUserValue($this->userId, Application::APP_ID, 'person_id', $personId);
+		$this->config->setUserValue($this->userId, Application::APP_ID, 'user_id', $userId);
+		// Clean up any old token storage (Phase 1 leftover)
+		$this->config->deleteUserValue($this->userId, Application::APP_ID, 'token');
+		$this->logger->info('iTop: Person ID ' . $personId . ' and User ID ' . $userId . ' configured for user ' . $this->userId, ['app' => Application::APP_ID]);
+
+		// Personal token is now discarded (never stored)
+		$userInfo = $validation['user_info'];
+		$userName = trim(($userInfo['first_name'] ?? '') . ' ' . ($userInfo['last_name'] ?? ''));
+
+		return new DataResponse([
+			'message' => $this->l10n->t('Configuration successful! You are now connected.'),
+			'person_id_configured' => true,
+			'user_info' => [
+				'name' => $userName ?: $userInfo['login'],
+				'email' => $userInfo['email'] ?? '',
+				'organization' => $userInfo['org_name'] ?? '',
+				'person_id' => $personId
+			]
+		]);
+	}
+
+	/**
+	 * Get current user information from iTop
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function getUserInfo(): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'User not authenticated'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		$personId = $this->config->getUserValue($this->userId, Application::APP_ID, 'person_id', '');
+
+		if (empty($personId)) {
+			return new DataResponse(['error' => 'User not configured'], Http::STATUS_NOT_FOUND);
+		}
+
+		// Fetch person details from iTop using application token
+		$encryptedAppToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+
+		if (empty($encryptedAppToken)) {
+			return new DataResponse(['error' => 'Application token not configured'], Http::STATUS_SERVICE_UNAVAILABLE);
+		}
+
+		try {
+			$applicationToken = $this->crypto->decrypt($encryptedAppToken);
+			$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+
+			if (empty($adminInstanceUrl)) {
+				return new DataResponse(['error' => 'Server URL not configured'], Http::STATUS_SERVICE_UNAVAILABLE);
+			}
+
+			$apiUrl = rtrim($adminInstanceUrl, '/') . '/webservices/rest.php?version=1.3';
+
+			$postData = [
+				'json_data' => json_encode([
+					'operation' => 'core/get',
+					'class' => 'Person',
+					'key' => $personId,
+					'output_fields' => 'id,first_name,name,email,org_id_friendlyname'
+				])
+			];
+
+			$ch = curl_init();
+			curl_setopt($ch, CURLOPT_URL, $apiUrl);
+			curl_setopt($ch, CURLOPT_POST, true);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+			curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+			curl_setopt($ch, CURLOPT_HTTPHEADER, [
+				'Content-Type: application/x-www-form-urlencoded',
+				'Auth-Token: ' . $applicationToken,
+				'User-Agent: Nextcloud-iTop-Integration/1.0'
+			]);
+
+			$result = curl_exec($ch);
+			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+			$error = curl_error($ch);
+			curl_close($ch);
+
+			if ($result === false || !empty($error)) {
+				return new DataResponse(['error' => 'Connection failed: ' . ($error ?: 'Unknown error')], Http::STATUS_SERVICE_UNAVAILABLE);
+			}
+
+			$responseData = json_decode($result, true);
+
+			if ($responseData === null || !isset($responseData['code']) || $responseData['code'] !== 0) {
+				$errorMsg = $responseData['message'] ?? 'Failed to fetch user information';
+				return new DataResponse(['error' => $errorMsg], Http::STATUS_BAD_REQUEST);
+			}
+
+			if (!isset($responseData['objects']) || empty($responseData['objects'])) {
+				return new DataResponse(['error' => 'Person not found'], Http::STATUS_NOT_FOUND);
+			}
+
+			$personObject = reset($responseData['objects']);
+			$personFields = $personObject['fields'] ?? [];
+
+			$userName = trim(($personFields['first_name'] ?? '') . ' ' . ($personFields['name'] ?? ''));
+
+			return new DataResponse([
+				'name' => $userName ?: 'Unknown User',
+				'email' => $personFields['email'] ?? '',
+				'organization' => $personFields['org_id_friendlyname'] ?? '',
+				'person_id' => $personId
+			]);
+
+		} catch (\Exception $e) {
+			$this->logger->error('Failed to fetch user info: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			return new DataResponse(['error' => 'Failed to fetch user information'], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	/**
+	 * Get admin configuration values
+	 *
+	 * @return DataResponse
+	 */
+	public function getAdminConfig(): DataResponse {
+		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		$userFacingName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+		$hasApplicationToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '') !== '';
+
+		// Count users with configured tokens
+		$connectedUsers = $this->getConnectedUsersCount();
+
+		$adminConfig = [
+			'admin_instance_url' => $adminInstanceUrl,
+			'user_facing_name' => $userFacingName,
+			'has_application_token' => $hasApplicationToken,
+			'connected_users' => $connectedUsers,
+			'last_updated' => date('Y-m-d H:i:s'),
+			'version' => '1.0.0',
+		];
+
+		return new DataResponse($adminConfig);
+	}
+
+	/**
+	 * Test application token connection
+	 *
+	 * @param string $token Optional token to test (if not provided, uses saved token)
+	 * @return DataResponse
+	 */
+	public function testApplicationToken(string $token = ''): DataResponse {
+		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+
+		if (empty($adminInstanceUrl)) {
+			return new DataResponse([
+				'status' => 'error',
+				'message' => 'Server URL not configured'
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// If token not provided, try to get from saved config
+		if (empty($token)) {
+			$encryptedToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+
+			if (empty($encryptedToken)) {
+				return new DataResponse([
+					'status' => 'error',
+					'message' => 'Application token not configured'
+				], Http::STATUS_BAD_REQUEST);
+			}
+
+			try {
+				// Decrypt the token
+				$token = $this->crypto->decrypt($encryptedToken);
+			} catch (\Exception $e) {
+				return new DataResponse([
+					'status' => 'error',
+					'message' => 'Failed to decrypt saved token'
+				], Http::STATUS_BAD_REQUEST);
+			}
+		}
+
+		try {
+
+			// Test the token with a simple API call
+			$apiUrl = rtrim($adminInstanceUrl, '/') . '/webservices/rest.php?version=1.3';
+
+			// Use list_operations to validate the token (works for both Application and Personal tokens)
+			$postData = [
+				'json_data' => json_encode([
+					'operation' => 'list_operations'
+				])
+			];
+
+			$ch = curl_init();
+			curl_setopt($ch, CURLOPT_URL, $apiUrl);
+			curl_setopt($ch, CURLOPT_POST, true);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+			curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+			curl_setopt($ch, CURLOPT_HTTPHEADER, [
+				'Content-Type: application/x-www-form-urlencoded',
+				'Auth-Token: ' . $token,
+				'User-Agent: Nextcloud-iTop-Integration/1.0'
+			]);
+
+			$result = curl_exec($ch);
+			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+			$error = curl_error($ch);
+			curl_close($ch);
+
+			$this->logger->info('iTop application token test - Method 1 (Auth-Token header) response: ' . $result, ['app' => Application::APP_ID]);
+
+			if ($result === false || !empty($error)) {
+				return new DataResponse([
+					'status' => 'error',
+					'message' => 'Connection failed: ' . ($error ?: 'Unknown error')
+				]);
+			}
+
+			$responseData = json_decode($result, true);
+
+			if ($responseData === null) {
+				return new DataResponse([
+					'status' => 'error',
+					'message' => 'Invalid response from server'
+				]);
+			}
+
+			// Check response code
+			if (isset($responseData['code'])) {
+				if ($responseData['code'] == 0) {
+					// Success - token is valid
+					$operationCount = count($responseData['operations'] ?? []);
+					return new DataResponse([
+						'status' => 'success',
+						'message' => 'Application token is valid and working',
+						'details' => [
+							'api_version' => $responseData['version'] ?? 'Unknown',
+							'available_operations' => $operationCount,
+							'token_type' => 'Application Token'
+						]
+					]);
+				} elseif ($responseData['code'] == 1) {
+					// Unauthorized - provide detailed debugging info
+					$errorMsg = $responseData['message'] ?? 'Unauthorized';
+					return new DataResponse([
+						'status' => 'error',
+						'message' => 'Application token authentication failed',
+						'details' => [
+							'error' => $errorMsg,
+							'hint' => 'Application tokens in iTop must have "Administrator" + "REST Services User" profiles. Token may be invalid or expired.',
+							'token_length' => strlen($token),
+							'response_code' => $responseData['code']
+						]
+					]);
+				} else {
+					return new DataResponse([
+						'status' => 'error',
+						'message' => 'API error: ' . ($responseData['message'] ?? 'Unknown error'),
+						'details' => [
+							'code' => $responseData['code'],
+							'full_response' => $responseData
+						]
+					]);
+				}
+			}
+
+			return new DataResponse([
+				'status' => 'error',
+				'message' => 'Unexpected response format',
+				'details' => [
+					'response' => $responseData
+				]
+			]);
+
+		} catch (\Exception $e) {
+			$this->logger->error('iTop application token test failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			return new DataResponse([
+				'status' => 'error',
+				'message' => 'Test failed: ' . $e->getMessage()
+			]);
+		}
+	}
+
+	/**
+	 * Test connection to iTop server
+	 *
+	 * @param string $url Optional URL to test (if not provided, uses saved config)
+	 * @return DataResponse
+	 */
+	public function testAdminConnection(string $url = ''): DataResponse {
+		// Use provided URL or fall back to saved configuration
+		$testUrl = !empty($url) ? trim($url) : $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		
+		if (empty($testUrl)) {
+			return new DataResponse(['status' => 'error', 'message' => 'No server URL provided for testing'], Http::STATUS_BAD_REQUEST);
+		}
+		
+		$this->logger->info('iTop testing connection to URL: ' . $testUrl, ['app' => Application::APP_ID]);
+		
+		// Test iTop API endpoint specifically
+		try {
+			// Construct the iTop REST API URL
+			$apiUrl = rtrim($testUrl, '/') . '/webservices/rest.php?version=1.3';
+			$this->logger->info('iTop testing API endpoint: ' . $apiUrl, ['app' => Application::APP_ID]);
+			
+			// Prepare a basic API request (without credentials to test for proper iTop error response)
+			$postData = [
+				'json_data' => json_encode([
+					'operation' => 'core/check_credentials'
+				])
+			];
+			
+			$ch = curl_init();
+			curl_setopt($ch, CURLOPT_URL, $apiUrl);
+			curl_setopt($ch, CURLOPT_POST, true);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+			curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+			curl_setopt($ch, CURLOPT_HTTPHEADER, [
+				'Content-Type: application/x-www-form-urlencoded',
+				'User-Agent: Nextcloud-iTop-Integration/1.0'
+			]);
+			
+			$result = curl_exec($ch);
+			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+			$error = curl_error($ch);
+			curl_close($ch);
+			
+			if ($result === false || !empty($error)) {
+				return new DataResponse([
+					'status' => 'error',
+					'message' => 'Connection failed: ' . ($error ?: 'Unknown error'),
+					'details' => ['url' => $testUrl, 'api_url' => $apiUrl]
+				]);
+			}
+			
+			if ($httpCode !== 200) {
+				return new DataResponse([
+					'status' => 'error',
+					'message' => 'iTop API endpoint returned HTTP ' . $httpCode,
+					'details' => ['http_code' => $httpCode, 'url' => $testUrl, 'api_url' => $apiUrl]
+				]);
+			}
+			
+			// Parse the JSON response
+			$responseData = json_decode($result, true);
+			if ($responseData === null) {
+				return new DataResponse([
+					'status' => 'error',
+					'message' => 'Server did not return valid JSON - not an iTop instance',
+					'details' => ['url' => $testUrl, 'response' => substr($result, 0, 200)]
+				]);
+			}
+			
+			$this->logger->info('iTop API response: ' . json_encode($responseData), ['app' => Application::APP_ID]);
+			
+			// Check for proper iTop response structure
+			if (isset($responseData['code'])) {
+				// iTop returns status codes: 0 = OK, 1 = UNAUTHORIZED, 2 = MISSING_VERSION, etc.
+				if ($responseData['code'] == 1) {
+					// UNAUTHORIZED - this is expected and proves it's an iTop instance
+					return new DataResponse([
+						'status' => 'success',
+						'message' => 'iTop instance detected (authentication required)',
+						'details' => [
+							'url' => $testUrl,
+							'api_url' => $apiUrl,
+							'itop_code' => $responseData['code'],
+							'itop_message' => $responseData['message'] ?? 'Unauthorized'
+						]
+					]);
+				} elseif ($responseData['code'] == 0) {
+					// Successful response (shouldn't happen without credentials, but still valid iTop)
+					return new DataResponse([
+						'status' => 'success',
+						'message' => 'iTop instance detected and accessible',
+						'details' => [
+							'url' => $testUrl,
+							'api_url' => $apiUrl,
+							'itop_code' => $responseData['code']
+						]
+					]);
+				} else {
+					// Other iTop error codes
+					return new DataResponse([
+						'status' => 'warning',
+						'message' => 'iTop instance detected with error: ' . ($responseData['message'] ?? 'Unknown error'),
+						'details' => [
+							'url' => $testUrl,
+							'api_url' => $apiUrl,
+							'itop_code' => $responseData['code'],
+							'itop_message' => $responseData['message'] ?? ''
+						]
+					]);
+				}
+			} else {
+				return new DataResponse([
+					'status' => 'error',
+					'message' => 'Server response does not match iTop API format',
+					'details' => ['url' => $testUrl, 'response' => $responseData]
+				]);
+			}
+			
+		} catch (\Exception $e) {
+			$this->logger->error('iTop connection test failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			return new DataResponse([
+				'status' => 'error',
+				'message' => 'Connection test failed: ' . $e->getMessage(),
+				'details' => ['url' => $testUrl]
+			]);
+		}
 	}
 
 	/**
@@ -93,16 +549,275 @@ class ConfigController extends Controller {
 	 * @return DataResponse
 	 */
 	public function setAdminConfig(array $values): DataResponse {
+		// Debug logging
+		$this->logger->info('iTop setAdminConfig called with values: ' . json_encode(array_keys($values)), ['app' => Application::APP_ID]);
+
+		$result = [];
+		$allowedKeys = ['admin_instance_url', 'user_facing_name', 'application_token'];
+
 		foreach ($values as $key => $value) {
+			// Only process allowed configuration keys
+			if (!in_array($key, $allowedKeys)) {
+				continue;
+			}
+
+			$this->logger->info('iTop processing key: ' . $key, ['app' => Application::APP_ID]);
+
 			if ($key === 'admin_instance_url') {
 				// Validate URL format
 				if ($value !== '' && !filter_var($value, FILTER_VALIDATE_URL)) {
+					$this->logger->error('iTop Invalid URL format: ' . $value, ['app' => Application::APP_ID]);
 					return new DataResponse(['message' => $this->l10n->t('Invalid URL format')], Http::STATUS_BAD_REQUEST);
 				}
+				$this->config->setAppValue(Application::APP_ID, $key, $value);
+				$result[$key] = $value;
+			} elseif ($key === 'user_facing_name') {
+				// Validate user facing name
+				$value = trim($value);
+				if (strlen($value) > 100) {
+					return new DataResponse(['message' => $this->l10n->t('User facing name is too long (max 100 characters)')], Http::STATUS_BAD_REQUEST);
+				}
+				if ($value === '') {
+					$value = 'iTop'; // Default fallback
+				}
+				$this->config->setAppValue(Application::APP_ID, $key, $value);
+				$result[$key] = $value;
+			} elseif ($key === 'application_token') {
+				// Handle application token with encryption
+				if ($value === '') {
+					// Delete token if empty
+					$this->config->deleteAppValue(Application::APP_ID, 'application_token');
+					$this->logger->info('iTop application token deleted', ['app' => Application::APP_ID]);
+					$result['has_application_token'] = false;
+				} else {
+					// Encrypt and store the token
+					$encryptedToken = $this->crypto->encrypt($value);
+					$this->config->setAppValue(Application::APP_ID, 'application_token', $encryptedToken);
+					$this->logger->info('iTop application token saved (encrypted)', ['app' => Application::APP_ID]);
+					$result['has_application_token'] = true;
+				}
 			}
-			$this->config->setAppValue(Application::APP_ID, $key, $value);
+
+			$this->logger->info('iTop saved config key: ' . $key, ['app' => Application::APP_ID]);
 		}
 
-		return new DataResponse(['message' => $this->l10n->t('Admin configuration saved')]);
+		$this->logger->info('iTop Admin configuration saved successfully', ['app' => Application::APP_ID]);
+		$result['message'] = $this->l10n->t('Admin configuration saved');
+
+		return new DataResponse($result);
+	}
+
+	/**
+	 * Count users who have configured iTop
+	 *
+	 * @return int
+	 */
+	private function getConnectedUsersCount(): int {
+		try {
+			// Count users who have person_id configured (indicates completed setup)
+			$query = \OC::$server->getDatabaseConnection()->getQueryBuilder();
+			$result = $query->select($query->func()->count('*', 'user_count'))
+				->from('preferences')
+				->where($query->expr()->eq('appid', $query->createNamedParameter(Application::APP_ID)))
+				->andWhere($query->expr()->eq('configkey', $query->createNamedParameter('person_id')))
+				->andWhere($query->expr()->neq('configvalue', $query->createNamedParameter('')))
+				->execute();
+
+			$row = $result->fetch();
+			return (int) ($row['user_count'] ?? 0);
+		} catch (\Exception $e) {
+			$this->logger->error('Error counting connected users: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			return 0;
+		}
+	}
+	
+
+	/**
+	 * Validate personal token and extract Person ID using iTop's :current_contact_id placeholder
+	 *
+	 * Uses a single API call to validate the personal token and retrieve the user's Person ID.
+	 * This method works for all user types (Portal, SAML, Service Desk, etc.) by leveraging
+	 * iTop's magic placeholder that automatically resolves to the authenticated user's Person ID.
+	 *
+	 * @param string $personalToken User's personal token from iTop
+	 * @return array ['success' => bool, 'person_id' => string|null, 'user_info' => array|null, 'error' => string|null]
+	 */
+	private function validatePersonalTokenAndExtractPersonId(string $personalToken): array {
+		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+
+		if (empty($adminInstanceUrl)) {
+			return [
+				'success' => false,
+				'person_id' => null,
+				'user_info' => null,
+				'error' => 'Server URL not configured by administrator'
+			];
+		}
+
+		try {
+			$apiUrl = rtrim($adminInstanceUrl, '/') . '/webservices/rest.php?version=1.3';
+
+			// SIMPLIFIED: Single API call using personal token + :current_contact_id
+			// This validates the token AND gets the Person ID in one request
+			// We also get the User ID by querying User WHERE contactid = :current_contact_id
+			$postData = [
+				'json_data' => json_encode([
+					'operation' => 'core/get',
+					'class' => 'Person',
+					'key' => 'SELECT Person WHERE id = :current_contact_id',
+					'output_fields' => 'id,first_name,name,email,org_id_friendlyname'
+				])
+			];
+
+			$ch = curl_init();
+			curl_setopt($ch, CURLOPT_URL, $apiUrl);
+			curl_setopt($ch, CURLOPT_POST, true);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+			curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+			curl_setopt($ch, CURLOPT_HTTPHEADER, [
+				'Content-Type: application/x-www-form-urlencoded',
+				'Auth-Token: ' . $personalToken,
+				'User-Agent: Nextcloud-iTop-Integration/1.0'
+			]);
+
+			$result = curl_exec($ch);
+			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+			$error = curl_error($ch);
+			curl_close($ch);
+
+			if ($result === false || !empty($error)) {
+				return [
+					'success' => false,
+					'person_id' => null,
+					'user_info' => null,
+					'error' => 'Connection failed: ' . ($error ?: 'Unknown error')
+				];
+			}
+
+			$responseData = json_decode($result, true);
+
+			if ($responseData === null) {
+				return [
+					'success' => false,
+					'person_id' => null,
+					'user_info' => null,
+					'error' => 'Invalid response from server'
+				];
+			}
+
+			// Check for authentication errors (invalid/expired token)
+			if (!isset($responseData['code']) || $responseData['code'] !== 0) {
+				$errorMsg = $responseData['message'] ?? 'Invalid or expired token';
+				
+				// Special handling for Portal user block
+				if (strpos($errorMsg, 'Portal user is not allowed') !== false) {
+					$errorMsg = 'Portal users cannot use REST API directly. This is expected - the application token will handle all queries.';
+				}
+				
+				return [
+					'success' => false,
+					'person_id' => null,
+					'user_info' => null,
+					'error' => 'Personal token validation failed: ' . $errorMsg
+				];
+			}
+
+			// Extract Person data from response
+			if (!isset($responseData['objects']) || empty($responseData['objects'])) {
+				return [
+					'success' => false,
+					'person_id' => null,
+					'user_info' => null,
+					'error' => 'No Person found for this user. The user may not have a linked contact in iTop.'
+				];
+			}
+
+			// Get first (and only) Person object from response
+			$personObject = reset($responseData['objects']);
+			$personFields = $personObject['fields'] ?? [];
+
+			$personId = $personFields['id'] ?? null;
+
+			if (!$personId) {
+				return [
+					'success' => false,
+					'person_id' => null,
+					'user_info' => null,
+					'error' => 'Could not extract Person ID from iTop response'
+				];
+			}
+
+			// Step 2: Get User ID using application token
+			// Personal tokens can't query User class, so we use the application token
+			$encryptedAppToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+			$userIdValue = null;
+			
+			if (!empty($encryptedAppToken)) {
+				try {
+					$applicationToken = $this->crypto->decrypt($encryptedAppToken);
+					
+					// Query User class using application token
+					$getUserData = [
+						'json_data' => json_encode([
+							'operation' => 'core/get',
+							'class' => 'User',
+							'key' => "SELECT User WHERE contactid = $personId",
+							'output_fields' => 'id,login,finalclass'
+						])
+					];
+					
+					$ch2 = curl_init();
+					curl_setopt($ch2, CURLOPT_URL, $apiUrl);
+					curl_setopt($ch2, CURLOPT_POST, true);
+					curl_setopt($ch2, CURLOPT_POSTFIELDS, http_build_query($getUserData));
+					curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
+					curl_setopt($ch2, CURLOPT_TIMEOUT, 15);
+					curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
+					curl_setopt($ch2, CURLOPT_HTTPHEADER, [
+						'Content-Type: application/x-www-form-urlencoded',
+						'Auth-Token: ' . $applicationToken,
+						'User-Agent: Nextcloud-iTop-Integration/1.0'
+					]);
+					
+					$userResult = curl_exec($ch2);
+					curl_close($ch2);
+					
+					$userData = json_decode($userResult, true);
+					if (isset($userData['objects']) && !empty($userData['objects'])) {
+						$userObject = reset($userData['objects']);
+						$userFields = $userObject['fields'] ?? [];
+						$userIdValue = $userFields['id'] ?? null;
+					}
+				} catch (\Exception $e) {
+					$this->logger->warning('Could not fetch User ID: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+					// Not critical - we can continue without user_id
+				}
+			}
+
+			// Success! Return Person ID, User ID, and user info
+			return [
+				'success' => true,
+				'person_id' => (string)$personId,
+				'user_id' => $userIdValue ? (string)$userIdValue : null,
+				'user_info' => [
+					'first_name' => $personFields['first_name'] ?? '',
+					'last_name' => $personFields['name'] ?? '',
+					'email' => $personFields['email'] ?? '',
+					'org_name' => $personFields['org_id_friendlyname'] ?? ''
+				],
+				'error' => null
+			];
+
+		} catch (\Exception $e) {
+			$this->logger->error('iTop personal token validation failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			return [
+				'success' => false,
+				'person_id' => null,
+				'user_info' => null,
+				'error' => 'Validation failed: ' . $e->getMessage()
+			];
+		}
 	}
 }

@@ -1,0 +1,448 @@
+<template>
+	<div class="itop-reference">
+		<div v-if="isError">
+			<h3>
+				<ItopIcon :size="20" class="icon" />
+				<span>{{ t('integration_itop', 'iTop API error') }}</span>
+			</h3>
+			<p v-if="richObject.error"
+				class="widget-error">
+				{{ richObject.error }}
+			</p>
+			<p v-else
+				class="widget-error">
+				{{ t('integration_itop', 'Unknown error') }}
+			</p>
+			<a :href="settingsUrl" class="settings-link external" target="_blank">
+				<OpenInNewIcon :size="20" class="icon" />
+				{{ t('integration_itop', 'iTop connected accounts settings') }}
+			</a>
+		</div>
+		<div v-if="!isError" class="ticket-wrapper">
+			<img :src="ticketIcon" class="ticket-icon" alt="">
+			<div class="ticket-content">
+				<!-- Row 1: Priority + Title | Status + Date -->
+				<div class="row-1">
+					<div class="left">
+						<span v-if="richObject.priority" class="priority-emoji">{{ priorityEmoji }}</span>
+						<a :href="ticketUrl" class="ticket-link" target="_blank">
+							<strong>{{ ticketTitle }}</strong>
+						</a>
+					</div>
+					<div class="right">
+						<span class="status-badge" :style="{ backgroundColor: statusBadgeColor, color: statusColor }">
+							{{ richObject.status }}
+						</span>
+						<span v-if="richObject.close_date"
+							v-tooltip.top="{ content: closedAtFormatted }"
+							class="date-with-tooltip">
+							&nbsp;· {{ closedAtText }}
+						</span>
+						<span v-else-if="richObject.last_update"
+							v-tooltip.top="{ content: updatedAtFormatted }"
+							class="date-with-tooltip">
+							&nbsp;· {{ updatedAtText }}
+						</span>
+					</div>
+				</div>
+				<!-- Row 2: Service breadcrumb | Org/Team/Agent breadcrumb -->
+				<div class="row-2">
+					<div class="left">
+						<span v-if="serviceBreadcrumb" class="service-breadcrumb" v-html="serviceBreadcrumb" />
+					</div>
+					<div class="right">
+						<span v-if="orgTeamAgentBreadcrumb" class="org-breadcrumb" v-html="orgTeamAgentBreadcrumb" />
+					</div>
+				</div>
+			</div>
+		</div>
+		<div v-if="!isError && richObject.description" class="description">
+			<div v-tooltip.top="{ html: true, content: shortDescription ? t('integration_itop', 'Click to expand description') : undefined }"
+				:class="{
+					'description-content': true,
+					'short-description': shortDescription,
+				}"
+				@click="shortDescription = !shortDescription">
+				{{ richObject.description }}
+			</div>
+		</div>
+	</div>
+</template>
+
+<script>
+import OpenInNewIcon from 'vue-material-design-icons/OpenInNew.vue'
+
+import ItopIcon from '../components/icons/ItopIcon.vue'
+
+import { generateUrl } from '@nextcloud/router'
+import moment from '@nextcloud/moment'
+
+import { Tooltip } from '@nextcloud/vue'
+import Vue from 'vue'
+
+Vue.directive('tooltip', Tooltip)
+
+export default {
+	name: 'ReferenceItopWidget',
+
+	components: {
+		ItopIcon,
+		OpenInNewIcon,
+	},
+
+	props: {
+		richObjectType: {
+			type: String,
+			default: '',
+		},
+		richObject: {
+			type: Object,
+			default: null,
+		},
+		accessible: {
+			type: Boolean,
+			default: true,
+		},
+	},
+
+	data() {
+		return {
+			settingsUrl: generateUrl('/settings/user/connected-accounts#itop_prefs'),
+			shortDescription: true,
+		}
+	},
+
+	computed: {
+		isError() {
+			return !!this.richObject.error
+		},
+		ticketUrl() {
+			return this.richObject.url
+		},
+		ticketTitle() {
+			return '[' + this.richObject.ref + '] ' + this.richObject.title
+		},
+		callerUrl() {
+			// Build URL to person details if we have person_id
+			if (this.richObject.itop_url && this.richObject.caller_id) {
+				return this.richObject.itop_url + '/pages/UI.php?operation=details&class=Person&id=' + this.richObject.caller_id
+			}
+			return this.ticketUrl
+		},
+		agentUrl() {
+			// Build URL to agent details if we have agent_id
+			if (this.richObject.itop_url && this.richObject.agent_id) {
+				return this.richObject.itop_url + '/pages/UI.php?operation=details&class=Person&id=' + this.richObject.agent_id
+			}
+			return null
+		},
+		ticketIcon() {
+			const ticketClass = this.richObject.class || ''
+			const status = this.richObject.status?.toLowerCase() || ''
+			const isClosed = status.includes('resolved') || status.includes('closed')
+
+			// Return appropriate icon based on class and status
+			// Use direct path without generateUrl to avoid /index.php/ prefix
+			const basePath = window.location.origin + '/apps/integration_itop/img/'
+			if (ticketClass === 'Incident') {
+				return basePath + 'incident.svg'
+			}
+			if (ticketClass === 'UserRequest') {
+				if (isClosed) {
+					return basePath + 'user-request-closed.svg'
+				}
+				return basePath + 'user-request.svg'
+			}
+			// Default fallback
+			return basePath + 'ticket.svg'
+		},
+		statusColor() {
+			const status = this.richObject.status?.toLowerCase() || ''
+			if (status.includes('resolved') || status.includes('closed')) {
+				return '#28a745' // green
+			}
+			if (status.includes('assigned')) {
+				return '#8b5cf6' // purple
+			}
+			if (status.includes('new')) {
+				return '#3b82f6' // blue
+			}
+			if (status.includes('pending')) {
+				return '#f59e0b' // orange
+			}
+			return '#ef4444' // red
+		},
+		statusBadgeColor() {
+			const status = this.richObject.status?.toLowerCase() || ''
+			if (status.includes('resolved') || status.includes('closed')) {
+				return 'rgba(40, 167, 69, 0.15)' // light green
+			}
+			if (status.includes('assigned')) {
+				return 'rgba(139, 92, 246, 0.15)' // light purple
+			}
+			if (status.includes('new')) {
+				return 'rgba(59, 130, 246, 0.15)' // light blue
+			}
+			if (status.includes('pending')) {
+				return 'rgba(245, 158, 11, 0.15)' // light orange
+			}
+			return 'rgba(239, 68, 68, 0.15)' // light red
+		},
+		priorityEmoji() {
+			const priority = this.richObject.priority?.toLowerCase() || ''
+			if (priority.includes('1') || priority.includes('critical')) {
+				return '🔴'
+			}
+			if (priority.includes('2') || priority.includes('high')) {
+				return '🟠'
+			}
+			if (priority.includes('3') || priority.includes('medium')) {
+				return '🟡'
+			}
+			return '🟢'
+		},
+		serviceBreadcrumb() {
+			const service = this.richObject.service_name
+			const subcategory = this.richObject.servicesubcategory_name
+			const caller = this.richObject.caller_id_friendlyname
+			const org = this.richObject.org_name
+
+			if (!service && !subcategory && !caller) {
+				return null
+			}
+
+			const parts = []
+
+			// Add service emoji and name if exists
+			if (service) {
+				parts.push('🏷️ ' + service)
+			}
+
+			// Add subcategory with breadcrumb separator if exists
+			if (subcategory) {
+				parts.push(' > ' + subcategory)
+			}
+
+			// Add caller with link if exists
+			if (caller) {
+				const callerLink = `<a href="${this.callerUrl}" target="_blank" class="author-link">${caller}</a>`
+				const orgText = org ? ` (${org})` : ''
+				parts.push(' for ' + callerLink + orgText)
+			}
+
+			return parts.join('')
+		},
+		orgTeamAgentBreadcrumb() {
+			const org = this.richObject.org_id_friendlyname
+			const team = this.richObject.team_id_friendlyname
+			const agent = this.richObject.agent_id_friendlyname
+
+			if (!org && !team && !agent) {
+				return null
+			}
+
+			const parts = []
+
+			// Add org if exists
+			if (org) {
+				parts.push('🏢 ' + org)
+			}
+
+			// Add team if exists
+			if (team) {
+				parts.push('👥 ' + team)
+			}
+
+			// Add agent with link if exists
+			if (agent) {
+				if (this.agentUrl) {
+					parts.push(`<a href="${this.agentUrl}" target="_blank" class="agent-link">👤 ${agent}</a>`)
+				} else {
+					parts.push('👤 ' + agent)
+				}
+			}
+
+			return parts.join(' > ')
+		},
+		createdAtFormatted() {
+			return moment(this.richObject.creation_date).format('LLL')
+		},
+		closedAtFormatted() {
+			return moment(this.richObject.close_date).format('LLL')
+		},
+		updatedAtFormatted() {
+			return moment(this.richObject.last_update).format('LLL')
+		},
+		createdAtText() {
+			return t('integration_itop', 'created {relativeDate}', { relativeDate: moment(this.richObject.creation_date).fromNow() })
+		},
+		closedAtText() {
+			return t('integration_itop', 'closed {relativeDate}', { relativeDate: moment(this.richObject.close_date).fromNow() })
+		},
+		updatedAtText() {
+			return t('integration_itop', 'updated {relativeDate}', { relativeDate: moment(this.richObject.last_update).fromNow() })
+		},
+	},
+
+	methods: {
+	},
+}
+</script>
+
+<style scoped lang="scss">
+.itop-reference {
+	width: 100%;
+	white-space: normal;
+	padding: 12px;
+
+	a {
+		padding: 0 !important;
+		color: var(--color-main-text) !important;
+		text-decoration: unset !important;
+	}
+
+	h3 {
+		display: flex;
+		align-items: center;
+		font-weight: bold;
+		margin-top: 0;
+		.icon {
+			margin-right: 8px;
+		}
+	}
+
+	.ticket-wrapper {
+		width: 100%;
+		display: flex;
+		flex-direction: row;
+		align-items: start;
+		gap: 12px;
+
+		.ticket-icon {
+			width: 48px;
+			height: 48px;
+			flex-shrink: 0;
+			margin-top: 4px;
+		}
+
+		.ticket-content {
+			flex: 1;
+			min-width: 0;
+			display: flex;
+			flex-direction: column;
+			gap: 4px;
+		}
+
+		.row-1,
+		.row-2 {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 12px;
+
+			.left {
+				flex: 1;
+				display: flex;
+				align-items: center;
+				gap: 4px;
+				flex-wrap: wrap;
+			}
+
+			.right {
+				display: flex;
+				align-items: center;
+				gap: 4px;
+				flex-wrap: wrap;
+				flex-shrink: 0;
+			}
+		}
+
+		.row-1 {
+			.priority-emoji {
+				font-size: 16px;
+			}
+
+			.ticket-link {
+				strong {
+					font-weight: 600;
+				}
+			}
+
+			.status-badge {
+				padding: 2px 8px;
+				border-radius: var(--border-radius-pill);
+				background-color: var(--color-background-dark);
+				font-size: 12px;
+			}
+
+			.date-with-tooltip {
+				color: var(--color-text-maxcontrast);
+				font-size: 12px;
+			}
+		}
+
+		.row-2 {
+			font-size: 13px;
+			color: var(--color-text-maxcontrast);
+
+			.service-breadcrumb,
+			.org-breadcrumb {
+				::v-deep a {
+					color: inherit !important;
+					&:hover {
+						color: #58a6ff !important;
+					}
+				}
+			}
+		}
+	}
+
+	.description {
+		margin-top: 12px;
+		padding-top: 12px;
+		border-top: 1px solid var(--color-border);
+
+		&-content {
+			cursor: pointer;
+			max-height: 250px;
+			overflow: auto;
+			color: var(--color-text-maxcontrast);
+			white-space: pre-wrap;
+
+			&.short-description {
+				max-height: 40px;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+		}
+	}
+
+	::v-deep .author-link,
+	::v-deep .agent-link,
+	.slug-link {
+		color: inherit !important;
+	}
+
+	.date-with-tooltip,
+	::v-deep .author-link,
+	::v-deep .agent-link,
+	.slug-link,
+	.ticket-link {
+		&:hover {
+			color: #58a6ff !important;
+		}
+	}
+
+	.settings-link {
+		display: flex;
+		align-items: center;
+		.icon {
+			margin-right: 4px;
+		}
+	}
+
+	.widget-error {
+		margin-bottom: 8px;
+	}
+}
+</style>
