@@ -338,13 +338,13 @@ class PreviewMapper {
 		$iconMap = [
 			'PC' => 'PC.svg',
 			'Phone' => 'Phone.svg',
-			'IPPhone' => 'Phone.svg',
-			'MobilePhone' => 'Phone.svg',
+			'IPPhone' => 'IPPhone.svg',
+			'MobilePhone' => 'MobilePhone.svg',
 			'Tablet' => 'Tablet.svg',
 			'Printer' => 'Printer.svg',
 			'Peripheral' => 'Peripheral.svg',
 			'PCSoftware' => 'PCSoftware.svg',
-			'OtherSoftware' => 'Software.svg',
+			'OtherSoftware' => 'OtherSoftware.svg',
 			'WebApplication' => 'WebApplication.svg',
 		];
 

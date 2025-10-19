@@ -21,18 +21,29 @@
 		<div v-if="!isError" class="ticket-wrapper">
 			<img :src="ticketIcon" class="ticket-icon" alt="">
 			<div class="ticket-content">
-				<!-- Row 1: Priority + Title | Status + Date -->
+				<!-- Row 1: Title | Status/Badges + Date -->
 				<div class="row-1">
 					<div class="left">
-						<span v-if="richObject.priority" class="priority-emoji">{{ priorityEmoji }}</span>
+						<span v-if="!isCI && richObject.priority" class="priority-emoji">{{ priorityEmoji }}</span>
 						<a :href="ticketUrl" class="ticket-link" target="_blank">
 							<strong>{{ ticketTitle }}</strong>
 						</a>
 					</div>
 					<div class="right">
-						<span class="status-badge" :style="{ backgroundColor: statusBadgeColor, color: statusColor }">
+						<!-- Ticket status -->
+						<span v-if="!isCI && richObject.status" class="status-badge" :style="{ backgroundColor: statusBadgeColor, color: statusColor }">
 							{{ richObject.status }}
 						</span>
+						<!-- CI badges -->
+						<template v-if="isCI">
+							<span v-for="badge in richObject.badges"
+								:key="badge.label"
+								class="ci-badge"
+								:class="'badge-' + badge.type">
+								{{ badge.label }}
+							</span>
+						</template>
+						<!-- Dates -->
 						<span v-if="richObject.close_date"
 							v-tooltip.top="{ content: closedAtFormatted }"
 							class="date-with-tooltip">
@@ -45,13 +56,32 @@
 						</span>
 					</div>
 				</div>
-				<!-- Row 2: Service breadcrumb | Org/Team/Agent breadcrumb -->
+				<!-- Row 2: Service/CI breadcrumb | Org/Team/Agent breadcrumb -->
 				<div class="row-2">
 					<div class="left">
-						<span v-if="serviceBreadcrumb" class="service-breadcrumb" v-html="serviceBreadcrumb" />
+						<!-- Ticket service breadcrumb -->
+						<span v-if="!isCI && serviceBreadcrumb" class="service-breadcrumb" v-html="serviceBreadcrumb" />
+						<!-- CI subtitle -->
+						<span v-if="isCI && richObject.subtitle" class="ci-subtitle">
+							{{ richObject.subtitle }}
+						</span>
 					</div>
 					<div class="right">
-						<span v-if="orgTeamAgentBreadcrumb" class="org-breadcrumb" v-html="orgTeamAgentBreadcrumb" />
+						<span v-if="!isCI && orgTeamAgentBreadcrumb" class="org-breadcrumb" v-html="orgTeamAgentBreadcrumb" />
+					</div>
+				</div>
+				<!-- Row 3: CI Chips (location, asset info, brand/model) -->
+				<div v-if="isCI && richObject.chips && richObject.chips.length > 0" class="row-3 ci-chips">
+					<span v-for="chip in richObject.chips" :key="chip.label" class="ci-chip">
+						<span class="chip-icon">{{ getChipIcon(chip.icon) }}</span>
+						<span class="chip-label">{{ chip.label }}</span>
+					</span>
+				</div>
+				<!-- Row 4: CI Extras (class-specific fields) -->
+				<div v-if="isCI && richObject.extras && richObject.extras.length > 0" class="row-4 ci-extras">
+					<div v-for="extra in richObject.extras" :key="extra.label" class="ci-extra">
+						<span class="extra-label">{{ extra.label }}:</span>
+						<span class="extra-value">{{ extra.value }}</span>
 					</div>
 				</div>
 			</div>
@@ -301,6 +331,16 @@ export default {
 	},
 
 	methods: {
+		getChipIcon(iconName) {
+			// Map icon names to emoji/symbols
+			const iconMap = {
+				'map-marker': '📍',
+				barcode: '🏷️',
+				identifier: '#',
+				tag: '🔖',
+			}
+			return iconMap[iconName] || '•'
+		},
 	},
 }
 </script>
@@ -409,6 +449,95 @@ export default {
 						color: #58a6ff !important;
 					}
 				}
+			}
+
+			.ci-subtitle {
+				color: var(--color-text-maxcontrast);
+			}
+		}
+
+		.row-3 {
+			&.ci-chips {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 6px;
+				margin-top: 4px;
+
+				.ci-chip {
+					display: inline-flex;
+					align-items: center;
+					gap: 4px;
+					padding: 3px 8px;
+					background-color: var(--color-background-hover);
+					border-radius: var(--border-radius-pill);
+					font-size: 12px;
+					color: var(--color-text-maxcontrast);
+
+					.chip-icon {
+						font-size: 11px;
+					}
+
+					.chip-label {
+						line-height: 1.2;
+					}
+				}
+			}
+		}
+
+		.row-4 {
+			&.ci-extras {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 12px;
+				margin-top: 6px;
+				font-size: 12px;
+
+				.ci-extra {
+					display: flex;
+					gap: 4px;
+
+					.extra-label {
+						font-weight: 500;
+						color: var(--color-text-maxcontrast);
+					}
+
+					.extra-value {
+						color: var(--color-main-text);
+					}
+				}
+			}
+		}
+
+		// CI badges styling
+		.ci-badge {
+			padding: 2px 8px;
+			border-radius: var(--border-radius-pill);
+			font-size: 12px;
+			font-weight: 500;
+
+			&.badge-success {
+				background-color: rgba(40, 167, 69, 0.15);
+				color: #28a745;
+			}
+
+			&.badge-info {
+				background-color: rgba(59, 130, 246, 0.15);
+				color: #3b82f6;
+			}
+
+			&.badge-warning {
+				background-color: rgba(245, 158, 11, 0.15);
+				color: #f59e0b;
+			}
+
+			&.badge-error {
+				background-color: rgba(239, 68, 68, 0.15);
+				color: #ef4444;
+			}
+
+			&.badge-neutral {
+				background-color: var(--color-background-dark);
+				color: var(--color-text-maxcontrast);
 			}
 		}
 	}
