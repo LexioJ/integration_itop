@@ -13,7 +13,10 @@
 namespace OCA\Itop\Reference;
 
 use OCA\Itop\AppInfo\Application;
+use OCA\Itop\Service\CacheService;
 use OCA\Itop\Service\ItopAPIService;
+use OCA\Itop\Service\PreviewMapper;
+use OCA\Itop\Service\ProfileService;
 use OCP\Collaboration\Reference\ADiscoverableReferenceProvider;
 use OCP\Collaboration\Reference\IReference;
 use OCP\Collaboration\Reference\ISearchableReferenceProvider;
@@ -27,12 +30,22 @@ use Psr\Log\LoggerInterface;
 class ItopReferenceProvider extends ADiscoverableReferenceProvider implements ISearchableReferenceProvider {
 
 	private const RICH_OBJECT_TYPE = Application::APP_ID . '_ticket';
+	private const RICH_OBJECT_TYPE_CI = Application::APP_ID . '_ci';
+
+	// Supported CI classes for rich previews
+	private const SUPPORTED_CI_CLASSES = [
+		'PC', 'Phone', 'IPPhone', 'MobilePhone', 'Tablet',
+		'Printer', 'Peripheral', 'PCSoftware', 'OtherSoftware', 'WebApplication'
+	];
 
 	public function __construct(
 		private IConfig $config,
 		private IL10N $l10n,
 		private IURLGenerator $urlGenerator,
 		private ItopAPIService $itopAPIService,
+		private ProfileService $profileService,
+		private PreviewMapper $previewMapper,
+		private CacheService $cacheService,
 		private LoggerInterface $logger,
 		private ?string $userId,
 	) {
@@ -76,9 +89,10 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
 			$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
 			$itopUrl = $userItopUrl ?: $adminItopUrl;
-			
+
 			if ($itopUrl !== '') {
-				return $this->getTicketIdFromUrl($referenceText, $itopUrl) !== null;
+				$parsed = $this->parseItopUrl($referenceText, $itopUrl);
+				return $parsed !== null;
 			}
 		}
 		return false;
@@ -88,14 +102,24 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 * @inheritDoc
 	 */
 	public function resolveReference(string $referenceText): ?IReference {
-		if ($this->matchReference($referenceText)) {
+		if ($this->matchReference($referenceText) && $this->userId !== null) {
 			$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
 			$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
 			$itopUrl = $userItopUrl ?: $adminItopUrl;
-			
-			$ticketInfo = $this->getTicketIdFromUrl($referenceText, $itopUrl);
-			if ($ticketInfo !== null && $this->userId !== null) {
-				return $this->getTicketReference($ticketInfo['id'], $ticketInfo['class'], $referenceText);
+
+			$parsed = $this->parseItopUrl($referenceText, $itopUrl);
+			if ($parsed === null) {
+				return null;
+			}
+
+			$class = $parsed['class'];
+			$id = $parsed['id'];
+
+			// Determine if this is a ticket or CI
+			if ($class === 'UserRequest' || $class === 'Incident') {
+				return $this->getTicketReference($id, $class, $referenceText);
+			} elseif (in_array($class, self::SUPPORTED_CI_CLASSES, true)) {
+				return $this->getCIReference($id, $class, $referenceText);
 			}
 		}
 
@@ -164,14 +188,16 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	}
 
 	/**
-	 * Get ticket ID and class from URL
+	 * Parse iTop URL to extract class and ID
 	 *
-	 * @param string $url
-	 * @param string $itopUrl
-	 * @return array|null
+	 * Works for both tickets (UserRequest, Incident) and CIs (PC, Phone, etc.)
+	 *
+	 * @param string $url Full iTop URL
+	 * @param string $itopUrl Base iTop instance URL
+	 * @return array|null ['class' => string, 'id' => int] or null if not a valid iTop URL
 	 */
-	private function getTicketIdFromUrl(string $url, string $itopUrl): ?array {
-		// Match URLs like: http://itop.example.com/pages/UI.php?operation=details&class=UserRequest&id=123
+	private function parseItopUrl(string $url, string $itopUrl): ?array {
+		// Match URLs like: http://itop.example.com/pages/UI.php?operation=details&class=PC&id=123
 		// Note: Nextcloud's reference system only sends plain URLs, not markdown-formatted links
 		$pattern = '#^' . preg_quote($itopUrl, '#') . '/pages/UI\.php\?.*operation=details.*class=([^&]+).*id=(\d+)#';
 		if (preg_match($pattern, $url, $matches)) {
@@ -262,6 +288,105 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			$this->logger->error('Error getting iTop ticket reference: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return null;
 		}
+	}
+
+	/**
+	 * Get reference for a Configuration Item (CI)
+	 *
+	 * Uses ProfileService, CacheService, and PreviewMapper from Phase 2
+	 *
+	 * @param int $ciId CI ID
+	 * @param string $class CI class (PC, Phone, Tablet, etc.)
+	 * @param string $url Full iTop URL
+	 * @return IReference|null
+	 */
+	private function getCIReference(int $ciId, string $class, string $url): ?IReference {
+		try {
+			// Check cache first
+			$cachedPreview = $this->cacheService->getCIPreview($this->userId, $class, $ciId);
+
+			if ($cachedPreview !== null) {
+				$this->logger->debug('CI preview cache hit', [
+					'app' => Application::APP_ID,
+					'userId' => $this->userId,
+					'class' => $class,
+					'id' => $ciId
+				]);
+				return $this->buildCIReferenceFromPreview($cachedPreview, $url);
+			}
+
+			// Determine if user is portal-only
+			$isPortalOnly = $this->profileService->isPortalOnly($this->userId);
+
+			// Fetch CI data from iTop API
+			$ciData = $this->itopAPIService->getCIPreview($this->userId, $class, $ciId, $isPortalOnly);
+
+			// Check for errors or empty results
+			if (isset($ciData['error']) || empty($ciData['objects'])) {
+				$this->logger->debug('CI not found or access denied', [
+					'app' => Application::APP_ID,
+					'userId' => $this->userId,
+					'class' => $class,
+					'id' => $ciId,
+					'isPortalOnly' => $isPortalOnly,
+					'error' => $ciData['error'] ?? 'No objects returned'
+				]);
+				return null;
+			}
+
+			// Transform to preview format
+			$ciObject = $ciData['objects'][array_key_first($ciData['objects'])];
+			$preview = $this->previewMapper->mapCIToPreview($ciObject, $class);
+
+			// Cache the preview
+			$this->cacheService->setCIPreview($this->userId, $class, $ciId, $preview);
+
+			return $this->buildCIReferenceFromPreview($preview, $url);
+
+		} catch (\Exception $e) {
+			$this->logger->error('Error getting iTop CI reference: ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+				'class' => $class,
+				'id' => $ciId,
+				'exception' => $e
+			]);
+			return null;
+		}
+	}
+
+	/**
+	 * Build IReference object from CI preview data
+	 *
+	 * @param array $preview Preview data from PreviewMapper
+	 * @param string $url Original iTop URL
+	 * @return IReference
+	 */
+	private function buildCIReferenceFromPreview(array $preview, string $url): IReference {
+		$reference = new Reference($url);
+
+		// Set title with CI name
+		$reference->setTitle($preview['title'] ?? 'iTop CI');
+
+		// Build rich object with preview data
+		$reference->setRichObject(
+			self::RICH_OBJECT_TYPE_CI,
+			[
+				'id' => $preview['id'] ?? null,
+				'class' => $preview['class'] ?? '',
+				'title' => $preview['title'] ?? '',
+				'subtitle' => $preview['subtitle'] ?? '',
+				'badges' => $preview['badges'] ?? [],
+				'chips' => $preview['chips'] ?? [],
+				'extras' => $preview['extras'] ?? [],
+				'description' => $preview['description'] ?? '',
+				'timestamps' => $preview['timestamps'] ?? [],
+				'url' => $url,
+				'itop_url' => $preview['url'] ?? $url,
+				'icon' => $preview['icon'] ?? '',
+			]
+		);
+
+		return $reference;
 	}
 
 	/**
