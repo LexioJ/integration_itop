@@ -23,8 +23,8 @@ export default createAppConfig({
 		},
 		plugins: [eslint()],
 		build: {
-			outDir: 'js/vue',
-			emptyOutDir: true,
+			outDir: '.',
+			emptyOutDir: false,
 		},
 	},
 	inlineCSS: { relativeCSSInjection: true },
