@@ -116,10 +116,19 @@ export default {
 		isError() {
 			return !!this.richObject.error
 		},
+		isCI() {
+			// Check if this is a CI (not a ticket)
+			return this.richObjectType === 'integration_itop_ci'
+		},
 		ticketUrl() {
 			return this.richObject.url
 		},
 		ticketTitle() {
+			if (this.isCI) {
+				// For CIs, show title directly
+				return this.richObject.title
+			}
+			// For tickets, show ref + title
 			return '[' + this.richObject.ref + '] ' + this.richObject.title
 		},
 		callerUrl() {
@@ -137,17 +146,24 @@ export default {
 			return null
 		},
 		ticketIcon() {
-			const ticketClass = this.richObject.class || ''
+			const objectClass = this.richObject.class || ''
 			const status = this.richObject.status?.toLowerCase() || ''
 			const isClosed = status.includes('resolved') || status.includes('closed')
 
-			// Return appropriate icon based on class and status
 			// Use direct path without generateUrl to avoid /index.php/ prefix
 			const basePath = window.location.origin + '/apps/integration_itop/img/'
-			if (ticketClass === 'Incident') {
+
+			if (this.isCI) {
+				// CI icons
+				const iconFile = this.richObject.icon || 'ci-default.svg'
+				return basePath + iconFile
+			}
+
+			// Ticket icons
+			if (objectClass === 'Incident') {
 				return basePath + 'incident.svg'
 			}
-			if (ticketClass === 'UserRequest') {
+			if (objectClass === 'UserRequest') {
 				if (isClosed) {
 					return basePath + 'user-request-closed.svg'
 				}
