@@ -603,6 +603,182 @@ class ItopAPIService {
 	}
 
 	/**
+	 * Get CI preview data for a single CI
+	 *
+	 * Fetches only the fields needed for preview rendering (defined in docs/class-mapping.md).
+	 * Uses profile-aware filtering: Portal-only users get CIs from contacts_list,
+	 * power users get full CMDB access within ACL.
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param string $class iTop CI class (PC, Phone, Tablet, etc.)
+	 * @param int $id CI ID
+	 * @param bool $isPortalOnly Whether user has only Portal user profile
+	 * @return array CI data with preview fields or error
+	 * @throws Exception
+	 */
+	public function getCIPreview(string $userId, string $class, int $id, bool $isPortalOnly = false): array {
+		// Define preview fields per class (from docs/class-mapping.md)
+		$outputFields = $this->getCIPreviewFields($class);
+
+		// Build OQL query with profile-aware filtering
+		if ($isPortalOnly) {
+			// Portal-only users: Only CIs where they are listed as contact
+			$personId = $this->getPersonId($userId);
+			if (!$personId) {
+				return ['error' => $this->l10n->t('User not configured')];
+			}
+
+			// Query via lnkContactToFunctionalCI to get allowed CIs
+			$query = "SELECT $class AS ci JOIN lnkContactToFunctionalCI AS lnk ON lnk.functionalci_id = ci.id WHERE lnk.contact_id = $personId AND ci.id = $id";
+		} else {
+			// Power users: Full CMDB access within ACL
+			$query = $id;
+		}
+
+		$params = [
+			'operation' => 'core/get',
+			'class' => $class,
+			'key' => $query,
+			'output_fields' => $outputFields
+		];
+
+		return $this->request($userId, $params);
+	}
+
+	/**
+	 * Search CIs with profile-aware filtering
+	 *
+	 * Portal-only users: Only CIs where they are listed as contact (contacts_list)
+	 * Power users: Full CMDB access within ACL
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param string $term Search term (searches name, serialnumber, asset_number)
+	 * @param array $classes CI classes to search (default: all supported classes)
+	 * @param bool $isPortalOnly Whether user has only Portal user profile
+	 * @param int $limit Maximum results per class
+	 * @return array Search results with preview data
+	 * @throws Exception
+	 */
+	public function searchCIs(string $userId, string $term, array $classes = [], bool $isPortalOnly = false, int $limit = 10): array {
+		// Default to all supported CI classes
+		if (empty($classes)) {
+			$classes = ['PC', 'Phone', 'IPPhone', 'MobilePhone', 'Tablet', 'Printer', 'Peripheral', 'PCSoftware', 'OtherSoftware', 'WebApplication'];
+		}
+
+		$searchResults = [];
+		$itopUrl = $this->getItopUrl($userId);
+		$escapedTerm = str_replace("'", "\\'", $term);
+
+		// Get person ID for portal-only filtering
+		$personId = null;
+		if ($isPortalOnly) {
+			$personId = $this->getPersonId($userId);
+			if (!$personId) {
+				return ['error' => $this->l10n->t('User not configured')];
+			}
+		}
+
+		foreach ($classes as $class) {
+			$outputFields = $this->getCIPreviewFields($class);
+
+			// Build OQL query with profile-aware filtering
+			if ($isPortalOnly) {
+				// Portal-only: Only CIs where user is contact
+				$query = "SELECT $class AS ci JOIN lnkContactToFunctionalCI AS lnk ON lnk.functionalci_id = ci.id "
+					   . "WHERE lnk.contact_id = $personId "
+					   . "AND (ci.name LIKE '%$escapedTerm%' OR ci.serialnumber LIKE '%$escapedTerm%' OR ci.asset_number LIKE '%$escapedTerm%')";
+			} else {
+				// Power users: Full CMDB search within ACL
+				$query = "SELECT $class WHERE name LIKE '%$escapedTerm%' OR serialnumber LIKE '%$escapedTerm%' OR asset_number LIKE '%$escapedTerm%'";
+			}
+
+			$params = [
+				'operation' => 'core/get',
+				'class' => $class,
+				'key' => $query,
+				'output_fields' => $outputFields,
+				'limit' => $limit
+			];
+
+			$result = $this->request($userId, $params);
+
+			if (isset($result['objects'])) {
+				foreach ($result['objects'] as $key => $ci) {
+					$fields = $ci['fields'] ?? [];
+					$searchResults[] = [
+						'class' => $class,
+						'id' => $fields['id'] ?? null,
+						'name' => $fields['name'] ?? $fields['friendlyname'] ?? '',
+						'status' => $fields['status'] ?? '',
+						'business_criticity' => $fields['business_criticity'] ?? '',
+						'org_name' => $fields['org_id_friendlyname'] ?? '',
+						'location' => $fields['location_id_friendlyname'] ?? '',
+						'serialnumber' => $fields['serialnumber'] ?? '',
+						'asset_number' => $fields['asset_number'] ?? '',
+						'brand_model' => trim(($fields['brand_id_friendlyname'] ?? '') . ' ' . ($fields['model_id_friendlyname'] ?? '')),
+						'description' => strip_tags($fields['description'] ?? ''),
+						'url' => $itopUrl . '/pages/UI.php?operation=details&class=' . urlencode($class) . '&id=' . ($fields['id'] ?? '')
+					];
+				}
+			}
+		}
+
+		// Sort by name
+		usort($searchResults, function($a, $b) {
+			return strcasecmp($a['name'], $b['name']);
+		});
+
+		return $searchResults;
+	}
+
+	/**
+	 * Get preview fields for a CI class
+	 *
+	 * Returns comma-separated field list for output_fields parameter.
+	 * Based on docs/class-mapping.md specifications.
+	 *
+	 * @param string $class iTop CI class name
+	 * @return string Comma-separated field list
+	 */
+	private function getCIPreviewFields(string $class): string {
+		// Common fields for all CI classes
+		$commonFields = [
+			'id',
+			'name',
+			'friendlyname',
+			'status',
+			'business_criticity',
+			'org_id_friendlyname',
+			'location_id_friendlyname',
+			'brand_id_friendlyname',
+			'model_id_friendlyname',
+			'serialnumber',
+			'asset_number',
+			'description',
+			'last_update',
+			'move2production'
+		];
+
+		// Class-specific additional fields
+		$classSpecificFields = [
+			'PC' => ['type', 'osfamily_id_friendlyname', 'osversion_id_friendlyname', 'cpu', 'ram'],
+			'Phone' => ['phonenumber'],
+			'IPPhone' => ['phonenumber'],
+			'MobilePhone' => ['phonenumber', 'imei'],
+			'WebApplication' => ['url', 'webserver_name'],
+			'PCSoftware' => ['system_name', 'software_id_friendlyname', 'softwarelicence_id_friendlyname', 'path'],
+			'OtherSoftware' => ['system_name', 'software_id_friendlyname', 'softwarelicence_id_friendlyname', 'path'],
+		];
+
+		$fields = $commonFields;
+		if (isset($classSpecificFields[$class])) {
+			$fields = array_merge($fields, $classSpecificFields[$class]);
+		}
+
+		return implode(',', $fields);
+	}
+
+	/**
 	 * Make authenticated request to iTop REST API
 	 *
 	 * @param string $userId Nextcloud user ID
