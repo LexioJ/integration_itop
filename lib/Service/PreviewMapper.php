@@ -334,21 +334,10 @@ class PreviewMapper {
 	 * @return string Icon filename (without path)
 	 */
 	private function getClassIcon(string $class): string {
-		// Map classes to icon files (icon files should be in img/ directory)
-		$iconMap = [
-			'PC' => 'PC.svg',
-			'Phone' => 'Phone.svg',
-			'IPPhone' => 'IPPhone.svg',
-			'MobilePhone' => 'MobilePhone.svg',
-			'Tablet' => 'Tablet.svg',
-			'Printer' => 'Printer.svg',
-			'Peripheral' => 'Peripheral.svg',
-			'PCSoftware' => 'PCSoftware.svg',
-			'OtherSoftware' => 'OtherSoftware.svg',
-			'WebApplication' => 'WebApplication.svg',
-		];
-
-		return $iconMap[$class] ?? 'FunctionalCI.svg'; // Fallback icon
+		// Icon filename matches class name (e.g., PC.svg, Phone.svg, etc.)
+		// Fallback to FunctionalCI.svg for unknown classes
+		$iconName = in_array($class, Application::SUPPORTED_CI_CLASSES, true) ? $class : 'FunctionalCI';
+		return $iconName . '.svg';
 	}
 
 	/**

@@ -32,12 +32,6 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	private const RICH_OBJECT_TYPE = Application::APP_ID . '_ticket';
 	private const RICH_OBJECT_TYPE_CI = Application::APP_ID . '_ci';
 
-	// Supported CI classes for rich previews
-	private const SUPPORTED_CI_CLASSES = [
-		'PC', 'Phone', 'IPPhone', 'MobilePhone', 'Tablet',
-		'Printer', 'Peripheral', 'PCSoftware', 'OtherSoftware', 'WebApplication'
-	];
-
 	public function __construct(
 		private IConfig $config,
 		private IL10N $l10n,
@@ -118,7 +112,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			// Determine if this is a ticket or CI
 			if ($class === 'UserRequest' || $class === 'Incident') {
 				return $this->getTicketReference($id, $class, $referenceText);
-			} elseif (in_array($class, self::SUPPORTED_CI_CLASSES, true)) {
+			} elseif (in_array($class, Application::SUPPORTED_CI_CLASSES, true)) {
 				return $this->getCIReference($id, $class, $referenceText);
 			}
 		}

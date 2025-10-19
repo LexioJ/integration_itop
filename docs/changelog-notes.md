@@ -183,7 +183,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Note:** Unlike `composer.json` which typically doesn't include a version field in Nextcloud apps, `package.json` requires explicit version updates for npm/vite builds.
 
-**4. composer.json (optional - usually no version field needed)**
+**4. lib/AppInfo/Application.php**
+
+**IMPORTANT:** This file MUST be updated with every version bump
+
+```php
+class Application extends App implements IBootstrap {
+
+	public const APP_ID = 'integration_itop';
+	public const VERSION = '1.0.0';  // UPDATE THIS
+
+	public const SUPPORTED_CI_CLASSES = [
+		'PC', 'Phone', 'IPPhone', 'MobilePhone', 'Tablet',
+		'Printer', 'Peripheral', 'PCSoftware', 'OtherSoftware', 'WebApplication'
+	];
+	...
+}
+```
+
+**Note:** The VERSION constant in Application.php is used internally for debugging and logging. Keep it synchronized with info.xml.
+
+**5. composer.json (optional - usually no version field needed)**
 ```json
 {
   "name": "nextcloud/integration_itop",
