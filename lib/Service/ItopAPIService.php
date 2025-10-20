@@ -620,7 +620,7 @@ class ItopAPIService {
 		// Define preview fields per class (from docs/class-mapping.md)
 		$outputFields = $this->getCIPreviewFields($class);
 
-		// Build OQL query with profile-aware filtering
+		// Build query with profile-aware filtering
 		if ($isPortalOnly) {
 			// Portal-only users: Only CIs where they are listed as contact
 			$personId = $this->getPersonId($userId);
@@ -630,17 +630,22 @@ class ItopAPIService {
 
 			// Query via lnkContactToFunctionalCI to get allowed CIs
 			$query = "SELECT $class AS ci JOIN lnkContactToFunctionalCI AS lnk ON lnk.functionalci_id = ci.id WHERE lnk.contact_id = $personId AND ci.id = $id";
+			$params = [
+				'operation' => 'core/get',
+				'class' => $class,
+				'key' => $query,
+				'output_fields' => $outputFields
+			];
 		} else {
 			// Power users: Full CMDB access within ACL
-			$query = $id;
+			// For core/get with simple ID lookup, just pass the ID directly
+			$params = [
+				'operation' => 'core/get',
+				'class' => $class,
+				'key' => $id,
+				'output_fields' => $outputFields
+			];
 		}
-
-		$params = [
-			'operation' => 'core/get',
-			'class' => $class,
-			'key' => $query,
-			'output_fields' => $outputFields
-		];
 
 		return $this->request($userId, $params);
 	}
@@ -755,7 +760,6 @@ class ItopAPIService {
 			'serialnumber',
 			'asset_number',
 			'description',
-			'last_update',
 			'move2production'
 		];
 
