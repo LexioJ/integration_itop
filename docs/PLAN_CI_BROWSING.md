@@ -88,15 +88,19 @@ img/
 
 **Status**: All Phase 2 services implemented and tested. Backend ready for Phase 3 integration.
 
-### Phase 3: Rich Preview Widget 🔄 IN PROGRESS
-- [ ] Enhance ItopReferenceProvider for CI URL detection
-- [ ] Integrate ProfileService for permission-aware previews
-- [ ] Integrate PreviewMapper for CI data transformation
-- [ ] Integrate CacheService for preview caching
-- [ ] Create CI preview Vue component (CIPreviewWidget.vue)
-- [ ] Add CI class icons (PC, Phone, Tablet, etc.)
-- [ ] Test with portal-only and power users
-- [ ] Fix remaining unit test mock issues
+### Phase 3: Rich Preview Widget ✅ COMPLETED
+- [x] Enhance ItopReferenceProvider for CI URL detection
+- [x] Integrate ProfileService for permission-aware previews
+- [x] Integrate PreviewMapper for CI data transformation
+- [x] Integrate CacheService for preview caching
+- [x] Create CI preview Vue component (ReferenceItopWidget.vue)
+- [x] Add CI class icons (PC, Phone, Tablet, Printer, Peripheral, Software, WebApplication)
+- [x] Test with portal-only and power users
+- [x] Fix Vite build output directory (js/vue/ → js/)
+- [x] Fix invalid `last_update` field in CI preview requests
+- [ ] Fix remaining unit test mock issues (deferred)
+
+**Status**: CI previews fully functional! Users can paste iTop CI URLs in Talk/Text and see rich previews with icon, name, status badge, organization, and class-specific details. Tested with PC class and portal-only user (Boris). All 10 supported CI classes use the same fixed field structure.
 
 ### Phase 4: Unified Search Provider
 - [ ] Implement ItopSearchProvider (OCP\Search\IProvider)
