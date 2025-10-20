@@ -192,12 +192,29 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 */
 	private function parseItopUrl(string $url, string $itopUrl): ?array {
 		// Match URLs like: http://itop.example.com/pages/UI.php?operation=details&class=PC&id=123
-		// Note: Nextcloud's reference system only sends plain URLs, not markdown-formatted links
-		$pattern = '#^' . preg_quote($itopUrl, '#') . '/pages/UI\.php\?.*operation=details.*class=([^&]+).*id=(\d+)#';
-		if (preg_match($pattern, $url, $matches)) {
+		// Also handles URLs with additional parameters like c[menu]=ConfigManagementOverview
+		// Parse query parameters properly to handle any parameter order and additional params
+
+		// Unescape backslashes that Nextcloud Talk might add (c\[menu\] -> c[menu])
+		$url = str_replace(['\\[', '\\]'], ['[', ']'], $url);
+
+		// First check if this is a UI.php URL with operation=details
+		$basePattern = '#^' . preg_quote($itopUrl, '#') . '/pages/UI\.php\?(.+)$#';
+		if (!preg_match($basePattern, $url, $matches)) {
+			return null;
+		}
+
+		// Parse query string
+		$queryString = $matches[1];
+		parse_str($queryString, $params);
+
+		// Check required parameters
+		if (isset($params['operation'], $params['class'], $params['id'])
+			&& $params['operation'] === 'details'
+			&& is_numeric($params['id'])) {
 			return [
-				'class' => $matches[1],
-				'id' => (int) $matches[2]
+				'class' => $params['class'],
+				'id' => (int) $params['id']
 			];
 		}
 
