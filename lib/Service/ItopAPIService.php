@@ -746,22 +746,54 @@ class ItopAPIService {
 	 * @return string Comma-separated field list
 	 */
 	private function getCIPreviewFields(string $class): string {
-		// Common fields for all CI classes
-		$commonFields = [
+		// Base fields from FunctionalCI (all CI classes inherit these)
+		// Source: itop/datamodels/2.x/itop-config-mgmt/datamodel.itop-config-mgmt.xml
+		$baseFunctionalCIFields = [
 			'id',
 			'name',
 			'friendlyname',
-			'status',
-			'business_criticity',
 			'org_id_friendlyname',
+			'description',
+			'business_criticity',
+			'move2production'
+		];
+
+		// Fields added by PhysicalDevice extension
+		// Applies to: PC, Phone, IPPhone, MobilePhone, Tablet, Printer, Peripheral
+		$physicalDeviceFields = [
+			'status',
+			'serialnumber',
 			'location_id_friendlyname',
 			'brand_id_friendlyname',
 			'model_id_friendlyname',
-			'serialnumber',
-			'asset_number',
-			'description',
-			'move2production'
+			'asset_number'
 		];
+
+		// Fields added by SoftwareInstance extension
+		// Applies to: PCSoftware, OtherSoftware
+		$softwareInstanceFields = [
+			'status',
+			'system_name',
+			'software_id_friendlyname',
+			'softwarelicence_id_friendlyname',
+			'path'
+		];
+
+		// Determine which extension applies
+		$physicalDeviceClasses = ['PC', 'Phone', 'IPPhone', 'MobilePhone', 'Tablet', 'Printer', 'Peripheral'];
+		$softwareInstanceClasses = ['PCSoftware', 'OtherSoftware'];
+
+		if (in_array($class, $physicalDeviceClasses, true)) {
+			// PhysicalDevice subclasses
+			$fields = array_merge($baseFunctionalCIFields, $physicalDeviceFields);
+		} elseif (in_array($class, $softwareInstanceClasses, true)) {
+			// SoftwareInstance subclasses
+			$fields = array_merge($baseFunctionalCIFields, $softwareInstanceFields);
+		} else {
+			// Direct FunctionalCI subclasses (e.g., WebApplication)
+			// WebApplication extends FunctionalCI directly, not PhysicalDevice or SoftwareInstance
+			$fields = $baseFunctionalCIFields;
+		}
 
 		// Class-specific additional fields
 		$classSpecificFields = [
@@ -769,12 +801,9 @@ class ItopAPIService {
 			'Phone' => ['phonenumber'],
 			'IPPhone' => ['phonenumber'],
 			'MobilePhone' => ['phonenumber', 'imei'],
-			'WebApplication' => ['url', 'webserver_name'],
-			'PCSoftware' => ['system_name', 'software_id_friendlyname', 'softwarelicence_id_friendlyname', 'path'],
-			'OtherSoftware' => ['system_name', 'software_id_friendlyname', 'softwarelicence_id_friendlyname', 'path'],
+			'WebApplication' => ['url', 'webserver_id_friendlyname'],
 		];
 
-		$fields = $commonFields;
 		if (isset($classSpecificFields[$class])) {
 			$fields = array_merge($fields, $classSpecificFields[$class]);
 		}
