@@ -666,9 +666,9 @@ class ItopAPIService {
 	 */
 	public function searchCIs(string $userId, string $term, array $classes = [], bool $isPortalOnly = false, int $limit = 10): array {
 		// Default to all supported CI classes
-		if (empty($classes)) {
-			$classes = ['PC', 'Phone', 'IPPhone', 'MobilePhone', 'Tablet', 'Printer', 'Peripheral', 'PCSoftware', 'OtherSoftware', 'WebApplication'];
-		}
+			if (empty($classes)) {
+				$classes = ['PC', 'Phone', 'IPPhone', 'MobilePhone', 'Tablet', 'Printer', 'Peripheral', 'Software', 'WebApplication'];
+			}
 
 		$searchResults = [];
 		$itopUrl = $this->getItopUrl($userId);
@@ -683,37 +683,131 @@ class ItopAPIService {
 			}
 		}
 
-		foreach ($classes as $class) {
-			$outputFields = $this->getCIPreviewFields($class);
+			foreach ($classes as $class) {
+				$outputFields = $this->getCIPreviewFields($class);
 
-			// Build OQL query with profile-aware filtering
-			if ($isPortalOnly) {
-				// Portal-only: Only CIs where user is contact
-				$query = "SELECT $class AS ci JOIN lnkContactToFunctionalCI AS lnk ON lnk.functionalci_id = ci.id "
-					   . "WHERE lnk.contact_id = $personId "
-					   . "AND (ci.name LIKE '%$escapedTerm%' OR ci.serialnumber LIKE '%$escapedTerm%' OR ci.asset_number LIKE '%$escapedTerm%')";
-			} else {
-				// Power users: Full CMDB search within ACL
-				$query = "SELECT $class WHERE name LIKE '%$escapedTerm%' OR serialnumber LIKE '%$escapedTerm%' OR asset_number LIKE '%$escapedTerm%'";
-			}
+				// Class-aware joins and term clause
+				$joins = '';
+				$termClause = '';
+				if (in_array($class, ['PCSoftware', 'OtherSoftware'], true)) {
+					// Software instances: match without joins using friendlyname fields
+					$termClause = "(ci.system_name LIKE '%$escapedTerm%' OR ci.software_id_friendlyname LIKE '%$escapedTerm%' OR ci.path LIKE '%$escapedTerm%' OR ci.friendlyname LIKE '%$escapedTerm%')";
+				} elseif ($class === 'WebApplication') {
+					// Web applications: match name and URL
+					$termClause = "(ci.name LIKE '%$escapedTerm%' OR ci.url LIKE '%$escapedTerm%')";
+				} elseif ($class === 'Software') {
+					// Software catalog entries: try exact-like on name/vendor first
+					$termClause = "(ci.name LIKE '$escapedTerm' OR ci.vendor_name LIKE '$escapedTerm')";
+				} else {
+					// Hardware-like CIs (FunctionalCI subclasses): include brand/model; add phone specifics
+					$termParts = [
+						"ci.name LIKE '%$escapedTerm%'",
+						"ci.serialnumber LIKE '%$escapedTerm%'",
+						"ci.asset_number LIKE '%$escapedTerm%'",
+						"ci.brand_id_friendlyname LIKE '%$escapedTerm%'",
+						"ci.model_id_friendlyname LIKE '%$escapedTerm%'",
+					];
+					if (in_array($class, ['Phone','IPPhone','MobilePhone'], true)) {
+						$termParts[] = "ci.phonenumber LIKE '%$escapedTerm%'";
+					}
+					if ($class === 'MobilePhone') {
+						$termParts[] = "ci.imei LIKE '%$escapedTerm%'";
+					}
+					$termClause = '(' . implode(' OR ', $termParts) . ')';
+				}
 
-			$params = [
-				'operation' => 'core/get',
-				'class' => $class,
-				'key' => $query,
-				'output_fields' => $outputFields,
-				'limit' => $limit
-			];
+				// Build OQL query with profile-aware filtering
+				if ($isPortalOnly) {
+					if ($class === 'Software') {
+						// Software is not a FunctionalCI; do not filter via lnkContactToFunctionalCI
+						$query = "SELECT $class AS ci WHERE $termClause";
+					} else {
+						// Portal-only: Only CIs where user is contact (FunctionalCI and subclasses)
+						$query = "SELECT $class AS ci JOIN lnkContactToFunctionalCI AS lnk ON lnk.functionalci_id = ci.id"
+							. $joins
+							. " WHERE lnk.contact_id = $personId AND $termClause";
+					}
+				} else {
+					// Power users: Full CMDB search within ACL
+					$query = "SELECT $class AS ci"
+						. $joins
+						. " WHERE $termClause";
+				}
 
-			$result = $this->request($userId, $params);
+				$params = [
+					'operation' => 'core/get',
+					'class' => $class,
+					'key' => $query,
+					'output_fields' => $outputFields,
+					'limit' => $limit
+				];
 
-			if (isset($result['objects'])) {
+				// no debug logging
+
+				$result = $this->request($userId, $params, 'POST', $class !== 'Software');
+
+				// If Software exact-like returns empty, retry with wildcards
+				if ($class === 'Software') {
+					$empty = !isset($result['objects']) || empty($result['objects']);
+					if ($empty && $escapedTerm !== '') {
+					$termClauseWildcard = "(ci.name LIKE '%$escapedTerm%' OR ci.vendor_name LIKE '%$escapedTerm%')";
+						$queryWildcard = "SELECT $class AS ci WHERE $termClauseWildcard";
+						$result = $this->request($userId, [
+							'operation' => 'core/get',
+							'class' => $class,
+							'key' => $queryWildcard,
+							'output_fields' => $outputFields,
+							'limit' => $limit
+						], 'POST', false);
+					}
+
+				}
+
+				if ($class === 'Software') {
+					// no debug logging
+				}
+
+				// Fallback for Software: if empty, derive from SoftwareInstance matches
+				if (($class === 'Software') && (!isset($result['objects']) || empty($result['objects'])) && $escapedTerm !== '') {
+					$si = $this->request($userId, [
+						'operation' => 'core/get',
+						'class' => 'SoftwareInstance',
+						'key' => "SELECT SoftwareInstance AS si WHERE (si.system_name LIKE '%$escapedTerm%' OR si.software_id_friendlyname LIKE '%$escapedTerm%')",
+						'output_fields' => 'software_id',
+						'limit' => $limit * 2,
+					], 'POST', false);
+					$ids = [];
+					if (isset($si['objects'])) {
+						foreach ($si['objects'] as $obj) {
+							$ids[] = (int)($obj['fields']['software_id'] ?? 0);
+						}
+						$ids = array_values(array_unique(array_filter($ids)));
+					}
+					if (!empty($ids)) {
+						$idsCsv = implode(',', $ids);
+						$result = $this->request($userId, [
+							'operation' => 'core/get',
+							'class' => 'Software',
+							'key' => "SELECT Software WHERE id IN ($idsCsv)",
+							'output_fields' => $outputFields,
+							'limit' => $limit
+						]);
+					}
+				}
+
+				if (isset($result['objects'])) {
 				foreach ($result['objects'] as $key => $ci) {
 					$fields = $ci['fields'] ?? [];
-					$searchResults[] = [
+					// Robust title fallback across CI families
+					$name = $fields['name']
+						?? $fields['friendlyname']
+						?? $fields['system_name']
+						?? $fields['software_id_friendlyname']
+						?? '';
+					$entry = [
 						'class' => $class,
 						'id' => $fields['id'] ?? null,
-						'name' => $fields['name'] ?? $fields['friendlyname'] ?? '',
+						'name' => $name,
 						'status' => $fields['status'] ?? '',
 						'business_criticity' => $fields['business_criticity'] ?? '',
 						'org_name' => $fields['org_id_friendlyname'] ?? '',
@@ -724,6 +818,25 @@ class ItopAPIService {
 						'description' => strip_tags($fields['description'] ?? ''),
 						'url' => $itopUrl . '/pages/UI.php?operation=details&class=' . urlencode($class) . '&id=' . ($fields['id'] ?? '')
 					];
+					// Class-specific enrichments for subline rendering
+					if ($class === 'WebApplication') {
+						$entry['web_url'] = $fields['url'] ?? '';
+						$entry['webserver_name'] = $fields['webserver_id_friendlyname'] ?? '';
+					} elseif ($class === 'PCSoftware' || $class === 'OtherSoftware') {
+						$entry['system_name'] = $fields['system_name'] ?? '';
+						$entry['software'] = $fields['software_id_friendlyname'] ?? '';
+						$entry['license'] = $fields['softwarelicence_id_friendlyname'] ?? '';
+						$entry['path'] = $fields['path'] ?? '';
+					} elseif ($class === 'Software') {
+						$entry['vendor'] = $fields['vendor'] ?? '';
+						$entry['version'] = $fields['version'] ?? '';
+						$entry['counts'] = [
+							'instances' => $this->countFromLinkedSet($fields['softwareinstance_list'] ?? null),
+							'patches' => $this->countFromLinkedSet($fields['softwarepatch_list'] ?? null),
+							'licenses' => $this->countFromLinkedSet($fields['softwarelicence_list'] ?? null),
+						];
+					}
+					$searchResults[] = $entry;
 				}
 			}
 		}
@@ -734,6 +847,20 @@ class ItopAPIService {
 		});
 
 		return $searchResults;
+}
+
+	/**
+	 * Helper to count linked objects for Software summaries from AttributeLinkedSet
+	 */
+	private function countFromLinkedSet($linkedSet): int {
+		if (!is_array($linkedSet)) {
+			return 0;
+		}
+		// iTop may return ['items' => [id => fields, ...]] or a plain array
+		if (isset($linkedSet['items']) && is_array($linkedSet['items'])) {
+			return count($linkedSet['items']);
+		}
+		return count($linkedSet);
 	}
 
 	/**
@@ -789,20 +916,29 @@ class ItopAPIService {
 		} elseif (in_array($class, $softwareInstanceClasses, true)) {
 			// SoftwareInstance subclasses
 			$fields = array_merge($baseFunctionalCIFields, $softwareInstanceFields);
-		} else {
-			// Direct FunctionalCI subclasses (e.g., WebApplication)
-			// WebApplication extends FunctionalCI directly, not PhysicalDevice or SoftwareInstance
-			$fields = $baseFunctionalCIFields;
-		}
+			} else {
+				// Direct FunctionalCI subclasses (e.g., WebApplication)
+				// WebApplication extends FunctionalCI directly, not PhysicalDevice or SoftwareInstance
+				$fields = $baseFunctionalCIFields;
+			}
 
-		// Class-specific additional fields
-		$classSpecificFields = [
-			'PC' => ['type', 'osfamily_id_friendlyname', 'osversion_id_friendlyname', 'cpu', 'ram'],
-			'Phone' => ['phonenumber'],
-			'IPPhone' => ['phonenumber'],
-			'MobilePhone' => ['phonenumber', 'imei'],
-			'WebApplication' => ['url', 'webserver_id_friendlyname'],
-		];
+				// Software catalog (not a FunctionalCI) fields for search rows with summary counts
+				if ($class === 'Software') {
+					return implode(',', [
+						'id', 'name', 'version', 'vendor',
+						// linked sets used to compute subline counts without extra queries
+						'softwareinstance_list', 'softwarepatch_list', 'softwarelicence_list'
+					]);
+				}
+
+			// Class-specific additional fields
+			$classSpecificFields = [
+				'PC' => ['type', 'osfamily_id_friendlyname', 'osversion_id_friendlyname', 'cpu', 'ram'],
+				'Phone' => ['phonenumber'],
+				'IPPhone' => ['phonenumber'],
+				'MobilePhone' => ['phonenumber', 'imei'],
+				'WebApplication' => ['url', 'webserver_id_friendlyname'],
+			];
 
 		if (isset($classSpecificFields[$class])) {
 			$fields = array_merge($fields, $classSpecificFields[$class]);

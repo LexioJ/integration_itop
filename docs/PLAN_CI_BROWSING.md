@@ -88,7 +88,7 @@ img/
 
 **Status**: All Phase 2 services implemented and tested. Backend ready for Phase 3 integration.
 
-### Phase 3: Rich Preview Widget ✅ COMPLETED
+### Phase 3: Rich Preview Widget 🔄 IN PROGRESS
 - [x] Enhance ItopReferenceProvider for CI URL detection
 - [x] Integrate ProfileService for permission-aware previews
 - [x] Integrate PreviewMapper for CI data transformation
@@ -98,15 +98,18 @@ img/
 - [x] Test with portal-only and power users
 - [x] Fix Vite build output directory (js/vue/ → js/)
 - [x] Fix invalid `last_update` field in CI preview requests
+- [ ] Add Reference Provider for class Software (rich preview for Software links)
 - [ ] Fix remaining unit test mock issues (deferred)
 
 **Status**: CI previews fully functional! Users can paste iTop CI URLs in Talk/Text and see rich previews with icon, name, status badge, organization, and class-specific details. Tested with PC class and portal-only user (Boris). All 10 supported CI classes use the same fixed field structure.
 
 ### Phase 4: Unified Search Provider
-- [ ] Implement ItopSearchProvider (OCP\Search\IProvider)
-- [ ] Integrate searchCIs() from ItopAPIService
-- [ ] Search result ranking and filtering
-- [ ] Per-class search query optimization
+- [x] Implement ItopSearchProvider (OCP\Search\IProvider)
+- [x] Integrate searchCIs() from ItopAPIService
+- [x] Search result ranking and filtering (exact-first, class weighting, recency)
+- [x] Per-class search query optimization (Software exact→wildcard; WebApplication name/url; hardware includes brand/model/serial/asset; phone includes phonenumber/imei)
+
+Note: Add Reference Provider support for class Software (rich preview when pasting Software links).
 
 ### Phase 5: Smart Picker Provider
 - [ ] Implement ItopPickerProvider (OCP\Collaboration\Reference)
