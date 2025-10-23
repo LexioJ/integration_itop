@@ -168,12 +168,14 @@ class ItopSearchProvider implements IProvider {
 					} else {
 						$title = $statusEmoji . ' ' . $title;
 					}
+					// Use ticket icon as thumbnail for Smart Picker display
+					$iconUrl = $this->getTicketIconUrl($entry);
 					return new ItopSearchResultEntry(
-						$this->getThumbnailUrl($entry),
+						$iconUrl,  // thumbnailUrl for Smart Picker
 						$title,
 						$this->formatDescription($entry),
 						$entry['url'],
-						$this->getIconUrl($entry['type']),
+						'',  // icon empty when thumbnailUrl is set
 						true
 					);
 				} else {
@@ -189,12 +191,13 @@ class ItopSearchProvider implements IProvider {
 					}
 					$subline = $this->formatCIDescription($ci);
 					$icon = $this->getCIIconUrl($ci['class'] ?? 'FunctionalCI');
+					// Use CI icon as thumbnail for Smart Picker display
 					return new ItopSearchResultEntry(
-						'',
+						$icon,  // thumbnailUrl for Smart Picker
 						$title,
 						$subline,
 						$ci['url'] ?? '',
-						$icon,
+						'',  // icon empty when thumbnailUrl is set
 						true
 					);
 				}
@@ -225,13 +228,57 @@ class ItopSearchProvider implements IProvider {
 		}
 	}
 
+	/**
+	 * Get state-specific icon URL for a ticket
+	 *
+	 * @param array $ticket Ticket data with type, status, priority, close_date
+	 * @return string Path to state-specific icon
+	 */
+	protected function getTicketIconUrl(array $ticket): string {
+		$type = $ticket['type'] ?? '';
+		$status = $ticket['status'] ?? '';
+		$closeDate = $ticket['close_date'] ?? '';
+		$priority = $ticket['priority'] ?? '';
+
+		// Determine icon based on ticket state
+		$iconName = '';
+
+		// Check for closed state first
+		if (!empty($closeDate)) {
+			$iconName = strtolower($type) . '-closed.svg';
+		}
+		// Check for escalated state (high priority: 1 or 2)
+		elseif (is_numeric($priority) && (int)$priority <= 2) {
+			$iconName = strtolower($type) . '-escalated.svg';
+		}
+		// Check for deadline state (pending/waiting status)
+		elseif (stripos($status, 'pending') !== false || stripos($status, 'waiting') !== false) {
+			$iconName = strtolower($type) . '-deadline.svg';
+		}
+		// Default icon for the ticket type
+		else {
+			$iconName = strtolower($type) . '.svg';
+		}
+
+		// Convert type names to match icon filenames
+		$iconName = str_replace('userrequest', 'user-request', $iconName);
+
+		return $this->urlGenerator->getAbsoluteURL(
+			$this->urlGenerator->imagePath(Application::APP_ID, $iconName)
+		);
+	}
+
 	protected function getCIIconUrl(string $class): string {
 		// Map Software to existing OtherSoftware.svg icon if dedicated icon is absent
 		if ($class === 'Software') {
-			return $this->urlGenerator->imagePath(Application::APP_ID, 'Software.svg');
+			$iconFile = 'Software.svg';
+		} else {
+			$iconFile = $class . '.svg';
 		}
-		$iconFile = $class . '.svg';
-		return $this->urlGenerator->imagePath(Application::APP_ID, $iconFile);
+
+		return $this->urlGenerator->getAbsoluteURL(
+			$this->urlGenerator->imagePath(Application::APP_ID, $iconFile)
+		);
 	}
 
 	protected function formatDescription(array $entry): string {

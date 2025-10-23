@@ -76,6 +76,46 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	}
 
 	/**
+	 * Get state-specific icon URL for a ticket
+	 *
+	 * @param array $ticket Ticket data with type, status, priority, close_date
+	 * @return string Absolute URL to state-specific icon
+	 */
+	private function getTicketIconUrl(array $ticket): string {
+		$type = $ticket['type'] ?? '';
+		$status = $ticket['status'] ?? '';
+		$closeDate = $ticket['close_date'] ?? '';
+		$priority = $ticket['priority'] ?? '';
+
+		// Determine icon based on ticket state
+		$iconName = '';
+
+		// Check for closed state first
+		if (!empty($closeDate)) {
+			$iconName = strtolower($type) . '-closed.svg';
+		}
+		// Check for escalated state (high priority)
+		elseif (stripos($priority, 'high') !== false || stripos($priority, 'critical') !== false) {
+			$iconName = strtolower($type) . '-escalated.svg';
+		}
+		// Check for deadline state (you may need to adjust this logic based on your needs)
+		elseif (stripos($status, 'pending') !== false || stripos($status, 'waiting') !== false) {
+			$iconName = strtolower($type) . '-deadline.svg';
+		}
+		// Default icon for the ticket type
+		else {
+			$iconName = strtolower($type) . '.svg';
+		}
+
+		// Convert type names to match icon filenames
+		$iconName = str_replace('userrequest', 'user-request', $iconName);
+
+		return $this->urlGenerator->getAbsoluteURL(
+			$this->urlGenerator->imagePath(Application::APP_ID, $iconName)
+		);
+	}
+
+	/**
 	 * @inheritDoc
 	 */
 	public function matchReference(string $referenceText): bool {
@@ -156,25 +196,64 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 		}
 
 		try {
-			$searchResults = $this->itopAPIService->search($this->userId, $term, 0, 5);
+			// Determine if user is portal-only
+			$isPortalOnly = $this->profileService->isPortalOnly($this->userId);
 
-			if (isset($searchResults['error'])) {
-				$this->logger->error('Error searching iTop for references: ' . $searchResults['error'], ['app' => Application::APP_ID]);
-				return [];
+			// Search for tickets using the existing search method
+			$ticketResults = $this->itopAPIService->search($this->userId, $term, 0, 5);
+
+			// Search for CIs using the new searchCIs method
+			$ciResults = $this->itopAPIService->searchCIs($this->userId, $term, [], $isPortalOnly, 5);
+
+			if (isset($ticketResults['error'])) {
+				$this->logger->error('Error searching iTop tickets for references: ' . $ticketResults['error'], ['app' => Application::APP_ID]);
+				$ticketResults = [];
+			}
+
+			if (isset($ciResults['error'])) {
+				$this->logger->error('Error searching iTop CIs for references: ' . $ciResults['error'], ['app' => Application::APP_ID]);
+				$ciResults = [];
 			}
 
 			$references = [];
-			foreach ($searchResults as $item) {
+
+			// Add ticket results with state-specific icons
+			foreach ($ticketResults as $item) {
 				$references[] = [
 					'id' => $item['url'],
 					'title' => $item['title'],
 					'description' => strip_tags($item['description']),
 					'url' => $item['url'],
-					'imageUrl' => $this->getIconUrl(),
+					'imageUrl' => $this->getTicketIconUrl($item),
 				];
 			}
 
-			return $references;
+			// Add CI results with class-specific icons
+			foreach ($ciResults as $ci) {
+				$class = $ci['finalclass'] ?? $ci['class'] ?? '';
+				$name = $ci['name'] ?? $ci['friendlyname'] ?? '';
+				$id = $ci['id'] ?? '';
+
+				// Build iTop URL
+				$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+				$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
+				$itopUrl = $userItopUrl ?: $adminItopUrl;
+				$url = $itopUrl . '/pages/UI.php?operation=details&class=' . urlencode($class) . '&id=' . urlencode($id);
+
+				// Format description with CI details
+				$description = $this->formatCIDescription($ci);
+
+				$references[] = [
+					'id' => $url,
+					'title' => $name,
+					'description' => $description,
+					'url' => $url,
+					'imageUrl' => $this->getCIIconUrl($class),
+				];
+			}
+
+			// Limit total results to 10
+			return array_slice($references, 0, 10);
 		} catch (\Exception $e) {
 			$this->logger->error('Error searching iTop for references: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return [];
@@ -408,26 +487,26 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 */
 	private function formatTicketDescription(array $fields): string {
 		$parts = [];
-		
+
 		if (!empty($fields['status'])) {
 			$parts[] = $this->l10n->t('Status: %s', [$fields['status']]);
 		}
-		
+
 		if (!empty($fields['priority'])) {
 			$parts[] = $this->l10n->t('Priority: %s', [$fields['priority']]);
 		}
-		
+
 		if (!empty($fields['caller_id_friendlyname'])) {
 			$parts[] = $this->l10n->t('Caller: %s', [$fields['caller_id_friendlyname']]);
 		}
-		
+
 		if (!empty($fields['creation_date'])) {
 			$date = new \DateTime($fields['creation_date']);
 			$parts[] = $this->l10n->t('Created: %s', [$date->format('Y-m-d')]);
 		}
-		
+
 		$description = implode(' • ', $parts);
-		
+
 		if (!empty($fields['description'])) {
 			$ticketDesc = strip_tags($fields['description']);
 			if (strlen($ticketDesc) > 100) {
@@ -439,7 +518,84 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 				$description = $ticketDesc;
 			}
 		}
-		
+
 		return $description;
+	}
+
+	/**
+	 * Format CI description for smart picker
+	 *
+	 * @param array $ci CI data
+	 * @return string
+	 */
+	private function formatCIDescription(array $ci): string {
+		$parts = [];
+		$class = $ci['finalclass'] ?? $ci['class'] ?? '';
+
+		// Status
+		if (!empty($ci['status'])) {
+			$parts[] = $this->l10n->t('Status: %s', [$ci['status']]);
+		}
+
+		// Organization
+		if (!empty($ci['org_name'])) {
+			$parts[] = $this->l10n->t('Org: %s', [$ci['org_name']]);
+		}
+
+		// Location
+		if (!empty($ci['location_name'])) {
+			$parts[] = $this->l10n->t('Location: %s', [$ci['location_name']]);
+		}
+
+		// Brand/Model for hardware
+		if (!empty($ci['brand_name']) && !empty($ci['model_name'])) {
+			$parts[] = $ci['brand_name'] . ' ' . $ci['model_name'];
+		} elseif (!empty($ci['brand_name'])) {
+			$parts[] = $ci['brand_name'];
+		}
+
+		// Software-specific: vendor and version
+		if (in_array($class, ['PCSoftware', 'OtherSoftware'], true)) {
+			if (!empty($ci['vendor'])) {
+				$parts[] = $this->l10n->t('Vendor: %s', [$ci['vendor']]);
+			}
+			if (!empty($ci['version'])) {
+				$parts[] = $this->l10n->t('Version: %s', [$ci['version']]);
+			}
+		}
+
+		// WebApplication-specific: URL
+		if ($class === 'WebApplication' && !empty($ci['url'])) {
+			$parts[] = $ci['url'];
+		}
+
+		return implode(' • ', $parts);
+	}
+
+	/**
+	 * Get icon URL for a CI class
+	 *
+	 * @param string $class CI class name
+	 * @return string Absolute URL to icon
+	 */
+	private function getCIIconUrl(string $class): string {
+		$iconMap = [
+			'PC' => 'PC.svg',
+			'Phone' => 'Phone.svg',
+			'IPPhone' => 'IPPhone.svg',
+			'MobilePhone' => 'MobilePhone.svg',
+			'Tablet' => 'Tablet.svg',
+			'Printer' => 'Printer.svg',
+			'Peripheral' => 'Peripheral.svg',
+			'PCSoftware' => 'PCSoftware.svg',
+			'OtherSoftware' => 'OtherSoftware.svg',
+			'Software' => 'Software.svg',
+			'WebApplication' => 'WebApplication.svg',
+		];
+
+		$icon = $iconMap[$class] ?? 'app.svg';
+		return $this->urlGenerator->getAbsoluteURL(
+			$this->urlGenerator->imagePath(Application::APP_ID, $icon)
+		);
 	}
 }

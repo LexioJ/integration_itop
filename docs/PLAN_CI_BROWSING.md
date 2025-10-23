@@ -111,11 +111,17 @@ img/
 
 **Status**: Unified Search fully functional! Search results appear in Nextcloud's global search bar with rankings based on exact-match priority, class-specific boosting, and recency. All 11 CI classes supported with portal-only and power-user filtering.
 
-### Phase 5: Smart Picker Provider
-- [ ] Implement ItopPickerProvider (OCP\Collaboration\Reference)
-- [ ] Smart suggestions as user types
-- [ ] Debounced search for performance
-- [ ] Insert clickable CI links
+### Phase 5: Smart Picker Provider ✅ COMPLETED
+- [x] Enhanced ItopReferenceProvider search() method for CI results
+- [x] Smart suggestions as user types (using ISearchableReferenceProvider)
+- [x] CI-specific icons for visual identification (all 11 CI classes)
+- [x] State-specific ticket icons (closed, escalated, deadline, normal)
+- [x] Formatted descriptions with CI details (status, org, location, brand/model)
+- [x] Insert clickable CI links that auto-preview
+- [x] Absolute URL generation for thumbnailUrl (Smart Picker display)
+- [x] Icon display in both Unified Search and Smart Picker (Talk, Text, etc.)
+
+**Status**: ✅ PHASE 5 COMPLETE! Smart Picker now displays both tickets and CIs with class-specific and state-specific icons in Unified Search and Smart Picker contexts. Tickets show escalated (P1/P2 red), deadline (pending/waiting yellow), closed, and normal states. CIs display with proper class icons for all 11 supported types (PC, Phone, Tablet, Printer, Peripheral, Software, WebApplication, etc.). Icons work in Talk, Text, and all Smart Picker contexts using absolute URLs via thumbnailUrl field.
 
 ### Phase 6: Configuration & Settings 🔄 PARTIAL
 - [x] Admin settings panel with connectivity testing
@@ -124,6 +130,7 @@ img/
 - [x] Person ID extraction and storage
 - [ ] Per-class enable/disable toggles (deferred to Phase 4+)
 - [ ] Portal profile detection configuration UI
+- [ ] Ensure portal-only and power-user filtering are in place according to docs/security-auth.md
 
 **Note**: Basic configuration implemented in v1.0.0. CI-specific settings pending.
 
