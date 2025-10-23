@@ -65,15 +65,28 @@ class PreviewMapper {
 	/**
 	 * Get title for preview (uses name field)
 	 *
+	 * For Software: name + version (e.g., "Microsoft Office 2021")
+	 * For others: name
+	 *
 	 * @param array $fields CI fields
 	 * @return string Title text
 	 */
 	private function getTitle(array $fields): string {
-		return $fields['name'] ?? $fields['friendlyname'] ?? 'Unknown CI';
+		$name = $fields['name'] ?? $fields['friendlyname'] ?? 'Unknown CI';
+		
+		// For Software class, append version if available
+		if (!empty($fields['version']) && !empty($fields['vendor'])) {
+			return trim($name . ' ' . $fields['version']);
+		}
+		
+		return $name;
 	}
 
 	/**
-	 * Get subtitle for preview (format: "Class • Organization")
+	 * Get subtitle for preview
+	 *
+	 * For Software: "Vendor • Software Catalog" (e.g., "Microsoft • Software Catalog")
+	 * For others: "Class • Organization"
 	 *
 	 * @param array $fields CI fields
 	 * @param string $class iTop class name
@@ -81,6 +94,15 @@ class PreviewMapper {
 	 */
 	private function getSubtitle(array $fields, string $class): string {
 		$parts = [];
+
+		// For Software: Show vendor and class type
+		if ($class === 'Software' && !empty($fields['vendor'])) {
+			if (!empty($fields['vendor'])) {
+				$parts[] = $fields['vendor'];
+			}
+			$parts[] = $this->getClassLabel($class);
+			return implode(' • ', $parts);
+		}
 
 		// Add class label
 		$parts[] = $this->getClassLabel($class);
@@ -236,6 +258,29 @@ class PreviewMapper {
 				}
 				break;
 
+			case 'Software':
+				// Software catalog: Show counts line (Documents, Instances, Patches, Licenses)
+				$counts = $fields['counts'] ?? [];
+				if (!empty($counts)) {
+					$countParts = [];
+					if (isset($counts['documents'])) {
+						$countParts[] = 'Documents: ' . $counts['documents'];
+					}
+					if (isset($counts['instances'])) {
+						$countParts[] = 'Installed: ' . $counts['instances'];
+					}
+					if (isset($counts['patches'])) {
+						$countParts[] = 'Patches: ' . $counts['patches'];
+					}
+					if (isset($counts['licenses'])) {
+						$countParts[] = 'Licenses: ' . $counts['licenses'];
+					}
+					if (!empty($countParts)) {
+						$extras[] = ['label' => '', 'value' => implode(' • ', $countParts)];
+					}
+				}
+				break;
+
 			// Tablet, Printer, Peripheral have no class-specific extras beyond common fields
 		}
 
@@ -357,6 +402,7 @@ class PreviewMapper {
 			'Peripheral' => $this->l10n->t('Peripheral'),
 			'PCSoftware' => $this->l10n->t('Software'),
 			'OtherSoftware' => $this->l10n->t('Software'),
+			'Software' => $this->l10n->t('Software Catalog'),
 			'WebApplication' => $this->l10n->t('Web Application'),
 		];
 
