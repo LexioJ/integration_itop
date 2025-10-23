@@ -899,7 +899,9 @@ class ItopAPIService {
 			'location_id_friendlyname',
 			'brand_id_friendlyname',
 			'model_id_friendlyname',
-			'asset_number'
+			'asset_number',
+			'contacts_list',  // Link set for contact counts
+			'softwares_list'  // Link set for installed software counts (ConnectableCI classes only)
 		];
 
 		// Fields added by SoftwareInstance extension

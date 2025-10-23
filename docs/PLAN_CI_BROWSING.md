@@ -88,7 +88,7 @@ img/
 
 **Status**: All Phase 2 services implemented and tested. Backend ready for Phase 3 integration.
 
-### Phase 3: Rich Preview Widget ✅ COMPLETED
+### Phase 3: Rich Preview Widget 🔧 FINETUNING
 - [x] Enhance ItopReferenceProvider for CI URL detection
 - [x] Integrate ProfileService for permission-aware previews
 - [x] Integrate PreviewMapper for CI data transformation
@@ -101,7 +101,53 @@ img/
 - [x] Add Software class rich preview with vendor • type subtitle and counts display
 - [x] Map Software type enum values (PCSoftware → PC Software, OtherSoftware → Other Software)
 
-**Status**: ✅ PHASE 3 COMPLETE! Rich previews fully functional for all 11 supported CI classes. Software class now shows vendor • type format (e.g., Microsoft • PC Software) with Documents/Installed/Patches/Licenses counts. Portal-only users cannot access Software items. All CI preview features working end-to-end.
+**🔧 Finetuning: PhysicalDevice Preview Alignment** (PC, Printer, MobilePhone, Tablet)
+These four classes share the same parent classes (FunctionalCI → PhysicalDevice) and should have aligned preview layouts.
+
+**Common Fields** (already added to API):
+- [x] `brand_name`, `model_name` - Device make and model
+- [x] `serialnumber` - Serial number
+- [x] `move2production` - Production date
+- [x] `contacts_list` - Link set for contact count
+- [x] `softwares_list` - Link set for installed software count
+
+**Remaining Work**:
+- [ ] **PreviewMapper**: Update `mapCIPreview()` to extract counts from `contacts_list` and `softwares_list` link sets
+  - Add helper method `countFromLinkedSet()` (similar to Software class implementation)
+  - Extract counts in PC/Printer/Tablet/MobilePhone cases
+  - Store in `extras` array as: `['label' => 'Contacts', 'value' => $contactsCount]`
+  - Store softwares count for ConnectableCI classes (PC, Printer) only
+
+- [ ] **PreviewMapper**: Update PC case to include `type` field display
+  - Currently shows: OS, CPU, RAM
+  - Should show: Type (laptop/desktop), OS, CPU, RAM
+  - Map type enum: `laptop` → `Laptop`, `desktop` → `Desktop`
+
+- [ ] **ReferenceItopWidget.vue**: Create unified PhysicalDevice layout template
+  - Top section: Icon, Name, Status badge, Criticality badge
+  - Subtitle line: Brand Model • Serial Number
+  - Info badges row: Organization, Location
+  - Specs section (class-specific):
+    - **PC**: Type • CPU • RAM • Contacts (• Software if available)
+    - **Printer**: Contacts (• Software if available)
+    - **Tablet**: Contacts
+    - **MobilePhone**: Contacts • Phone Number (• IMEI if available)
+  - Bottom row: Move2Production date
+
+- [ ] **ReferenceItopWidget.vue**: Remove class-specific cases for Printer/Tablet/MobilePhone
+  - Currently they may fall back to generic FunctionalCI template
+  - Replace with unified PhysicalDevice template
+  - Keep PC template but align with PhysicalDevice structure
+
+- [ ] **Testing**: Verify all four classes display consistently
+  - PC: Should show type, CPU, RAM, contacts count, software count
+  - Printer: Should show contacts count, software count (if ConnectableCI)
+  - Tablet: Should show contacts count
+  - MobilePhone: Should show contacts count, phone number, IMEI
+
+**Reference**: See `../itop/datamodels/2.x/itop-endusers-devices/datamodel.itop-enduser-devices.xml` for field definitions
+
+**Status**: ✅ Core functionality complete. Rich previews fully functional for all 11 supported CI classes. 🔧 Finetuning in progress to align PhysicalDevice preview layouts with unified field display (brand/model, serialnumber, contacts/software counts).
 
 ### Phase 4: Unified Search Provider ✅ COMPLETED
 - [x] Implement ItopSearchProvider (OCP\Search\IProvider)
