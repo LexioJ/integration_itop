@@ -80,7 +80,7 @@
 				<!-- Row 4: CI Extras (class-specific fields) -->
 				<div v-if="isCI && richObject.extras && richObject.extras.length > 0" class="row-4 ci-extras">
 					<div v-for="extra in richObject.extras" :key="extra.label" class="ci-extra">
-						<span class="extra-label">{{ extra.label }}:</span>
+						<span v-if="extra.label" class="extra-label">{{ extra.label }}:</span>
 						<span class="extra-value">{{ extra.value }}</span>
 					</div>
 				</div>

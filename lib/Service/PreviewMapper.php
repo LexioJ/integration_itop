@@ -85,7 +85,7 @@ class PreviewMapper {
 	/**
 	 * Get subtitle for preview
 	 *
-	 * For Software: "Vendor • Software Catalog" (e.g., "Microsoft • Software Catalog")
+	 * For Software: "Vendor • Type" (e.g., "Microsoft • Office Suite")
 	 * For others: "Class • Organization"
 	 *
 	 * @param array $fields CI fields
@@ -95,12 +95,22 @@ class PreviewMapper {
 	private function getSubtitle(array $fields, string $class): string {
 		$parts = [];
 
-		// For Software: Show vendor and class type
+		// For Software: Show vendor and type
 		if ($class === 'Software' && !empty($fields['vendor'])) {
 			if (!empty($fields['vendor'])) {
 				$parts[] = $fields['vendor'];
 			}
-			$parts[] = $this->getClassLabel($class);
+			if (!empty($fields['type'])) {
+				// Map enum values to readable names
+				$typeMap = [
+					'PCSoftware' => 'PC Software',
+					'OtherSoftware' => 'Other Software',
+					'DBServer' => 'DB Server',
+					'Middleware' => 'Middleware',
+					'WebServer' => 'Web Server',
+				];
+				$parts[] = $typeMap[$fields['type']] ?? $fields['type'];
+			}
 			return implode(' • ', $parts);
 		}
 
@@ -260,7 +270,19 @@ class PreviewMapper {
 
 			case 'Software':
 				// Software catalog: Show counts line (Documents, Instances, Patches, Licenses)
-				$counts = $fields['counts'] ?? [];
+				// Counts may come pre-computed from searchCIs, or we compute from linked sets here
+				$counts = $fields['counts'] ?? null;
+				
+				if ($counts === null) {
+					// If counts not pre-computed, compute from linked sets
+					$counts = [
+						'documents' => $this->countFromLinkedSet($fields['documents_list'] ?? null),
+						'instances' => $this->countFromLinkedSet($fields['softwareinstance_list'] ?? null),
+						'patches' => $this->countFromLinkedSet($fields['softwarepatch_list'] ?? null),
+						'licenses' => $this->countFromLinkedSet($fields['softwarelicence_list'] ?? null),
+					];
+				}
+				
 				if (!empty($counts)) {
 					$countParts = [];
 					if (isset($counts['documents'])) {
@@ -402,11 +424,28 @@ class PreviewMapper {
 			'Peripheral' => $this->l10n->t('Peripheral'),
 			'PCSoftware' => $this->l10n->t('Software'),
 			'OtherSoftware' => $this->l10n->t('Software'),
-			'Software' => $this->l10n->t('Software Catalog'),
+			'Software' => $this->l10n->t('Software'),
 			'WebApplication' => $this->l10n->t('Web Application'),
 		];
 
 		return $labels[$class] ?? $class;
+	}
+
+	/**
+	 * Helper to count linked objects from AttributeLinkedSet
+	 *
+	 * @param mixed $linkedSet Linked set data from iTop API
+	 * @return int Count of items in the linked set
+	 */
+	private function countFromLinkedSet($linkedSet): int {
+		if (!is_array($linkedSet)) {
+			return 0;
+		}
+		// iTop may return ['items' => [id => fields, ...]] or a plain array
+		if (isset($linkedSet['items']) && is_array($linkedSet['items'])) {
+			return count($linkedSet['items']);
+		}
+		return count($linkedSet);
 	}
 
 	/**

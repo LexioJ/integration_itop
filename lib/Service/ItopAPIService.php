@@ -931,7 +931,7 @@ class ItopAPIService {
 				// Software catalog (not a FunctionalCI) fields for search rows with summary counts
 				if ($class === 'Software') {
 					return implode(',', [
-						'id', 'name', 'version', 'vendor',
+						'id', 'name', 'version', 'vendor', 'type',
 						// linked sets used to compute subline counts without extra queries
 						'documents_list', 'softwareinstance_list', 'softwarepatch_list', 'softwarelicence_list'
 					]);

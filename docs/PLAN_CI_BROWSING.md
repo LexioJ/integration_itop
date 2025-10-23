@@ -88,7 +88,7 @@ img/
 
 **Status**: All Phase 2 services implemented and tested. Backend ready for Phase 3 integration.
 
-### Phase 3: Rich Preview Widget 🔄 IN PROGRESS
+### Phase 3: Rich Preview Widget ✅ COMPLETED
 - [x] Enhance ItopReferenceProvider for CI URL detection
 - [x] Integrate ProfileService for permission-aware previews
 - [x] Integrate PreviewMapper for CI data transformation
@@ -98,9 +98,10 @@ img/
 - [x] Test with portal-only and power users
 - [x] Fix Vite build output directory (js/vue/ → js/)
 - [x] Fix invalid `last_update` field in CI preview requests
-- [ ] Add Reference Provider for class Software (rich preview for Software links)
+- [x] Add Software class rich preview with vendor • type subtitle and counts display
+- [x] Map Software type enum values (PCSoftware → PC Software, OtherSoftware → Other Software)
 
-**Status**: CI previews fully functional! Users can paste iTop CI URLs in Talk/Text and see rich previews with icon, name, status badge, organization, and class-specific details. All 11 supported CI classes (including Software) use the same fixed field structure with portal-only and power-user permission filtering.
+**Status**: ✅ PHASE 3 COMPLETE! Rich previews fully functional for all 11 supported CI classes. Software class now shows vendor • type format (e.g., Microsoft • PC Software) with Documents/Installed/Patches/Licenses counts. Portal-only users cannot access Software items. All CI preview features working end-to-end.
 
 ### Phase 4: Unified Search Provider ✅ COMPLETED
 - [x] Implement ItopSearchProvider (OCP\Search\IProvider)
