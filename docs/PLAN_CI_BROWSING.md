@@ -99,17 +99,16 @@ img/
 - [x] Fix Vite build output directory (js/vue/ → js/)
 - [x] Fix invalid `last_update` field in CI preview requests
 - [ ] Add Reference Provider for class Software (rich preview for Software links)
-- [ ] Fix remaining unit test mock issues (deferred)
 
-**Status**: CI previews fully functional! Users can paste iTop CI URLs in Talk/Text and see rich previews with icon, name, status badge, organization, and class-specific details. Tested with PC class and portal-only user (Boris). All 10 supported CI classes use the same fixed field structure.
+**Status**: CI previews fully functional! Users can paste iTop CI URLs in Talk/Text and see rich previews with icon, name, status badge, organization, and class-specific details. All 11 supported CI classes (including Software) use the same fixed field structure with portal-only and power-user permission filtering.
 
-### Phase 4: Unified Search Provider
+### Phase 4: Unified Search Provider ✅ COMPLETED
 - [x] Implement ItopSearchProvider (OCP\Search\IProvider)
 - [x] Integrate searchCIs() from ItopAPIService
 - [x] Search result ranking and filtering (exact-first, class weighting, recency)
 - [x] Per-class search query optimization (Software exact→wildcard; WebApplication name/url; hardware includes brand/model/serial/asset; phone includes phonenumber/imei)
 
-Note: Add Reference Provider support for class Software (rich preview when pasting Software links).
+**Status**: Unified Search fully functional! Search results appear in Nextcloud's global search bar with rankings based on exact-match priority, class-specific boosting, and recency. All 11 CI classes supported with portal-only and power-user filtering.
 
 ### Phase 5: Smart Picker Provider
 - [ ] Implement ItopPickerProvider (OCP\Collaboration\Reference)

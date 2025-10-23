@@ -305,6 +305,9 @@ class ItopSearchProvider implements IProvider {
 		} elseif ($class === 'Software') {
 			$bits = [];
 			$counts = $ci['counts'] ?? [];
+			if (!empty($counts['documents'])) {
+				$bits[] = $this->l10n->t('Documents: %s', [(string)$counts['documents']]);
+			}
 			if (!empty($counts['instances'])) {
 				$bits[] = $this->l10n->t('Installed: %s', [(string)$counts['instances']]);
 			}

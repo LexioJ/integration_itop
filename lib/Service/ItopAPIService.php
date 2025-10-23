@@ -683,12 +683,17 @@ class ItopAPIService {
 			}
 		}
 
-			foreach ($classes as $class) {
-				$outputFields = $this->getCIPreviewFields($class);
+		foreach ($classes as $class) {
+			// Skip Software search for Portal-only users
+			if ($class === 'Software' && $isPortalOnly) {
+				continue;
+			}
 
-				// Class-aware joins and term clause
-				$joins = '';
-				$termClause = '';
+			$outputFields = $this->getCIPreviewFields($class);
+
+			// Class-aware joins and term clause
+			$joins = '';
+			$termClause = '';
 				if (in_array($class, ['PCSoftware', 'OtherSoftware'], true)) {
 					// Software instances: match without joins using friendlyname fields
 					$termClause = "(ci.system_name LIKE '%$escapedTerm%' OR ci.software_id_friendlyname LIKE '%$escapedTerm%' OR ci.path LIKE '%$escapedTerm%' OR ci.friendlyname LIKE '%$escapedTerm%')";
@@ -831,6 +836,7 @@ class ItopAPIService {
 						$entry['vendor'] = $fields['vendor'] ?? '';
 						$entry['version'] = $fields['version'] ?? '';
 						$entry['counts'] = [
+							'documents' => $this->countFromLinkedSet($fields['documents_list'] ?? null),
 							'instances' => $this->countFromLinkedSet($fields['softwareinstance_list'] ?? null),
 							'patches' => $this->countFromLinkedSet($fields['softwarepatch_list'] ?? null),
 							'licenses' => $this->countFromLinkedSet($fields['softwarelicence_list'] ?? null),
@@ -927,7 +933,7 @@ class ItopAPIService {
 					return implode(',', [
 						'id', 'name', 'version', 'vendor',
 						// linked sets used to compute subline counts without extra queries
-						'softwareinstance_list', 'softwarepatch_list', 'softwarelicence_list'
+						'documents_list', 'softwareinstance_list', 'softwarepatch_list', 'softwarelicence_list'
 					]);
 				}
 

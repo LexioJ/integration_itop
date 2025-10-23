@@ -40,7 +40,7 @@ class Application extends App implements IBootstrap {
 	 */
 	public const SUPPORTED_CI_CLASSES = [
 		'PC', 'Phone', 'IPPhone', 'MobilePhone', 'Tablet',
-		'Printer', 'Peripheral', 'PCSoftware', 'OtherSoftware', 'WebApplication'
+		'Printer', 'Peripheral', 'PCSoftware', 'OtherSoftware', 'WebApplication', 'Software'
 	];
 
 	private IConfig $config;
