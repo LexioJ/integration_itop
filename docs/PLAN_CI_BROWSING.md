@@ -112,16 +112,16 @@ These four classes share the same parent classes (FunctionalCI → PhysicalDevic
 - [x] `softwares_list` - Link set for installed software count
 
 **Remaining Work**:
-- [ ] **PreviewMapper**: Update `mapCIPreview()` to extract counts from `contacts_list` and `softwares_list` link sets
-  - Add helper method `countFromLinkedSet()` (similar to Software class implementation)
+- [x] **PreviewMapper**: Update `mapCIPreview()` to extract counts from `contacts_list` and `softwares_list` link sets
+  - Added helper method `countFromLinkedSet()` at line 537 (similar to Software class implementation)
   - Extract counts in PC/Printer/Tablet/MobilePhone cases
   - Store in `extras` array as: `['label' => 'Contacts', 'value' => $contactsCount]`
   - Store softwares count for ConnectableCI classes (PC, Printer) only
 
-- [ ] **PreviewMapper**: Update PC case to include `type` field display
-  - Currently shows: OS, CPU, RAM
-  - Should show: Type (laptop/desktop), OS, CPU, RAM
+- [x] **PreviewMapper**: Update PC case to include `type` field display
+  - Now shows: Type (laptop/desktop), OS, CPU, RAM, Contacts, Software
   - Map type enum: `laptop` → `Laptop`, `desktop` → `Desktop`
+  - Implemented at lines 213-239
 
 - [ ] **ReferenceItopWidget.vue**: Create unified PhysicalDevice layout template
   - Top section: Icon, Name, Status badge, Criticality badge

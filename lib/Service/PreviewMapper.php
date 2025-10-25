@@ -210,8 +210,10 @@ class PreviewMapper {
 
 		switch ($class) {
 			case 'PC':
+				// Type (laptop/desktop) - map enum to readable format
 				if (!empty($fields['type'])) {
-					$extras[] = ['label' => 'Type', 'value' => $fields['type']];
+					$typeMap = ['laptop' => 'Laptop', 'desktop' => 'Desktop'];
+					$extras[] = ['label' => 'Type', 'value' => $typeMap[$fields['type']] ?? ucfirst($fields['type'])];
 				}
 				if (!empty($fields['osfamily_id_friendlyname'])) {
 					$extras[] = ['label' => 'OS', 'value' => $fields['osfamily_id_friendlyname']];
@@ -224,6 +226,16 @@ class PreviewMapper {
 				}
 				if (!empty($fields['ram'])) {
 					$extras[] = ['label' => 'RAM', 'value' => $fields['ram']];
+				}
+				// Contacts count
+				$contactsCount = $this->countFromLinkedSet($fields['contacts_list'] ?? null);
+				if ($contactsCount > 0) {
+					$extras[] = ['label' => 'Contacts', 'value' => (string)$contactsCount];
+				}
+				// Software count (PC extends ConnectableCI which has softwares_list)
+				$softwaresCount = $this->countFromLinkedSet($fields['softwares_list'] ?? null);
+				if ($softwaresCount > 0) {
+					$extras[] = ['label' => 'Software', 'value' => (string)$softwaresCount];
 				}
 				break;
 
@@ -240,6 +252,32 @@ class PreviewMapper {
 				}
 				if (!empty($fields['imei'])) {
 					$extras[] = ['label' => 'IMEI', 'value' => $fields['imei']];
+				}
+				// Contacts count
+				$contactsCount = $this->countFromLinkedSet($fields['contacts_list'] ?? null);
+				if ($contactsCount > 0) {
+					$extras[] = ['label' => 'Contacts', 'value' => (string)$contactsCount];
+				}
+				break;
+
+			case 'Tablet':
+				// Contacts count
+				$contactsCount = $this->countFromLinkedSet($fields['contacts_list'] ?? null);
+				if ($contactsCount > 0) {
+					$extras[] = ['label' => 'Contacts', 'value' => (string)$contactsCount];
+				}
+				break;
+
+			case 'Printer':
+				// Contacts count
+				$contactsCount = $this->countFromLinkedSet($fields['contacts_list'] ?? null);
+				if ($contactsCount > 0) {
+					$extras[] = ['label' => 'Contacts', 'value' => (string)$contactsCount];
+				}
+				// Software count (Printer extends ConnectableCI which has softwares_list)
+				$softwaresCount = $this->countFromLinkedSet($fields['softwares_list'] ?? null);
+				if ($softwaresCount > 0) {
+					$extras[] = ['label' => 'Software', 'value' => (string)$softwaresCount];
 				}
 				break;
 
@@ -303,7 +341,7 @@ class PreviewMapper {
 				}
 				break;
 
-			// Tablet, Printer, Peripheral have no class-specific extras beyond common fields
+			// Peripheral has no class-specific extras beyond common fields
 		}
 
 		return $extras;
@@ -432,23 +470,6 @@ class PreviewMapper {
 	}
 
 	/**
-	 * Helper to count linked objects from AttributeLinkedSet
-	 *
-	 * @param mixed $linkedSet Linked set data from iTop API
-	 * @return int Count of items in the linked set
-	 */
-	private function countFromLinkedSet($linkedSet): int {
-		if (!is_array($linkedSet)) {
-			return 0;
-		}
-		// iTop may return ['items' => [id => fields, ...]] or a plain array
-		if (isset($linkedSet['items']) && is_array($linkedSet['items'])) {
-			return count($linkedSet['items']);
-		}
-		return count($linkedSet);
-	}
-
-	/**
 	 * Format brand and model as single string
 	 *
 	 * @param array $fields CI fields
@@ -501,5 +522,28 @@ class PreviewMapper {
 		];
 
 		return $criticalityMap[strtolower($criticality)] ?? 'neutral';
+	}
+
+	/**
+	 * Count items in an iTop linked set (AttributeLinkedSet)
+	 *
+	 * iTop returns linked sets in different formats depending on the query:
+	 * - As an array with 'items' key containing the actual items
+	 * - As a plain array of items
+	 *
+	 * @param mixed $linkedSet Linked set data from iTop API
+	 * @return int Number of items in the linked set
+	 */
+	private function countFromLinkedSet($linkedSet): int {
+		if (!is_array($linkedSet)) {
+			return 0;
+		}
+
+		// iTop may return ['items' => [id => fields, ...]] or a plain array
+		if (isset($linkedSet['items']) && is_array($linkedSet['items'])) {
+			return count($linkedSet['items']);
+		}
+
+		return count($linkedSet);
 	}
 }
