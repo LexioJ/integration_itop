@@ -60,6 +60,8 @@ Comprehensive administration interface for system-wide configuration.
 
 ![Admin Settings Screenshot](docs/images/admin-settings1.png)
 ![Admin Settings Screenshot](docs/images/admin-settings2.png)
+![Admin Settings Screenshot](docs/images/admin-settings3.png)
+![Admin Settings Screenshot](docs/images/admin-settings4.png)
 
 **Features:**
 - Application token management (encrypted storage)
