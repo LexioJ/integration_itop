@@ -22,10 +22,9 @@ use Psr\Log\LoggerInterface;
  * Determines if a user is portal-only (only has "Portal user" profile)
  * or a power user (has additional profiles like Service Desk Agent, etc.)
  *
- * Uses caching with 300s TTL to minimize API calls while maintaining reasonable freshness
+ * Uses configurable caching TTL (default 1800s / 30 minutes) to minimize API calls while maintaining reasonable freshness
  */
 class ProfileService {
-	private const CACHE_TTL = 300; // 5 minutes
 	private const PORTAL_PROFILE_NAME = 'Portal user';
 
 	public function __construct(
@@ -33,6 +32,15 @@ class ProfileService {
 		private ItopAPIService $itopAPIService,
 		private LoggerInterface $logger,
 	) {
+	}
+
+	/**
+	 * Get the configured cache TTL for profile data
+	 *
+	 * @return int Cache TTL in seconds (default: 1800 = 30 minutes)
+	 */
+	private function getCacheTTL(): int {
+		return (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_profile', '1800');
 	}
 
 	/**
@@ -55,8 +63,14 @@ class ProfileService {
 		// Fetch fresh profile data
 		$profiles = $this->getUserProfiles($userId);
 
-		// Portal-only = exactly one profile named "Portal user"
-		$isPortalOnly = (count($profiles) === 1 && $profiles[0] === self::PORTAL_PROFILE_NAME);
+		// Normalize for robust comparison
+		$normalized = array_map(static function($p) {
+			return mb_strtolower(trim((string)$p));
+		}, $profiles);
+		$portalName = mb_strtolower(self::PORTAL_PROFILE_NAME);
+
+		// Portal-only = exactly one profile and it matches the portal profile name
+		$isPortalOnly = (count($normalized) === 1 && $normalized[0] === $portalName);
 
 		// Cache the result
 		$this->cacheProfileStatus($userId, $isPortalOnly);
@@ -175,22 +189,35 @@ class ProfileService {
 			return [];
 		}
 
-		// If it's already an array, return it
+		// Array: iTop returns a LinkSet array of link objects for profile_list
 		if (is_array($profileList)) {
-			return array_values($profileList);
+			$names = [];
+			foreach ($profileList as $entry) {
+				if (is_array($entry)) {
+					// Common keys encountered in iTop linkset items
+					foreach (['profileid_friendlyname', 'friendlyname', 'profile_name', 'name', 'profile'] as $k) {
+						if (!empty($entry[$k]) && is_string($entry[$k])) {
+							$names[] = trim($entry[$k]);
+							break;
+						}
+					}
+				} elseif (is_string($entry)) {
+					$names[] = trim($entry);
+				}
+			}
+			// De-duplicate and remove empties
+			$names = array_values(array_unique(array_filter($names, static fn($n) => $n !== '')));
+			return $names;
 		}
 
-		// If it's a string, try to parse it
+		// String (comma-separated) or JSON
 		if (is_string($profileList)) {
-			// Check if it's JSON
 			$decoded = json_decode($profileList, true);
 			if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-				return array_values($decoded);
+				return $this->parseProfileList($decoded);
 			}
-
-			// Otherwise, split by comma
 			$profiles = array_map('trim', explode(',', $profileList));
-			return array_filter($profiles); // Remove empty strings
+			return array_values(array_filter($profiles));
 		}
 
 		return [];
@@ -232,8 +259,8 @@ class ProfileService {
 		$lastCheckTime = (int)$lastCheck;
 		$now = time();
 
-		// Check if cache is expired
-		if (($now - $lastCheckTime) > self::CACHE_TTL) {
+		// Check if cache is expired using configured TTL
+		if (($now - $lastCheckTime) > $this->getCacheTTL()) {
 			return null;
 		}
 
@@ -255,7 +282,7 @@ class ProfileService {
 			'app' => Application::APP_ID,
 			'userId' => $userId,
 			'isPortalOnly' => $isPortalOnly,
-			'ttl' => self::CACHE_TTL
+			'ttl' => $this->getCacheTTL()
 		]);
 	}
 }

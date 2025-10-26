@@ -104,60 +104,13 @@ img/
 **🔧 Finetuning: PhysicalDevice Preview Alignment** (PC, Printer, MobilePhone, Tablet)
 These four classes share the same parent classes (FunctionalCI → PhysicalDevice) and should have aligned preview layouts.
 
-**Common Fields** (already added to API):
+**Common Fields**:
 - [x] `brand_name`, `model_name` - Device make and model
 - [x] `serialnumber` - Serial number
 - [x] `move2production` - Production date
 - [x] `contacts_list` - Link set for contact count
 - [x] `softwares_list` - Link set for installed software count
-
-**Remaining Work**:
-- [x] **PreviewMapper**: Update `mapCIPreview()` to extract counts from `contacts_list` and `softwares_list` link sets
-  - Added helper method `countFromLinkedSet()` at line 537 (similar to Software class implementation)
-  - Extract counts in PC/Printer/Tablet/MobilePhone cases
-  - Store in `extras` array as: `['label' => 'Contacts', 'value' => $contactsCount]`
-  - Store softwares count for ConnectableCI classes (PC, Printer) only
-
-- [x] **PreviewMapper**: Update PC case to include `type` field display
-  - Now shows: Type (laptop/desktop), OS, CPU, RAM, Contacts, Software
-  - Map type enum: `laptop` → `Laptop`, `desktop` → `Desktop`
-  - Implemented at lines 213-239
-
-- [x] **ReferenceItopWidget.vue**: Create unified PhysicalDevice layout template
-  - Top section: Icon, Name, Status badge, Criticality badge
-  - Subtitle line: Brand Model • Serial Number (extracted from chips)
-  - Info badges row: Organization, Location (filtered chips)
-  - Specs section (class-specific): Displayed via extras array from PreviewMapper
-    - **PC**: Type • OS • CPU • RAM • Contacts • Software
-    - **Printer**: Contacts • Software (if available)
-    - **Tablet**: Contacts
-    - **MobilePhone**: Phone Number • IMEI • Contacts
-  - Implementation: Added `isPhysicalDevice()`, `physicalDeviceSubtitle()`, and `filteredChips()` computed properties
-
-- [x] **ReferenceItopWidget.vue**: Unified display for all PhysicalDevice classes
-  - All PhysicalDevice classes now use the same template structure
-  - Brand/model and serial number moved to subtitle line
-  - Chips filtered to show only location and asset info (not brand/serial)
-  - Extras section displays class-specific fields from PreviewMapper
-
-- [x] **ReferenceItopWidget.vue**: Implement 4-row layout for better readability
-  - Row 1: Title, priority, status badge, and date (unchanged)
-  - Row 2: Service breadcrumb (Tickets) OR CI subtitle (CIs) - full width
-  - Row 3: Org/Team/Agent breadcrumb (Tickets) OR CI Chips (CIs) - dedicated row
-  - Row 4: Description (Last line, unchanged)
-  - Improved preview display: Each information line gets its own row, eliminating text overflow issues
-  - CSS updates: Simplified row-2 to remove left/right layout, added row-3.ticket-org styling
-
-- [x] **Testing**: Verify all four classes display consistently
-  - PC: Shows type, OS, CPU, RAM, contacts count, software count
-  - Printer: Shows contacts count, software count (if ConnectableCI)
-  - Tablet: Shows contacts count
-  - MobilePhone: Shows phone number, IMEI, contacts count
-  - Build verification: npm run build completed successfully
-
-**Reference**: See `../itop/datamodels/2.x/itop-endusers-devices/datamodel.itop-enduser-devices.xml` for field definitions
-
-**Status**: ✅ PHASE 3 COMPLETE! Rich preview widget fully implemented with unified PhysicalDevice layout, 4-row ticket template for improved readability, and all CI classes displaying consistently. Frontend build verified and passing. Ready for production deployment.
+**Status**: PHASE 3 COMPLETE! Rich preview widget fully implemented with unified PhysicalDevice layout, 4-row ticket template for improved readability, and all CI classes displaying consistently. Frontend build verified and passing. Ready for production deployment.
 
 ### Phase 4: Unified Search Provider ✅ COMPLETED
 - [x] Implement ItopSearchProvider (OCP\Search\IProvider)
@@ -177,16 +130,37 @@ These four classes share the same parent classes (FunctionalCI → PhysicalDevic
 - [x] Absolute URL generation for thumbnailUrl (Smart Picker display)
 - [x] Icon display in both Unified Search and Smart Picker (Talk, Text, etc.)
 
-**Status**: ✅ PHASE 5 COMPLETE! Smart Picker now displays both tickets and CIs with class-specific and state-specific icons in Unified Search and Smart Picker contexts. Tickets show escalated (P1/P2 red), deadline (pending/waiting yellow), closed, and normal states. CIs display with proper class icons for all 11 supported types (PC, Phone, Tablet, Printer, Peripheral, Software, WebApplication, etc.). Icons work in Talk, Text, and all Smart Picker contexts using absolute URLs via thumbnailUrl field.
+**Status**: PHASE 5 COMPLETE! Smart Picker now displays both tickets and CIs with class-specific and state-specific icons in Unified Search and Smart Picker contexts. Tickets show escalated (P1/P2 red), deadline (pending/waiting yellow), closed, and normal states. CIs display with proper class icons for all 11 supported types (PC, Phone, Tablet, Printer, Peripheral, Software, WebApplication, etc.). Icons work in Talk, Text, and all Smart Picker contexts using absolute URLs via thumbnailUrl field.
 
-### Phase 6: Configuration & Settings 🔄 PARTIAL
+### Phase 6: Configuration & Settings ✅ COMPLETED
 - [x] Admin settings panel with connectivity testing
 - [x] Personal settings with token validation
 - [x] Dual-token architecture (app token + personal token)
 - [x] Person ID extraction and storage
-- [x] Per-class enable/disable toggles ✅ COMPLETED
-- [ ] Portal profile detection configuration UI
-- [ ] Ensure portal-only and power-user filtering are in place according to docs/security-auth.md
+- [x] Per-class enable/disable toggles
+- [x] Portal profile detection configuration UI
+- [x] Ensure portal-only and power-user filtering are in place according to docs/security-auth.md
+
+**STATUS: PHASE 6 COMPLETE!** 
+
+All Phase 6 objectives achieved:
+✅ **Admin Settings Panel** - Complete with connectivity testing and token validation
+✅ **Personal Settings Panel** - Complete with dual-token architecture and person ID extraction
+✅ **Per-Class CI Configuration** - Admin can enable/disable CI classes with 3-state control
+✅ **Caching Configuration** - Configurable TTLs for all cache types with admin UI
+✅ **Profile-Based Access Control** - Portal-only and power-user filtering fully implemented
+✅ **Security Architecture** - Dual-token system with encrypted storage and isolation
+✅ **Manual Testing Guide** - Comprehensive testing procedures documented
+
+**Key Features Delivered:**
+- Admin can configure iTop URL, display name, and application token
+- Admin can control CI class availability (disabled/forced/user choice)
+- Admin can tune cache performance (TTL settings for all cache types)
+- Users provide personal token once for identity verification (then discarded)
+- Portal-only users see only CIs where they are contacts (contacts_list filtering)
+- Power users get full CMDB access within their ACL permissions
+- All API calls use encrypted application token with person_id isolation
+- Profile detection with 30-minute caching for performance
 
 **Per-Class Enable/Disable Implementation:**
 - ✅ Backend: Added `Application::getEnabledCIClasses()` static method to read config

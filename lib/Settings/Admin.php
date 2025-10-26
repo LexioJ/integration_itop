@@ -47,6 +47,7 @@ class Admin implements ISettings {
 		$cacheTtlTicketInfo = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ticket_info', '60');
 		$cacheTtlSearch = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_search', '30');
 		$cacheTtlPicker = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_picker', '60');
+		$cacheTtlProfile = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_profile', '1800');
 
 		// Get 3-state CI class configuration
 		$ciClassConfig = Application::getCIClassConfig($this->config);
@@ -61,6 +62,7 @@ class Admin implements ISettings {
 			'cache_ttl_ticket_info' => $cacheTtlTicketInfo,
 			'cache_ttl_search' => $cacheTtlSearch,
 			'cache_ttl_picker' => $cacheTtlPicker,
+			'cache_ttl_profile' => $cacheTtlProfile,
 			'ci_class_config' => $ciClassConfig,
 			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES,
 		];

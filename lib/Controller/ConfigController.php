@@ -276,6 +276,7 @@ class ConfigController extends Controller {
 		$cacheTtlTicketInfo = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ticket_info', '60');
 		$cacheTtlSearch = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_search', '30');
 		$cacheTtlPicker = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_picker', '60');
+		$cacheTtlProfile = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_profile', '1800');
 
 		// Get 3-state CI class configuration
 		$ciClassConfig = Application::getCIClassConfig($this->config);
@@ -286,11 +287,12 @@ class ConfigController extends Controller {
 			'has_application_token' => $hasApplicationToken,
 			'connected_users' => $connectedUsers,
 			'last_updated' => date('Y-m-d H:i:s'),
-			'version' => '1.0.0',
+			'version' => Application::VERSION,
 			'cache_ttl_ci_preview' => $cacheTtlCiPreview,
 			'cache_ttl_ticket_info' => $cacheTtlTicketInfo,
 			'cache_ttl_search' => $cacheTtlSearch,
 			'cache_ttl_picker' => $cacheTtlPicker,
+			'cache_ttl_profile' => $cacheTtlProfile,
 			'ci_class_config' => $ciClassConfig,
 			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES,
 		];
@@ -643,13 +645,15 @@ class ConfigController extends Controller {
 	 * @param int $ticketInfoTTL Ticket info cache TTL in seconds
 	 * @param int $searchTTL Search results cache TTL in seconds
 	 * @param int $pickerTTL Picker suggestions cache TTL in seconds
+	 * @param int $profileTTL Profile cache TTL in seconds
 	 * @return DataResponse
 	 */
-	public function saveCacheSettings(int $ciPreviewTTL, int $ticketInfoTTL, int $searchTTL, int $pickerTTL): DataResponse {
+	public function saveCacheSettings(int $ciPreviewTTL, int $ticketInfoTTL, int $searchTTL, int $pickerTTL, int $profileTTL): DataResponse {
 		// Validation ranges
 		$minTTL = 10;  // 10 seconds minimum
 		$maxTTLPreview = 3600;  // 1 hour maximum for previews
 		$maxTTLOther = 300;  // 5 minutes maximum for search/picker
+		$maxTTLProfile = 3600;  // 1 hour maximum for profile cache
 
 		// Validate CI Preview TTL
 		if ($ciPreviewTTL < $minTTL || $ciPreviewTTL > $maxTTLPreview) {
@@ -679,18 +683,27 @@ class ConfigController extends Controller {
 			], Http::STATUS_BAD_REQUEST);
 		}
 
+		// Validate Profile TTL
+		if ($profileTTL < $minTTL || $profileTTL > $maxTTLProfile) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Profile cache TTL must be between %d and %d seconds', [$minTTL, $maxTTLProfile])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
 		// Save validated values
 		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_ci_preview', (string)$ciPreviewTTL);
 		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_ticket_info', (string)$ticketInfoTTL);
 		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_search', (string)$searchTTL);
 		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_picker', (string)$pickerTTL);
+		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_profile', (string)$profileTTL);
 
 		$this->logger->info('Cache TTL settings updated', [
 			'app' => Application::APP_ID,
 			'ci_preview' => $ciPreviewTTL,
 			'ticket_info' => $ticketInfoTTL,
 			'search' => $searchTTL,
-			'picker' => $pickerTTL
+			'picker' => $pickerTTL,
+			'profile' => $profileTTL
 		]);
 
 		return new DataResponse([
@@ -698,7 +711,8 @@ class ConfigController extends Controller {
 			'cache_ttl_ci_preview' => $ciPreviewTTL,
 			'cache_ttl_ticket_info' => $ticketInfoTTL,
 			'cache_ttl_search' => $searchTTL,
-			'cache_ttl_picker' => $pickerTTL
+			'cache_ttl_picker' => $pickerTTL,
+			'cache_ttl_profile' => $profileTTL
 		]);
 	}
 

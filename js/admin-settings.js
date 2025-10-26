@@ -353,6 +353,22 @@
                             />
                             <p class="form-hint">How long to cache Smart Picker suggestions for CI links in Text/Talk (10s–5min).</p>
                         </div>
+
+                        <div class="form-group">
+                            <label for="cache-ttl-profile" class="form-label">
+                                <span class="icon">👤</span>
+                                Profile Cache TTL (seconds)
+                            </label>
+                            <input
+                                type="number"
+                                id="cache-ttl-profile"
+                                value="${initialState.cache_ttl_profile || 1800}"
+                                min="10"
+                                max="3600"
+                                class="form-input"
+                            />
+                            <p class="form-hint">How long to cache user profile data for access control (10s–1h). Default: 30 minutes.</p>
+                        </div>
                     </div>
 
                     <div class="form-actions cache-actions">
@@ -927,9 +943,10 @@
         const ticketInfoInput = document.getElementById('cache-ttl-ticket-info');
         const searchInput = document.getElementById('cache-ttl-search');
         const pickerInput = document.getElementById('cache-ttl-picker');
+        const profileInput = document.getElementById('cache-ttl-profile');
         const saveButton = document.getElementById('save-cache-settings');
 
-        if (!ciPreviewInput || !ticketInfoInput || !searchInput || !pickerInput) {
+        if (!ciPreviewInput || !ticketInfoInput || !searchInput || !pickerInput || !profileInput) {
             console.error('iTop Admin Settings: Cache TTL inputs not found');
             return;
         }
@@ -938,22 +955,37 @@
         const ticketInfoTTL = parseInt(ticketInfoInput.value, 10);
         const searchTTL = parseInt(searchInput.value, 10);
         const pickerTTL = parseInt(pickerInput.value, 10);
+        const profileTTL = parseInt(profileInput.value, 10);
 
         // Validation
         if (isNaN(ciPreviewTTL) || ciPreviewTTL < 10 || ciPreviewTTL > 3600) {
-            showMessage('CI Preview TTL must be between 10 and 3600 seconds', 'error');
+            if (OC.Notification && OC.Notification.showTemporary) {
+                OC.Notification.showTemporary('CI Preview TTL must be between 10 and 3600 seconds');
+            }
             return;
         }
         if (isNaN(ticketInfoTTL) || ticketInfoTTL < 10 || ticketInfoTTL > 3600) {
-            showMessage('Ticket Info TTL must be between 10 and 3600 seconds', 'error');
+            if (OC.Notification && OC.Notification.showTemporary) {
+                OC.Notification.showTemporary('Ticket Info TTL must be between 10 and 3600 seconds');
+            }
             return;
         }
         if (isNaN(searchTTL) || searchTTL < 10 || searchTTL > 300) {
-            showMessage('Search TTL must be between 10 and 300 seconds', 'error');
+            if (OC.Notification && OC.Notification.showTemporary) {
+                OC.Notification.showTemporary('Search TTL must be between 10 and 300 seconds');
+            }
             return;
         }
         if (isNaN(pickerTTL) || pickerTTL < 10 || pickerTTL > 300) {
-            showMessage('Picker TTL must be between 10 and 300 seconds', 'error');
+            if (OC.Notification && OC.Notification.showTemporary) {
+                OC.Notification.showTemporary('Picker TTL must be between 10 and 300 seconds');
+            }
+            return;
+        }
+        if (isNaN(profileTTL) || profileTTL < 10 || profileTTL > 3600) {
+            if (OC.Notification && OC.Notification.showTemporary) {
+                OC.Notification.showTemporary('Profile TTL must be between 10 and 3600 seconds');
+            }
             return;
         }
 
@@ -968,7 +1000,8 @@
             ciPreviewTTL: ciPreviewTTL,
             ticketInfoTTL: ticketInfoTTL,
             searchTTL: searchTTL,
-            pickerTTL: pickerTTL
+            pickerTTL: pickerTTL,
+            profileTTL: profileTTL
         };
 
         console.log('iTop Admin Settings: Saving cache settings:', requestData);
@@ -990,13 +1023,17 @@
         })
         .then(function(data) {
             console.log('iTop Admin Settings: Cache settings saved:', data);
-            showMessage(data.message || 'Cache settings saved successfully', 'success');
+            if (OC.Notification && OC.Notification.showTemporary) {
+                OC.Notification.showTemporary((data.message || 'Cache settings saved successfully') + ' ✅');
+            }
             saveButton.innerHTML = originalText;
             saveButton.disabled = false;
         })
         .catch(function(error) {
             console.error('iTop Admin Settings: Failed to save cache settings:', error);
-            showMessage('Failed to save cache settings: ' + error.message, 'error');
+            if (OC.Notification && OC.Notification.showTemporary) {
+                OC.Notification.showTemporary('Failed to save cache settings: ' + error.message);
+            }
             saveButton.innerHTML = originalText;
             saveButton.disabled = false;
         });
@@ -1042,13 +1079,17 @@
         })
         .then(function(data) {
             console.log('iTop Admin Settings: Cache cleared:', data);
-            showMessage(data.message || 'All cache entries cleared successfully', 'success');
+            if (OC.Notification && OC.Notification.showTemporary) {
+                OC.Notification.showTemporary((data.message || 'All cache entries cleared successfully') + ' ✅');
+            }
             clearButton.innerHTML = originalText;
             clearButton.disabled = false;
         })
         .catch(function(error) {
             console.error('iTop Admin Settings: Failed to clear cache:', error);
-            showMessage('Failed to clear cache: ' + error.message, 'error');
+            if (OC.Notification && OC.Notification.showTemporary) {
+                OC.Notification.showTemporary('Failed to clear cache: ' + error.message);
+            }
             clearButton.innerHTML = originalText;
             clearButton.disabled = false;
         });
@@ -1167,27 +1208,20 @@
         })
         .then(function(data) {
             console.log('iTop Admin Settings: CI class config saved:', data);
-            showMessage(data.message || 'CI class configuration saved successfully', 'success');
+            if (OC.Notification && OC.Notification.showTemporary) {
+                OC.Notification.showTemporary((data.message || 'CI class configuration saved successfully') + ' ✅');
+            }
             saveButton.innerHTML = originalText;
             saveButton.disabled = false;
         })
         .catch(function(error) {
             console.error('iTop Admin Settings: Failed to save CI class config:', error);
-            showMessage('Failed to save CI class configuration: ' + error.message, 'error');
+            if (OC.Notification && OC.Notification.showTemporary) {
+                OC.Notification.showTemporary('Failed to save CI class configuration: ' + error.message);
+            }
             saveButton.innerHTML = originalText;
             saveButton.disabled = false;
         });
-    }
-
-
-    function showMessage(message, type) {
-        // Use Nextcloud's OC.Notification if available
-        if (OC && OC.Notification && OC.Notification.show) {
-            OC.Notification.show(message, { type: type === 'error' ? 'error' : 'success', timeout: 5 });
-        } else {
-            // Fallback to alert
-            alert(message);
-        }
     }
 
     console.log('iTop Admin Settings: Script loaded');
