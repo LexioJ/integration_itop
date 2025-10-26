@@ -15,6 +15,7 @@ namespace OCA\Itop\Service;
 use OCA\Itop\AppInfo\Application;
 use OCP\ICache;
 use OCP\ICacheFactory;
+use OCP\IConfig;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -25,17 +26,25 @@ use Psr\Log\LoggerInterface;
  * cache (Redis/Memcached if available, falls back to file-based cache).
  *
  * Cache Strategy (from docs/caching-performance.md):
- * - CI Previews: 60s TTL (relatively stable data, but changes should appear quickly)
- * - Search Results: 30s TTL (dynamic, needs freshness)
+ * - CI Previews: 60s TTL (configurable, default 60s)
+ * - Search Results: 30s TTL (configurable, default 30s)
+ * - Picker Suggestions: 60s TTL (configurable, default 60s)
  * - Profile Status: 300s TTL (handled by ProfileService directly)
+ *
+ * Administrators can configure cache TTLs via Settings → Integration → iTop
  */
 class CacheService {
 	private ICache $cache;
 
-	// Cache TTLs (in seconds)
-	private const CI_PREVIEW_TTL = 60;
-	private const TICKET_INFO_TTL = 60;
-	private const SEARCH_RESULTS_TTL = 30;
+	// Default Cache TTLs (in seconds) - can be overridden via admin config
+	private const DEFAULT_CI_PREVIEW_TTL = 60;
+	private const DEFAULT_TICKET_INFO_TTL = 60;
+	private const DEFAULT_SEARCH_RESULTS_TTL = 30;
+	private const DEFAULT_PICKER_TTL = 60;
+
+	// Minimum and maximum allowed TTLs for validation
+	private const MIN_TTL = 10;    // 10 seconds
+	private const MAX_TTL = 3600;  // 1 hour
 
 	// Cache key prefixes
 	private const PREFIX_CI_PREVIEW = 'ci_preview';
@@ -50,9 +59,62 @@ class CacheService {
 	public function __construct(
 		ICacheFactory $cacheFactory,
 		private LoggerInterface $logger,
+		private IConfig $config,
 	) {
 		// Use distributed cache for multi-server deployments
 		$this->cache = $cacheFactory->createDistributed(Application::APP_ID . '_ci_data');
+	}
+
+	/**
+	 * Get CI Preview cache TTL from config
+	 *
+	 * @return int TTL in seconds
+	 */
+	private function getCIPreviewTTL(): int {
+		return (int)$this->config->getAppValue(
+			Application::APP_ID,
+			'cache_ttl_ci_preview',
+			(string)self::DEFAULT_CI_PREVIEW_TTL
+		);
+	}
+
+	/**
+	 * Get Ticket Info cache TTL from config
+	 *
+	 * @return int TTL in seconds
+	 */
+	private function getTicketInfoTTL(): int {
+		return (int)$this->config->getAppValue(
+			Application::APP_ID,
+			'cache_ttl_ticket_info',
+			(string)self::DEFAULT_TICKET_INFO_TTL
+		);
+	}
+
+	/**
+	 * Get Search Results cache TTL from config
+	 *
+	 * @return int TTL in seconds
+	 */
+	private function getSearchTTL(): int {
+		return (int)$this->config->getAppValue(
+			Application::APP_ID,
+			'cache_ttl_search',
+			(string)self::DEFAULT_SEARCH_RESULTS_TTL
+		);
+	}
+
+	/**
+	 * Get Picker Suggestions cache TTL from config
+	 *
+	 * @return int TTL in seconds
+	 */
+	private function getPickerTTL(): int {
+		return (int)$this->config->getAppValue(
+			Application::APP_ID,
+			'cache_ttl_picker',
+			(string)self::DEFAULT_PICKER_TTL
+		);
 	}
 
 	/**
@@ -138,20 +200,21 @@ class CacheService {
 		$key = $this->buildCIPreviewKey($userId, $class, $id);
 
 		// Wrap data with timestamp for application-level TTL enforcement
+		$ttl = $this->getCIPreviewTTL();
 		$wrapper = [
 			'cached_at' => time(),
-			'ttl' => self::CI_PREVIEW_TTL,
+			'ttl' => $ttl,
 			'data' => $previewData
 		];
 
-		$this->cache->set($key, json_encode($wrapper), self::CI_PREVIEW_TTL);
+		$this->cache->set($key, json_encode($wrapper), $ttl);
 
 		$this->logger->debug('CI preview cached', [
 			'app' => Application::APP_ID,
 			'userId' => $userId,
 			'class' => $class,
 			'id' => $id,
-			'ttl' => self::CI_PREVIEW_TTL,
+			'ttl' => $ttl,
 			'cached_at' => $wrapper['cached_at']
 		]);
 	}
@@ -249,20 +312,21 @@ class CacheService {
 	public function setTicketInfo(string $userId, int $ticketId, string $class, array $ticketData): void {
 		$key = $this->buildTicketInfoKey($userId, $ticketId, $class);
 
+		$ttl = $this->getTicketInfoTTL();
 		$wrapper = [
 			self::WRAPPER_CACHED_AT => time(),
-			self::WRAPPER_TTL => self::TICKET_INFO_TTL,
+			self::WRAPPER_TTL => $ttl,
 			self::WRAPPER_DATA => $ticketData
 		];
 
-		$this->cache->set($key, json_encode($wrapper), self::TICKET_INFO_TTL);
+		$this->cache->set($key, json_encode($wrapper), $ttl);
 
 		$this->logger->debug('Ticket info cached', [
 			'app' => Application::APP_ID,
 			'userId' => $userId,
 			'ticketId' => $ticketId,
 			'class' => $class,
-			'ttl' => self::TICKET_INFO_TTL
+			'ttl' => $ttl
 		]);
 	}
 
@@ -331,14 +395,15 @@ class CacheService {
 	 */
 	public function setSearchResults(string $userId, string $term, array $classes, bool $isPortalOnly, array $results): void {
 		$key = $this->buildSearchKey($userId, $term, $classes, $isPortalOnly);
-		$this->cache->set($key, json_encode($results), self::SEARCH_RESULTS_TTL);
+		$ttl = $this->getSearchTTL();
+		$this->cache->set($key, json_encode($results), $ttl);
 
 		$this->logger->debug('Search results cached', [
 			'app' => Application::APP_ID,
 			'userId' => $userId,
 			'term' => $term,
 			'resultCount' => count($results),
-			'ttl' => self::SEARCH_RESULTS_TTL
+			'ttl' => $ttl
 		]);
 	}
 

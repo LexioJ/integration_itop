@@ -257,7 +257,93 @@
                 </div>
                 
             </div>
-            
+
+            <div class="settings-section">
+                <div class="section-header">
+                    <h3>⚡ Cache & Performance Settings</h3>
+                    <p class="section-description">Configure cache TTL (Time To Live) settings to balance performance and data freshness</p>
+                </div>
+
+                <div class="settings-form">
+                    <div class="cache-settings-grid">
+                        <div class="form-group">
+                            <label for="cache-ttl-ci-preview" class="form-label">
+                                <span class="icon">📄</span>
+                                CI Preview Cache TTL (seconds)
+                            </label>
+                            <input
+                                type="number"
+                                id="cache-ttl-ci-preview"
+                                value="${initialState.cache_ttl_ci_preview || 60}"
+                                min="10"
+                                max="3600"
+                                class="form-input"
+                            />
+                            <p class="form-hint">How long to cache Configuration Item preview data (10s–1h). Lower = fresher data, higher = better performance.</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="cache-ttl-ticket-info" class="form-label">
+                                <span class="icon">🎫</span>
+                                Ticket Info Cache TTL (seconds)
+                            </label>
+                            <input
+                                type="number"
+                                id="cache-ttl-ticket-info"
+                                value="${initialState.cache_ttl_ticket_info || 60}"
+                                min="10"
+                                max="3600"
+                                class="form-input"
+                            />
+                            <p class="form-hint">How long to cache ticket preview data (10s–1h).</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="cache-ttl-search" class="form-label">
+                                <span class="icon">🔍</span>
+                                Search Results Cache TTL (seconds)
+                            </label>
+                            <input
+                                type="number"
+                                id="cache-ttl-search"
+                                value="${initialState.cache_ttl_search || 30}"
+                                min="10"
+                                max="300"
+                                class="form-input"
+                            />
+                            <p class="form-hint">How long to cache search results (10s–5min). Shorter TTLs ensure fresher results.</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="cache-ttl-picker" class="form-label">
+                                <span class="icon">🎯</span>
+                                Picker Suggestions Cache TTL (seconds)
+                            </label>
+                            <input
+                                type="number"
+                                id="cache-ttl-picker"
+                                value="${initialState.cache_ttl_picker || 60}"
+                                min="10"
+                                max="300"
+                                class="form-input"
+                            />
+                            <p class="form-hint">How long to cache Smart Picker suggestions for CI links in Text/Talk (10s–5min).</p>
+                        </div>
+                    </div>
+
+                    <div class="form-actions cache-actions">
+                        <button id="save-cache-settings" class="btn-primary">
+                            <span class="btn-icon">💾</span>
+                            Save Cache Settings
+                        </button>
+                        <button id="clear-all-cache" class="btn-warning">
+                            <span class="btn-icon">🗑️</span>
+                            Clear All Cache
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="settings-section">
                 <div class="section-header">
                     <h3>💡 Next Steps</h3>
@@ -360,6 +446,24 @@
                 });
             }
         });
+
+        // Cache settings event handlers
+        const saveCacheButton = document.getElementById('save-cache-settings');
+        const clearCacheButton = document.getElementById('clear-all-cache');
+
+        if (saveCacheButton) {
+            saveCacheButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                saveCacheSettings();
+            });
+        }
+
+        if (clearCacheButton) {
+            clearCacheButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                clearAllCache();
+            });
+        }
 
         console.log('iTop Admin Settings: Event handlers attached');
     }
@@ -691,6 +795,150 @@
             console.error('iTop Admin Settings:', message);
         } else {
             console.log('iTop Admin Settings:', message);
+        }
+    }
+
+    function saveCacheSettings() {
+        console.log('iTop Admin Settings: Save cache settings clicked');
+
+        const ciPreviewInput = document.getElementById('cache-ttl-ci-preview');
+        const ticketInfoInput = document.getElementById('cache-ttl-ticket-info');
+        const searchInput = document.getElementById('cache-ttl-search');
+        const pickerInput = document.getElementById('cache-ttl-picker');
+        const saveButton = document.getElementById('save-cache-settings');
+
+        if (!ciPreviewInput || !ticketInfoInput || !searchInput || !pickerInput) {
+            console.error('iTop Admin Settings: Cache TTL inputs not found');
+            return;
+        }
+
+        const ciPreviewTTL = parseInt(ciPreviewInput.value, 10);
+        const ticketInfoTTL = parseInt(ticketInfoInput.value, 10);
+        const searchTTL = parseInt(searchInput.value, 10);
+        const pickerTTL = parseInt(pickerInput.value, 10);
+
+        // Validation
+        if (isNaN(ciPreviewTTL) || ciPreviewTTL < 10 || ciPreviewTTL > 3600) {
+            showMessage('CI Preview TTL must be between 10 and 3600 seconds', 'error');
+            return;
+        }
+        if (isNaN(ticketInfoTTL) || ticketInfoTTL < 10 || ticketInfoTTL > 3600) {
+            showMessage('Ticket Info TTL must be between 10 and 3600 seconds', 'error');
+            return;
+        }
+        if (isNaN(searchTTL) || searchTTL < 10 || searchTTL > 300) {
+            showMessage('Search TTL must be between 10 and 300 seconds', 'error');
+            return;
+        }
+        if (isNaN(pickerTTL) || pickerTTL < 10 || pickerTTL > 300) {
+            showMessage('Picker TTL must be between 10 and 300 seconds', 'error');
+            return;
+        }
+
+        // Show saving state
+        saveButton.disabled = true;
+        const originalText = saveButton.innerHTML;
+        saveButton.innerHTML = '<span class="btn-icon">⏳</span> Saving...';
+
+        // Make the request
+        const requestUrl = OC.generateUrl('/apps/integration_itop/cache-settings');
+        const requestData = {
+            ciPreviewTTL: ciPreviewTTL,
+            ticketInfoTTL: ticketInfoTTL,
+            searchTTL: searchTTL,
+            pickerTTL: pickerTTL
+        };
+
+        console.log('iTop Admin Settings: Saving cache settings:', requestData);
+
+        fetch(requestUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'requesttoken': OC.requestToken || ''
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(function(response) {
+            console.log('iTop Admin Settings: Cache settings response status:', response.status);
+            if (!response.ok) {
+                throw new Error('Server responded with status: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            console.log('iTop Admin Settings: Cache settings saved:', data);
+            showMessage(data.message || 'Cache settings saved successfully', 'success');
+            saveButton.innerHTML = originalText;
+            saveButton.disabled = false;
+        })
+        .catch(function(error) {
+            console.error('iTop Admin Settings: Failed to save cache settings:', error);
+            showMessage('Failed to save cache settings: ' + error.message, 'error');
+            saveButton.innerHTML = originalText;
+            saveButton.disabled = false;
+        });
+    }
+
+    function clearAllCache() {
+        console.log('iTop Admin Settings: Clear all cache clicked');
+
+        // Confirm before clearing
+        if (!confirm('Are you sure you want to clear all cache entries? This will temporarily reduce performance until the cache is rebuilt.')) {
+            return;
+        }
+
+        const clearButton = document.getElementById('clear-all-cache');
+        if (!clearButton) {
+            console.error('iTop Admin Settings: Clear cache button not found');
+            return;
+        }
+
+        // Show clearing state
+        clearButton.disabled = true;
+        const originalText = clearButton.innerHTML;
+        clearButton.innerHTML = '<span class="btn-icon">⏳</span> Clearing...';
+
+        // Make the request
+        const requestUrl = OC.generateUrl('/apps/integration_itop/clear-cache');
+
+        console.log('iTop Admin Settings: Clearing all cache');
+
+        fetch(requestUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'requesttoken': OC.requestToken || ''
+            }
+        })
+        .then(function(response) {
+            console.log('iTop Admin Settings: Clear cache response status:', response.status);
+            if (!response.ok) {
+                throw new Error('Server responded with status: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            console.log('iTop Admin Settings: Cache cleared:', data);
+            showMessage(data.message || 'All cache entries cleared successfully', 'success');
+            clearButton.innerHTML = originalText;
+            clearButton.disabled = false;
+        })
+        .catch(function(error) {
+            console.error('iTop Admin Settings: Failed to clear cache:', error);
+            showMessage('Failed to clear cache: ' + error.message, 'error');
+            clearButton.innerHTML = originalText;
+            clearButton.disabled = false;
+        });
+    }
+
+    function showMessage(message, type) {
+        // Use Nextcloud's OC.Notification if available
+        if (OC && OC.Notification && OC.Notification.show) {
+            OC.Notification.show(message, { type: type === 'error' ? 'error' : 'success', timeout: 5 });
+        } else {
+            // Fallback to alert
+            alert(message);
         }
     }
 

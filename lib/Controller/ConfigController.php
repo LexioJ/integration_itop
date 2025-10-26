@@ -14,6 +14,7 @@ namespace OCA\Itop\Controller;
 
 use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\ItopAPIService;
+use OCA\Itop\Service\CacheService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -34,6 +35,7 @@ class ConfigController extends Controller {
 		private ICrypto $crypto,
 		private IL10N $l10n,
 		private ItopAPIService $itopAPIService,
+		private CacheService $cacheService,
 		private LoggerInterface $logger,
 		private ?string $userId
 	) {
@@ -257,6 +259,12 @@ class ConfigController extends Controller {
 		// Count users with configured tokens
 		$connectedUsers = $this->getConnectedUsersCount();
 
+		// Get cache TTL values (with defaults matching CacheService)
+		$cacheTtlCiPreview = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ci_preview', '60');
+		$cacheTtlTicketInfo = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ticket_info', '60');
+		$cacheTtlSearch = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_search', '30');
+		$cacheTtlPicker = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_picker', '60');
+
 		$adminConfig = [
 			'admin_instance_url' => $adminInstanceUrl,
 			'user_facing_name' => $userFacingName,
@@ -264,6 +272,10 @@ class ConfigController extends Controller {
 			'connected_users' => $connectedUsers,
 			'last_updated' => date('Y-m-d H:i:s'),
 			'version' => '1.0.0',
+			'cache_ttl_ci_preview' => $cacheTtlCiPreview,
+			'cache_ttl_ticket_info' => $cacheTtlTicketInfo,
+			'cache_ttl_search' => $cacheTtlSearch,
+			'cache_ttl_picker' => $cacheTtlPicker,
 		];
 
 		return new DataResponse($adminConfig);
@@ -605,6 +617,99 @@ class ConfigController extends Controller {
 		$result['message'] = $this->l10n->t('Admin configuration saved');
 
 		return new DataResponse($result);
+	}
+
+	/**
+	 * Save cache TTL settings with validation
+	 *
+	 * @param int $ciPreviewTTL CI preview cache TTL in seconds
+	 * @param int $ticketInfoTTL Ticket info cache TTL in seconds
+	 * @param int $searchTTL Search results cache TTL in seconds
+	 * @param int $pickerTTL Picker suggestions cache TTL in seconds
+	 * @return DataResponse
+	 */
+	public function saveCacheSettings(int $ciPreviewTTL, int $ticketInfoTTL, int $searchTTL, int $pickerTTL): DataResponse {
+		// Validation ranges
+		$minTTL = 10;  // 10 seconds minimum
+		$maxTTLPreview = 3600;  // 1 hour maximum for previews
+		$maxTTLOther = 300;  // 5 minutes maximum for search/picker
+
+		// Validate CI Preview TTL
+		if ($ciPreviewTTL < $minTTL || $ciPreviewTTL > $maxTTLPreview) {
+			return new DataResponse([
+				'message' => $this->l10n->t('CI Preview cache TTL must be between %d and %d seconds', [$minTTL, $maxTTLPreview])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Validate Ticket Info TTL
+		if ($ticketInfoTTL < $minTTL || $ticketInfoTTL > $maxTTLPreview) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Ticket Info cache TTL must be between %d and %d seconds', [$minTTL, $maxTTLPreview])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Validate Search TTL
+		if ($searchTTL < $minTTL || $searchTTL > $maxTTLOther) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Search cache TTL must be between %d and %d seconds', [$minTTL, $maxTTLOther])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Validate Picker TTL
+		if ($pickerTTL < $minTTL || $pickerTTL > $maxTTLOther) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Picker cache TTL must be between %d and %d seconds', [$minTTL, $maxTTLOther])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Save validated values
+		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_ci_preview', (string)$ciPreviewTTL);
+		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_ticket_info', (string)$ticketInfoTTL);
+		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_search', (string)$searchTTL);
+		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_picker', (string)$pickerTTL);
+
+		$this->logger->info('Cache TTL settings updated', [
+			'app' => Application::APP_ID,
+			'ci_preview' => $ciPreviewTTL,
+			'ticket_info' => $ticketInfoTTL,
+			'search' => $searchTTL,
+			'picker' => $pickerTTL
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('Cache settings saved successfully'),
+			'cache_ttl_ci_preview' => $ciPreviewTTL,
+			'cache_ttl_ticket_info' => $ticketInfoTTL,
+			'cache_ttl_search' => $searchTTL,
+			'cache_ttl_picker' => $pickerTTL
+		]);
+	}
+
+	/**
+	 * Clear all cache entries
+	 *
+	 * @return DataResponse
+	 */
+	public function clearAllCache(): DataResponse {
+		try {
+			$this->cacheService->clearAll();
+
+			$this->logger->info('All cache entries cleared by admin', [
+				'app' => Application::APP_ID
+			]);
+
+			return new DataResponse([
+				'message' => $this->l10n->t('All cache entries cleared successfully')
+			]);
+		} catch (\Exception $e) {
+			$this->logger->error('Failed to clear cache: ' . $e->getMessage(), [
+				'app' => Application::APP_ID
+			]);
+
+			return new DataResponse([
+				'message' => $this->l10n->t('Failed to clear cache: %s', [$e->getMessage()])
+			], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
 	}
 
 	/**

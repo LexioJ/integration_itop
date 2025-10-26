@@ -301,6 +301,133 @@ private const CACHE_TTL_USER_INFO = 600;
 $url = $this->config->getAppValue('integration_itop', 'admin_instance_url');
 ```
 
+## Administrator Configuration
+
+**Status:** ✅ Implemented (Phase 6)
+
+Administrators can now configure cache TTL values via the Nextcloud admin settings panel without modifying code. This allows fine-tuning performance based on deployment requirements.
+
+### Accessing Cache Settings
+
+1. Navigate to **Settings** → **Administration** → **iTop Integration**
+2. Scroll to the **Cache & Performance Settings** section
+3. Configure TTL values for each cache type
+4. Click **Save Cache Settings** to apply changes
+
+### Configurable Parameters
+
+| Parameter | Default | Range | Description |
+|-----------|---------|-------|-------------|
+| **CI Preview Cache TTL** | 60s | 10–3600s (1h) | How long to cache Configuration Item preview data. Lower values = fresher data but higher API load; higher values = better performance. |
+| **Ticket Info Cache TTL** | 60s | 10–3600s (1h) | How long to cache ticket preview data (UserRequest and Incident previews). |
+| **Search Results Cache TTL** | 30s | 10–300s (5min) | How long to cache search results. Shorter TTLs ensure fresher results but increase API load. |
+| **Picker Suggestions Cache TTL** | 60s | 10–300s (5min) | How long to cache Smart Picker suggestions for CI links in Text/Talk. |
+
+### Clear All Cache
+
+The admin panel also provides a **Clear All Cache** button that immediately invalidates all cached entries. This is useful:
+- After major iTop data changes
+- When troubleshooting stale data issues
+- During testing and development
+
+**Warning:** Clearing cache will temporarily reduce performance until the cache is rebuilt through normal usage.
+
+### Recommended TTL Values by Scenario
+
+#### Development/Testing Environment
+```
+CI Preview TTL: 10s      (frequent changes expected)
+Ticket Info TTL: 10s     (rapid testing cycles)
+Search TTL: 10s          (immediate feedback needed)
+Picker TTL: 10s          (testing different queries)
+```
+
+#### Shared CMDB (High Activity)
+```
+CI Preview TTL: 30s      (balance freshness vs performance)
+Ticket Info TTL: 30s     (frequent ticket updates)
+Search TTL: 20s          (users expect recent results)
+Picker TTL: 30s          (similar to search)
+```
+
+#### Dedicated CMDB (Stable Data)
+```
+CI Preview TTL: 300s     (CIs change infrequently)
+Ticket Info TTL: 120s    (moderate ticket activity)
+Search TTL: 60s          (acceptable staleness)
+Picker TTL: 120s         (longer cache for performance)
+```
+
+#### High-Traffic Nextcloud Instance
+```
+CI Preview TTL: 600s     (maximize cache hits)
+Ticket Info TTL: 300s    (reduce iTop API load)
+Search TTL: 120s         (balance load vs freshness)
+Picker TTL: 180s         (optimize for performance)
+```
+
+### Implementation Details
+
+**Backend Storage:**
+Cache TTL values are stored in Nextcloud's `appconfig` table:
+```php
+cache_ttl_ci_preview    → integer (10-3600 seconds)
+cache_ttl_ticket_info   → integer (10-3600 seconds)
+cache_ttl_search        → integer (10-300 seconds)
+cache_ttl_picker        → integer (10-300 seconds)
+```
+
+**Validation:**
+- CI Preview and Ticket Info TTL: 10s minimum, 3600s (1 hour) maximum
+- Search and Picker TTL: 10s minimum, 300s (5 minutes) maximum
+- Values are validated server-side before saving
+
+**Live Updates:**
+TTL changes take effect immediately:
+- New cache entries use the updated TTL
+- Existing cache entries retain their original TTL until expiration
+- Clear cache after changing TTLs if immediate effect is needed
+
+### API Endpoints
+
+The cache configuration feature exposes these endpoints:
+
+**Get Current Settings:**
+```
+GET /apps/integration_itop/admin-config
+Response: {
+  "cache_ttl_ci_preview": 60,
+  "cache_ttl_ticket_info": 60,
+  "cache_ttl_search": 30,
+  "cache_ttl_picker": 60,
+  ...
+}
+```
+
+**Save Cache Settings:**
+```
+POST /apps/integration_itop/cache-settings
+Body: {
+  "ciPreviewTTL": 120,
+  "ticketInfoTTL": 120,
+  "searchTTL": 60,
+  "pickerTTL": 90
+}
+Response: {
+  "message": "Cache settings saved successfully",
+  "cache_ttl_ci_preview": 120,
+  ...
+}
+```
+
+**Clear All Cache:**
+```
+POST /apps/integration_itop/clear-cache
+Response: {
+  "message": "All cache entries cleared successfully"
+}
+```
+
 ## Cache Key Patterns
 
 ### Pattern Structure
