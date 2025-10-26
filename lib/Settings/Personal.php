@@ -51,6 +51,19 @@ class Personal implements ISettings {
 
 		// Check if admin has configured application token
 		$hasApplicationToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '') !== '';
+		
+		// Get CI classes that users can configure (user_choice state)
+		$userChoiceCIClasses = Application::getUserChoiceCIClasses($this->config);
+		
+		// Get user's disabled CI classes
+		$userDisabledJson = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
+		$userDisabledClasses = [];
+		if ($userDisabledJson !== '') {
+			$userDisabledClasses = json_decode($userDisabledJson, true);
+			if (!is_array($userDisabledClasses)) {
+				$userDisabledClasses = [];
+			}
+		}
 
 		$parameters = [
 			'display_name' => $displayName,
@@ -61,6 +74,9 @@ class Personal implements ISettings {
 			'navigation_enabled' => $navigationEnabled,
 			'notification_enabled' => $notificationEnabled,
 			'search_enabled' => $searchEnabled,
+			'user_choice_ci_classes' => $userChoiceCIClasses,
+			'user_disabled_ci_classes' => $userDisabledClasses,
+			'version' => Application::VERSION,
 		];
 
 		return new TemplateResponse(Application::APP_ID, 'personalSettings', $parameters);

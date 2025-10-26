@@ -108,7 +108,7 @@ input.password-style {
 }
 
 .itop-personal-status-card {
-    background: var(--color-background-hover);
+    background: rgba(0, 0, 0, 0.04); /* Very light grey for light mode */
     border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 16px;
@@ -117,6 +117,11 @@ input.password-style {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+}
+
+/* Dark mode: use light grey */
+body[data-theme-dark] .itop-personal-status-card {
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .itop-personal-status-card:hover {
@@ -158,8 +163,8 @@ input.password-style {
 }
 
 .itop-personal-status-card.itop-connection-status.success .itop-status-value {
-    color: var(--color-success);
-    font-weight: 600;
+    color: #0e7d45;
+    font-weight: 700;
 }
 
 .itop-personal-status-card.itop-connection-status.error .itop-status-value {
@@ -198,6 +203,92 @@ input.password-style {
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+/* CI Class User Preferences */
+.ci-class-preferences {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--color-border);
+}
+
+.ci-class-preferences h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    color: var(--color-main-text);
+}
+
+.ci-class-user-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0;
+    margin: 16px 0;
+}
+
+.ci-class-user-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 12px 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--color-border);
+    min-height: 44px;
+}
+
+.ci-class-user-toggle:last-child {
+    border-bottom: none;
+}
+
+.ci-class-user-toggle input[type="checkbox"] {
+    cursor: pointer;
+    margin: 0 12px 0 0;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.ci-class-user-toggle input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ci-class-user-label-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    cursor: pointer;
+    margin: 0;
+    font-weight: normal;
+}
+
+.ci-class-user-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.ci-class-user-icon img {
+    width: 24px;
+    height: 24px;
+    display: block;
+}
+
+.ci-class-user-label {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--color-main-text);
+    line-height: 1.4;
+}
+
+.ci-class-preferences .hint {
+    margin: 0 0 16px 0;
     flex-wrap: wrap;
 }
 
@@ -473,12 +564,10 @@ input.password-style {
 }
 
 /* Success state - dark mode */
-@media (prefers-color-scheme: dark) {
-    #itop-result:not(.error) {
-        background-color: rgba(76, 175, 80, 0.1);
-        color: #81c784;
-        border-color: #4caf50;
-    }
+body[data-theme-dark] #itop-result:not(.error) {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: #81c784;
+    border-color: #4caf50;
 }
 
 /* Error state - better light mode colors */
@@ -489,12 +578,10 @@ input.password-style {
 }
 
 /* Error state - dark mode */
-@media (prefers-color-scheme: dark) {
-    #itop-result.error {
-        background-color: rgba(229, 62, 62, 0.1);
-        color: #fc8181;
-        border-color: #e53e3e;
-    }
+body[data-theme-dark] #itop-result.error {
+    background-color: rgba(229, 62, 62, 0.1);
+    color: #fc8181;
+    border-color: #e53e3e;
 }
 
 /* Main message row */
@@ -529,13 +616,12 @@ input.password-style {
     background-color: rgba(229, 62, 62, 0.1);
 }
 
-@media (prefers-color-scheme: dark) {
-    .close-button {
-        color: #fc8181;
-    }
-    .close-button:hover {
-        background-color: rgba(229, 62, 62, 0.2);
-    }
+body[data-theme-dark] .close-button {
+    color: #fc8181;
+}
+
+body[data-theme-dark] .close-button:hover {
+    background-color: rgba(229, 62, 62, 0.2);
 }
 
 /* Connection Details */
@@ -568,14 +654,13 @@ input.password-style {
     margin-bottom: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-    .success-details {
-        background: rgba(76, 175, 80, 0.1);
-        border-color: rgba(76, 175, 80, 0.4);
-    }
-    .success-details p {
-        color: #81c784;
-    }
+body[data-theme-dark] .success-details {
+    background: rgba(76, 175, 80, 0.1);
+    border-color: rgba(76, 175, 80, 0.4);
+}
+
+body[data-theme-dark] .success-details p {
+    color: #81c784;
 }
 
 .error-details {
@@ -641,26 +726,28 @@ input.password-style {
     border: 1px solid rgba(229, 62, 62, 0.15);
 }
 
-@media (prefers-color-scheme: dark) {
-    .error-details {
-        background: rgba(229, 62, 62, 0.1);
-        border-color: rgba(229, 62, 62, 0.4);
-    }
-    .error-details p {
-        color: #fc8181;
-    }
-    .error-details details {
-        background: rgba(229, 62, 62, 0.15);
-        border-color: rgba(229, 62, 62, 0.3);
-    }
-    .error-details summary {
-        color: #fc8181;
-    }
-    .error-details code {
-        background: rgba(0, 0, 0, 0.2);
-        color: #fc8181;
-        border-color: rgba(229, 62, 62, 0.3);
-    }
+body[data-theme-dark] .error-details {
+    background: rgba(229, 62, 62, 0.1);
+    border-color: rgba(229, 62, 62, 0.4);
+}
+
+body[data-theme-dark] .error-details p {
+    color: #fc8181;
+}
+
+body[data-theme-dark] .error-details details {
+    background: rgba(229, 62, 62, 0.15);
+    border-color: rgba(229, 62, 62, 0.3);
+}
+
+body[data-theme-dark] .error-details summary {
+    color: #fc8181;
+}
+
+body[data-theme-dark] .error-details code {
+    background: rgba(0, 0, 0, 0.2);
+    color: #fc8181;
+    border-color: rgba(229, 62, 62, 0.3);
 }
 
 /* Token Scope Error Specific Styling */
@@ -696,20 +783,21 @@ input.password-style {
     font-weight: 700;
 }
 
-@media (prefers-color-scheme: dark) {
-    .error-details.token-scope {
-        background: rgba(255, 193, 7, 0.15);
-        border-color: rgba(255, 193, 7, 0.4);
-    }
-    .error-details.token-scope p {
-        color: #ffb74d;
-    }
-    .error-details.token-scope .solution-steps ol li {
-        color: #ffb74d;
-    }
-    .error-details.token-scope .solution-steps ol li strong {
-        color: #ffb74d;
-    }
+body[data-theme-dark] .error-details.token-scope {
+    background: rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.4);
+}
+
+body[data-theme-dark] .error-details.token-scope p {
+    color: #ffb74d;
+}
+
+body[data-theme-dark] .error-details.token-scope .solution-steps ol li {
+    color: #ffb74d;
+}
+
+body[data-theme-dark] .error-details.token-scope .solution-steps ol li strong {
+    color: #ffb74d;
 }
 
 /* Information Section */
@@ -814,16 +902,14 @@ input.password-style {
 }
 
 /* Dark Mode Optimizations */
-@media (prefers-color-scheme: dark) {
-    .itop-personal-settings {
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    }
+body[data-theme-dark] .itop-personal-settings {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
 
-    .field input[type="url"],
-    .field input[type="password"],
-    .field input[type="text"] {
-        background-color: var(--color-background-dark);
-    }
+body[data-theme-dark] .field input[type="url"],
+body[data-theme-dark] .field input[type="password"],
+body[data-theme-dark] .field input[type="text"] {
+    background-color: var(--color-background-dark);
 }
 
 /* Phase 2 Specific Styles */
@@ -862,11 +948,9 @@ input.password-style {
     line-height: 1.5;
 }
 
-@media (prefers-color-scheme: dark) {
-    .itop-personal-warning {
-        background: rgba(255, 193, 7, 0.15);
-        border-color: rgba(255, 193, 7, 0.5);
-    }
+body[data-theme-dark] .itop-personal-warning {
+    background: rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.5);
 }
 
 /* Configured success box */
@@ -907,11 +991,9 @@ input.password-style {
     font-size: 13px;
 }
 
-@media (prefers-color-scheme: dark) {
-    .itop-personal-configured {
-        background: rgba(76, 175, 80, 0.15);
-        border-color: rgba(76, 175, 80, 0.5);
-    }
+body[data-theme-dark] .itop-personal-configured {
+    background: rgba(76, 175, 80, 0.15);
+    border-color: rgba(76, 175, 80, 0.5);
 }
 
 /* Phase 2 hint styling */
@@ -931,29 +1013,7 @@ input.password-style {
 /* Personal token field styling */
 #itop-personal-token {
     max-width: 625px;
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 12px;
-    letter-spacing: 0.3px;
+    font-size: 14px;
     padding: 10px 12px;
 }
 
-/* Status card connected state */
-.itop-personal-status-card.connected {
-    background: rgba(76, 175, 80, 0.05);
-    border-color: var(--color-success);
-}
-
-.itop-personal-status-card.success {
-    background: rgba(76, 175, 80, 0.05);
-    border-color: var(--color-success);
-}
-
-@media (prefers-color-scheme: dark) {
-    .itop-personal-status-card.connected {
-        background: rgba(76, 175, 80, 0.1);
-    }
-
-    .itop-personal-status-card.success {
-        background: rgba(76, 175, 80, 0.1);
-    }
-}

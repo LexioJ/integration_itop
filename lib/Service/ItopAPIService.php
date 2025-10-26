@@ -665,9 +665,9 @@ class ItopAPIService {
 	 * @throws Exception
 	 */
 	public function searchCIs(string $userId, string $term, array $classes = [], bool $isPortalOnly = false, int $limit = 10): array {
-		// Default to all supported CI classes
+		// Default to effective enabled CI classes (admin-enabled minus user-disabled)
 			if (empty($classes)) {
-				$classes = ['PC', 'Phone', 'IPPhone', 'MobilePhone', 'Tablet', 'Printer', 'Peripheral', 'Software', 'WebApplication'];
+				$classes = Application::getEffectiveEnabledCIClasses($this->config, $userId);
 			}
 
 		$searchResults = [];

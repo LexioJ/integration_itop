@@ -53,6 +53,30 @@
         });
     }
 
+    function getCIClassIcon(className) {
+        // Return SVG image tag with 25x25px icon
+        // Use webroot to construct correct path
+        const iconPath = OC.filePath('integration_itop', 'img', className + '.svg');
+        return '<img src="' + iconPath + '" alt="' + className + '" width="25" height="25" style="display: block;" />';
+    }
+
+    function getCIClassLabel(className) {
+        const labelMap = {
+            'PC': 'Computers (PC)',
+            'Phone': 'Phones',
+            'IPPhone': 'IP Phones',
+            'MobilePhone': 'Mobile Phones',
+            'Tablet': 'Tablets',
+            'Printer': 'Printers',
+            'Peripheral': 'Peripherals',
+            'PCSoftware': 'PC Software',
+            'OtherSoftware': 'Other Software',
+            'WebApplication': 'Web Applications',
+            'Software': 'Software Catalog'
+        };
+        return labelMap[className] || className;
+    }
+
     function createAdminInterface(initialState) {
         const container = document.getElementById('itop_prefs');
         if (!container) {
@@ -346,6 +370,66 @@
 
             <div class="settings-section">
                 <div class="section-header">
+                    <h3>🎯 CI Class Configuration</h3>
+                    <p class="section-description">Configure access levels for Configuration Item types in search, smart picker, and previews</p>
+                </div>
+
+                <div class="settings-form">
+                    <div class="ci-class-config-grid">
+                        ${(initialState.supported_ci_classes || []).map(className => {
+                            const currentState = (initialState.ci_class_config || {})[className] || 'disabled';
+                            return `
+                            <div class="ci-class-config-row">
+                                <div class="ci-class-info">
+                                    <span class="ci-class-icon" data-class="${className}">
+                                        ${getCIClassIcon(className)}
+                                    </span>
+                                    <span class="ci-class-label">${getCIClassLabel(className)}</span>
+                                </div>
+                                <div class="state-toggle-group" data-class="${className}">
+                                    <button type="button" class="state-button ${currentState === 'disabled' ? 'active' : ''}" data-state="disabled">
+                                        <span class="state-icon">🚫</span>
+                                        <span class="state-text">Disabled</span>
+                                    </button>
+                                    <button type="button" class="state-button ${currentState === 'forced' ? 'active' : ''}" data-state="forced">
+                                        <span class="state-icon">✓</span>
+                                        <span class="state-text">All Users</span>
+                                    </button>
+                                    <button type="button" class="state-button ${currentState === 'user_choice' ? 'active' : ''}" data-state="user_choice">
+                                        <span class="state-icon">⚙️</span>
+                                        <span class="state-text">User Choice</span>
+                                    </button>
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+
+                    <div class="form-info-box" style="margin-top: 16px;">
+                        <strong>🎯 Configuration States:</strong><br>
+                        <strong style="color: #e53e3e;">🚫 Disabled</strong> - Class completely hidden, no one can use it<br>
+                        <strong style="color: #38a169;">✓ All Users</strong> - Forced on for everyone, users can't disable<br>
+                        <strong style="color: #3182ce;">⚙️ User Choice</strong> - Enabled by default but users can opt-out in Personal Settings
+                    </div>
+
+                    <div class="form-actions">
+                        <button id="save-ci-classes" class="btn-primary">
+                            <span class="btn-icon">💾</span>
+                            Save CI Class Configuration
+                        </button>
+                        <button id="toggle-all-ci-classes" class="btn-secondary">
+                            <span class="btn-icon">🔄</span>
+                            Toggle All
+                        </button>
+                    </div>
+                    <p class="form-hint" style="margin-top: 8px; font-size: 12px; color: var(--color-text-maxcontrast);">
+                        <strong>Toggle All:</strong> Cycles all CI classes through states: All Users → User Choice → Disabled → All Users...
+                    </p>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <div class="section-header">
                     <h3>💡 Next Steps</h3>
                 </div>
                 <div class="info-cards">
@@ -464,6 +548,44 @@
                 clearAllCache();
             });
         }
+
+        // CI class configuration event handlers
+        const saveCIClassesButton = document.getElementById('save-ci-classes');
+        const toggleAllButton = document.getElementById('toggle-all-ci-classes');
+
+        if (saveCIClassesButton) {
+            saveCIClassesButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                saveCIClasses();
+            });
+        }
+        
+        if (toggleAllButton) {
+            toggleAllButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                toggleAllCIClasses();
+            });
+        }
+        
+        // Add click listeners to toggle buttons
+        const stateButtons = document.querySelectorAll('.state-button');
+        stateButtons.forEach(function(button) {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Get the parent toggle group
+                const toggleGroup = button.closest('.state-toggle-group');
+                if (!toggleGroup) return;
+                
+                // Remove active class from all buttons in this group
+                toggleGroup.querySelectorAll('.state-button').forEach(function(btn) {
+                    btn.classList.remove('active');
+                });
+                
+                // Add active class to clicked button
+                button.classList.add('active');
+            });
+        });
 
         console.log('iTop Admin Settings: Event handlers attached');
     }
@@ -931,6 +1053,132 @@
             clearButton.disabled = false;
         });
     }
+
+    function toggleAllCIClasses() {
+        console.log('iTop Admin Settings: Toggle All clicked');
+        
+        const toggleGroups = document.querySelectorAll('.state-toggle-group');
+        if (toggleGroups.length === 0) {
+            console.error('No toggle groups found');
+            return;
+        }
+        
+        // Determine the current majority state (what most classes are set to)
+        const stateCounts = { disabled: 0, forced: 0, user_choice: 0 };
+        
+        toggleGroups.forEach(function(group) {
+            const activeButton = group.querySelector('.state-button.active');
+            if (activeButton) {
+                const state = activeButton.getAttribute('data-state');
+                if (stateCounts.hasOwnProperty(state)) {
+                    stateCounts[state]++;
+                }
+            }
+        });
+        
+        // Determine current predominant state
+        let currentState = 'disabled';
+        let maxCount = stateCounts.disabled;
+        
+        if (stateCounts.forced > maxCount) {
+            currentState = 'forced';
+            maxCount = stateCounts.forced;
+        }
+        if (stateCounts.user_choice > maxCount) {
+            currentState = 'user_choice';
+        }
+        
+        // Cycle to next state: forced → user_choice → disabled → forced
+        let nextState;
+        if (currentState === 'forced') {
+            nextState = 'user_choice';
+        } else if (currentState === 'user_choice') {
+            nextState = 'disabled';
+        } else {
+            nextState = 'forced';
+        }
+        
+        console.log('Toggling all from', currentState, 'to', nextState);
+        
+        // Apply the next state to all toggle groups
+        toggleGroups.forEach(function(group) {
+            // Remove active from all buttons in this group
+            group.querySelectorAll('.state-button').forEach(function(btn) {
+                btn.classList.remove('active');
+            });
+            
+            // Add active to the button matching nextState
+            const targetButton = group.querySelector('.state-button[data-state="' + nextState + '"]');
+            if (targetButton) {
+                targetButton.classList.add('active');
+            }
+        });
+    }
+    
+    function saveCIClasses() {
+        console.log('iTop Admin Settings: Save CI classes clicked');
+
+        const toggleGroups = document.querySelectorAll('.state-toggle-group');
+        const classConfig = {};
+        
+        toggleGroups.forEach(function(group) {
+            const className = group.getAttribute('data-class');
+            const activeButton = group.querySelector('.state-button.active');
+            
+            if (activeButton) {
+                const state = activeButton.getAttribute('data-state');
+                classConfig[className] = state;
+            } else {
+                // Default to disabled if nothing is selected (shouldn't happen)
+                classConfig[className] = 'disabled';
+            }
+        });
+
+        const saveButton = document.getElementById('save-ci-classes');
+        if (!saveButton) {
+            console.error('iTop Admin Settings: Save CI classes button not found');
+            return;
+        }
+
+        // Show saving state
+        saveButton.disabled = true;
+        const originalText = saveButton.innerHTML;
+        saveButton.innerHTML = '<span class="btn-icon">⏳</span> Saving...';
+
+        const requestUrl = OC.generateUrl('/apps/integration_itop/ci-class-config');
+        const requestData = { classConfig: classConfig };
+
+        console.log('iTop Admin Settings: Saving CI class configuration:', classConfig);
+
+        fetch(requestUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'requesttoken': OC.requestToken || ''
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(function(response) {
+            console.log('iTop Admin Settings: CI class config response status:', response.status);
+            if (!response.ok) {
+                throw new Error('Server responded with status: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            console.log('iTop Admin Settings: CI class config saved:', data);
+            showMessage(data.message || 'CI class configuration saved successfully', 'success');
+            saveButton.innerHTML = originalText;
+            saveButton.disabled = false;
+        })
+        .catch(function(error) {
+            console.error('iTop Admin Settings: Failed to save CI class config:', error);
+            showMessage('Failed to save CI class configuration: ' + error.message, 'error');
+            saveButton.innerHTML = originalText;
+            saveButton.disabled = false;
+        });
+    }
+
 
     function showMessage(message, type) {
         // Use Nextcloud's OC.Notification if available

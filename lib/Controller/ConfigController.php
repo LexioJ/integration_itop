@@ -84,8 +84,20 @@ class ConfigController extends Controller {
 
 		// Save non-token settings first
 		foreach ($values as $key => $value) {
-			if ($key !== 'token' && $key !== 'personal_token') {
+			if ($key !== 'token' && $key !== 'personal_token' && $key !== 'disabled_ci_classes') {
 				$this->config->setUserValue($this->userId, Application::APP_ID, $key, $value);
+			}
+		}
+		
+		// Handle disabled CI classes (user preferences)
+		if (isset($values['disabled_ci_classes']) && is_array($values['disabled_ci_classes'])) {
+			$disabledClasses = array_values(array_unique($values['disabled_ci_classes']));
+			// Validate classes
+			$validDisabled = array_intersect($disabledClasses, Application::SUPPORTED_CI_CLASSES);
+			if (empty($validDisabled)) {
+				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes');
+			} else {
+				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', json_encode($validDisabled));
 			}
 		}
 
@@ -265,6 +277,9 @@ class ConfigController extends Controller {
 		$cacheTtlSearch = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_search', '30');
 		$cacheTtlPicker = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_picker', '60');
 
+		// Get 3-state CI class configuration
+		$ciClassConfig = Application::getCIClassConfig($this->config);
+
 		$adminConfig = [
 			'admin_instance_url' => $adminInstanceUrl,
 			'user_facing_name' => $userFacingName,
@@ -276,6 +291,8 @@ class ConfigController extends Controller {
 			'cache_ttl_ticket_info' => $cacheTtlTicketInfo,
 			'cache_ttl_search' => $cacheTtlSearch,
 			'cache_ttl_picker' => $cacheTtlPicker,
+			'ci_class_config' => $ciClassConfig,
+			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES,
 		];
 
 		return new DataResponse($adminConfig);
@@ -682,6 +699,177 @@ class ConfigController extends Controller {
 			'cache_ttl_ticket_info' => $ticketInfoTTL,
 			'cache_ttl_search' => $searchTTL,
 			'cache_ttl_picker' => $pickerTTL
+		]);
+	}
+
+	/**
+	 * Get enabled CI classes from configuration
+	 *
+	 * @return array List of enabled CI class names
+	 */
+	private function getEnabledCIClasses(): array {
+		$enabledClassesJson = $this->config->getAppValue(Application::APP_ID, 'enabled_ci_classes', '');
+
+		if ($enabledClassesJson === '') {
+			// Default: no classes enabled (opt-in model)
+			return [];
+		}
+
+		$enabledClasses = json_decode($enabledClassesJson, true);
+		if (!is_array($enabledClasses)) {
+			// Fallback on invalid JSON: no classes enabled
+			return [];
+		}
+
+		// Filter to only valid classes
+		return array_values(array_intersect($enabledClasses, Application::SUPPORTED_CI_CLASSES));
+	}
+
+	/**
+	 * Get user's disabled CI classes
+	 *
+	 * @NoAdminRequired
+	 * @return DataResponse
+	 */
+	public function getUserDisabledCIClasses(): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'User not authenticated'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		$userDisabledJson = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
+		$userDisabled = [];
+
+		if ($userDisabledJson !== '') {
+			$userDisabled = json_decode($userDisabledJson, true);
+			if (!is_array($userDisabled)) {
+				$userDisabled = [];
+			}
+		}
+
+		// Also get admin-enabled classes for reference
+		$adminEnabled = Application::getEnabledCIClasses($this->config);
+
+		return new DataResponse([
+			'admin_enabled_classes' => $adminEnabled,
+			'user_disabled_classes' => $userDisabled,
+			'effective_enabled_classes' => Application::getEffectiveEnabledCIClasses($this->config, $this->userId),
+			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES
+		]);
+	}
+
+	/**
+	 * Save user's disabled CI classes
+	 *
+	 * @NoAdminRequired
+	 * @param array $disabledClasses Array of CI class names user wants to disable
+	 * @return DataResponse
+	 */
+	public function saveUserDisabledCIClasses(array $disabledClasses): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'User not authenticated'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		// Validate that all provided classes are supported
+		$validClasses = array_intersect($disabledClasses, Application::SUPPORTED_CI_CLASSES);
+
+		// Remove duplicates and re-index
+		$validClasses = array_values(array_unique($validClasses));
+
+		// Save to user config
+		if (empty($validClasses)) {
+			// Remove config if no classes disabled
+			$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes');
+		} else {
+			$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', json_encode($validClasses));
+		}
+
+		$this->logger->info('User disabled CI classes updated', [
+			'app' => Application::APP_ID,
+			'userId' => $this->userId,
+			'disabled_classes' => $validClasses
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('CI class preferences saved successfully'),
+			'user_disabled_classes' => $validClasses,
+			'effective_enabled_classes' => Application::getEffectiveEnabledCIClasses($this->config, $this->userId)
+		]);
+	}
+
+	/**
+	 * Save CI class configuration (admin only) - 3-state model
+	 *
+	 * @param array $classConfig Map of class name => state (disabled/forced/user_choice)
+	 * @return DataResponse
+	 */
+	public function saveCIClassConfig(array $classConfig): DataResponse {
+		// Validate format and values
+		$validConfig = [];
+		foreach ($classConfig as $className => $state) {
+			// Only process supported classes
+			if (!in_array($className, Application::SUPPORTED_CI_CLASSES, true)) {
+				continue;
+			}
+
+			// Validate state
+			if (!in_array($state, [
+				Application::CI_CLASS_STATE_DISABLED,
+				Application::CI_CLASS_STATE_FORCED,
+				Application::CI_CLASS_STATE_USER_CHOICE
+			], true)) {
+				return new DataResponse([
+					'message' => $this->l10n->t('Invalid state for class %s: %s', [$className, $state])
+				], Http::STATUS_BAD_REQUEST);
+			}
+
+			$validConfig[$className] = $state;
+		}
+
+		// Save to config
+		$this->config->setAppValue(Application::APP_ID, 'ci_class_config', json_encode($validConfig));
+
+		$this->logger->info('CI class configuration updated', [
+			'app' => Application::APP_ID,
+			'config' => $validConfig
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('CI class configuration saved successfully'),
+			'ci_class_config' => $validConfig
+		]);
+	}
+
+	/**
+	 * Save enabled CI classes configuration (admin only)
+	 * DEPRECATED: Use saveCIClassConfig() instead
+	 *
+	 * @param array $enabledClasses Array of CI class names to enable
+	 * @return DataResponse
+	 */
+	public function saveEnabledCIClasses(array $enabledClasses): DataResponse {
+		// Validate that all provided classes are supported
+		$validClasses = array_intersect($enabledClasses, Application::SUPPORTED_CI_CLASSES);
+
+		if (count($validClasses) === 0) {
+			return new DataResponse([
+				'message' => $this->l10n->t('At least one CI class must be enabled')
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Remove duplicates and re-index
+		$validClasses = array_values(array_unique($validClasses));
+
+		// Save to config
+		$this->config->setAppValue(Application::APP_ID, 'enabled_ci_classes', json_encode($validClasses));
+
+		$this->logger->info('Enabled CI classes updated', [
+			'app' => Application::APP_ID,
+			'enabled_classes' => $validClasses
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('CI class configuration saved successfully'),
+			'enabled_ci_classes' => $validClasses
 		]);
 	}
 

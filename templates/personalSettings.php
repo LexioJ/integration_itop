@@ -4,6 +4,21 @@
  */
 style('integration_itop', 'personal-settings');
 script('integration_itop', 'personal-settings');
+
+// CI class label mapping
+$ciClassLabels = [
+	'PC' => 'Computers (PC)',
+	'Phone' => 'Phones',
+	'IPPhone' => 'IP Phones',
+	'MobilePhone' => 'Mobile Phones',
+	'Tablet' => 'Tablets',
+	'Printer' => 'Printers',
+	'Peripheral' => 'Peripherals',
+	'PCSoftware' => 'PC Software',
+	'OtherSoftware' => 'Other Software',
+	'WebApplication' => 'Web Applications',
+	'Software' => 'Software Catalog'
+];
 ?>
 
 <div id="itop_prefs" class="section">
@@ -13,9 +28,9 @@ script('integration_itop', 'personal-settings');
 		</div>
 		<div class="header-content">
 			<h2><?php p($l->t('%s Integration', [$_['display_name']])); ?></h2>
-			<p class="subtitle"><?php p($l->t('Configure your iTop system integration settings')); ?></p>
+			<p class="subtitle"><?php p($l->t('Configure your %s system integration settings', [$_['display_name']])); ?></p>
 		</div>
-		<div class="version-badge">V1.0.0</div>
+		<div class="version-badge">v<?php p($_['version']); ?></div>
 	</div>
 
 	<?php if (!$_['has_application_token']): ?>
@@ -102,6 +117,33 @@ script('integration_itop', 'personal-settings');
 			<label for="itop-search-enabled"><?php p($l->t('Enable unified search')); ?></label>
 			<p class="hint"><?php p($l->t('Search your %s tickets from the search bar (tickets you created or are assigned to you)',[$_['display_name']])); ?></p>
 		</div>
+
+		<?php if (!empty($_['user_choice_ci_classes'])): ?>
+		<div class="field ci-class-preferences">
+			<h4><?php p($l->t('Configuration Item Classes')); ?></h4>
+			<p class="hint"><?php p($l->t('Choose which CI types you want to see in search, smart picker, and previews')); ?></p>
+			<div id="ci-class-user-toggles" class="ci-class-user-list">
+				<?php foreach ($_['user_choice_ci_classes'] as $className): ?>
+				<div class="ci-class-user-toggle">
+					<input
+						type="checkbox"
+						name="user_ci_class"
+						id="ci-class-<?php p($className); ?>"
+						value="<?php p($className); ?>"
+						<?php echo !in_array($className, $_['user_disabled_ci_classes']) ? 'checked' : ''; ?>
+						<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>
+					/>
+					<label for="ci-class-<?php p($className); ?>" class="ci-class-user-label-container">
+						<span class="ci-class-user-icon">
+							<img src="<?php p(\OC::$server->getURLGenerator()->imagePath('integration_itop', $className . '.svg')); ?>" alt="<?php p($className); ?>" width="24" height="24" />
+						</span>
+						<span class="ci-class-user-label"><?php p(isset($ciClassLabels[$className]) ? $ciClassLabels[$className] : $className); ?></span>
+					</label>
+				</div>
+				<?php endforeach; ?>
+			</div>
+		</div>
+		<?php endif; ?>
 
 		<button id="itop-save" class="button" <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 			<span class="icon icon-checkmark"></span>

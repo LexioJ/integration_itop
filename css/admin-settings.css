@@ -295,8 +295,8 @@ input.password-style {
 }
 
 .connection-status.success .status-value {
-    color: var(--color-success);
-    font-weight: 600;
+    color: #0e7d45;
+    font-weight: 700;
 }
 
 .connection-status.warning .status-value {
@@ -582,6 +582,176 @@ input.password-style {
     box-shadow: none;
 }
 
+/* CI Class Configuration Grid (3-state dropdowns) */
+.ci-class-config-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+    .ci-class-config-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.ci-class-config-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--color-background-hover);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    transition: all 0.2s;
+    min-height: 50px;
+}
+
+.ci-class-config-row:hover {
+    background: var(--color-background-dark);
+    border-color: var(--color-primary-element);
+}
+
+.ci-class-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+/* Toggle Switch Group - Modern Button-Based Selection */
+.state-toggle-group {
+    display: flex;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 2px solid var(--color-border);
+    background: var(--color-background-hover);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s;
+    padding: 0 4px;
+    gap: 4px;
+}
+
+.state-toggle-group:hover {
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+}
+
+.state-button {
+    flex: 1;
+    padding: 3px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 8px;
+    font-weight: 600;
+    color: var(--color-text-maxcontrast);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    position: relative;
+    min-width: 60px;
+}
+
+.state-button:hover:not(.active) {
+    background: var(--color-background-dark);
+    color: var(--color-main-text);
+}
+
+.state-button .state-icon {
+    font-size: 16px;
+    display: block;
+    transition: transform 0.2s;
+}
+
+.state-button:hover .state-icon {
+    transform: scale(1.1);
+}
+
+.state-button .state-text {
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+/* Active States - Very Light Pastel Colors with Black Text */
+.state-button.active {
+    color: #1a202c;
+    font-weight: 700;
+    transform: scale(1.01);
+    z-index: 1;
+}
+
+/* Very Light Pastel Red - Disabled (Active) */
+.state-button[data-state="disabled"].active {
+    background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
+    box-shadow: 0 2px 6px rgba(254, 215, 215, 0.5);
+}
+
+/* Very Light Pastel Green - Forced/All Users (Active) */
+.state-button[data-state="forced"].active {
+    background: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%);
+    box-shadow: 0 2px 6px rgba(198, 246, 213, 0.5);
+}
+
+/* Very Light Pastel Blue - User Choice (Active) */
+.state-button[data-state="user_choice"].active {
+    background: linear-gradient(135deg, #bee3f8 0%, #90cdf4 100%);
+    box-shadow: 0 2px 6px rgba(190, 227, 248, 0.5);
+}
+
+/* Hover effects - Darker, More Vibrant Colors */
+.state-button[data-state="disabled"]:hover:not(.active) {
+    background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+    color: white;
+    box-shadow: 0 2px 6px rgba(229, 62, 62, 0.4);
+}
+
+.state-button[data-state="forced"]:hover:not(.active) {
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+    box-shadow: 0 2px 6px rgba(56, 161, 105, 0.4);
+}
+
+.state-button[data-state="user_choice"]:hover:not(.active) {
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+    color: white;
+    box-shadow: 0 2px 6px rgba(49, 130, 206, 0.4);
+}
+
+/* Remove old checkbox/dropdown styles */
+.ci-class-toggle,
+.ci-class-dropdown {
+    display: none;
+}
+
+.ci-class-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 25px;
+    height: 25px;
+    flex-shrink: 0;
+}
+
+.ci-class-icon img {
+    width: 25px;
+    height: 25px;
+    display: block;
+}
+
+.ci-class-label {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-main-text);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .itop-admin-header {
@@ -631,6 +801,33 @@ input.password-style {
 
     .cache-actions button {
         width: 100%;
+    }
+
+    .ci-class-toggles {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Stack CI class config on mobile */
+    .ci-class-config-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .ci-class-info {
+        width: 100%;
+    }
+    
+    .state-toggle-group {
+        width: 100%;
+    }
+    
+    .state-button {
+        min-width: auto;
+        padding: 8px 12px;
+    }
+    
+    .state-button .state-text {
+        font-size: 10px;
     }
 
     .settings-section {

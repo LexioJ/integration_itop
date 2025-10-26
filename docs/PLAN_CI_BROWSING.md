@@ -184,9 +184,24 @@ These four classes share the same parent classes (FunctionalCI → PhysicalDevic
 - [x] Personal settings with token validation
 - [x] Dual-token architecture (app token + personal token)
 - [x] Person ID extraction and storage
-- [ ] Per-class enable/disable toggles
+- [x] Per-class enable/disable toggles ✅ COMPLETED
 - [ ] Portal profile detection configuration UI
 - [ ] Ensure portal-only and power-user filtering are in place according to docs/security-auth.md
+
+**Per-Class Enable/Disable Implementation:**
+- ✅ Backend: Added `Application::getEnabledCIClasses()` static method to read config
+- ✅ Backend: Added `ConfigController::getEnabledCIClasses()` and `saveEnabledCIClasses()` methods
+- ✅ Backend: Updated `ItopAPIService::searchCIs()` to use enabled classes from config
+- ✅ API Route: Added `/enabled-ci-classes` POST endpoint
+- ✅ Admin Settings: Added `enabled_ci_classes` and `supported_ci_classes` to initial state
+- ✅ Frontend: Added "CI Class Configuration" section with checkboxes for all 11 CI classes
+- ✅ Frontend: Added "Save CI Class Configuration" and "Toggle All" buttons
+- ✅ Frontend: Implemented `saveCIClasses()` and `toggleAllCIClasses()` functions
+- ✅ Frontend: Added icon and label helpers for visual identification
+- ✅ CSS: Added responsive grid layout for CI class toggles with hover effects
+- ✅ Validation: Ensures at least one class must remain enabled
+- ✅ Default: All classes enabled by default on fresh install
+- ✅ Storage: JSON array in `appconfig` table (`enabled_ci_classes` key)
 - [x] **Caching Configuration (Configurable TTLs for Administrators)** ✅ COMPLETED
   - [x] Admin UI section: "Cache & Performance Settings"
   - [x] Configurable parameters (all with sensible defaults):
