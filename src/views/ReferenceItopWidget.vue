@@ -56,23 +56,24 @@
 						</span>
 					</div>
 				</div>
-				<!-- Row 2: Service/CI breadcrumb | Org/Team/Agent breadcrumb -->
+				<!-- Row 2: Service breadcrumb (Tickets) OR CI subtitle (CIs) -->
 				<div class="row-2">
-					<div class="left">
-						<!-- Ticket service breadcrumb -->
-						<span v-if="!isCI && serviceBreadcrumb" class="service-breadcrumb" v-html="serviceBreadcrumb" />
-						<!-- CI subtitle -->
-						<span v-if="isCI && richObject.subtitle" class="ci-subtitle">
-							{{ richObject.subtitle }}
-						</span>
-					</div>
-					<div class="right">
-						<span v-if="!isCI && orgTeamAgentBreadcrumb" class="org-breadcrumb" v-html="orgTeamAgentBreadcrumb" />
-					</div>
+					<!-- Ticket service breadcrumb -->
+					<span v-if="!isCI && serviceBreadcrumb" class="service-breadcrumb" v-html="serviceBreadcrumb" />
+					<!-- CI subtitle: For PhysicalDevice show brand/model/serial inline; for others show regular subtitle -->
+					<span v-if="isCI && physicalDeviceSubtitle" class="ci-subtitle physical-device">
+						{{ physicalDeviceSubtitle }}
+					</span>
+					<span v-else-if="isCI && richObject.subtitle" class="ci-subtitle">
+						{{ richObject.subtitle }}
+					</span>
 				</div>
-				<!-- Row 3: CI Chips (location, asset info, brand/model) -->
-				<div v-if="isCI && richObject.chips && richObject.chips.length > 0" class="row-3 ci-chips">
-					<span v-for="chip in richObject.chips" :key="chip.label" class="ci-chip">
+				<!-- Row 3: Org/Team/Agent breadcrumb (Tickets) OR CI Chips (CIs) -->
+				<div v-if="!isCI && orgTeamAgentBreadcrumb" class="row-3 ticket-org">
+					<span class="org-breadcrumb" v-html="orgTeamAgentBreadcrumb" />
+				</div>
+				<div v-if="isCI && filteredChips.length > 0" class="row-3 ci-chips">
+					<span v-for="chip in filteredChips" :key="chip.label" class="ci-chip">
 						<span class="chip-icon">{{ getChipIcon(chip.icon) }}</span>
 						<span class="chip-label">{{ chip.label }}</span>
 					</span>
@@ -149,6 +150,49 @@ export default {
 		isCI() {
 			// Check if this is a CI (not a ticket)
 			return this.richObjectType === 'integration_itop_ci'
+		},
+		isPhysicalDevice() {
+			// PhysicalDevice classes: PC, Printer, Tablet, MobilePhone
+			const physicalDeviceClasses = ['PC', 'Printer', 'Tablet', 'MobilePhone']
+			return this.isCI && physicalDeviceClasses.includes(this.richObject.class)
+		},
+		physicalDeviceSubtitle() {
+			if (!this.isPhysicalDevice || !this.richObject.chips) {
+				return null
+			}
+
+			// Extract brand/model and serial number from chips
+			const parts = []
+
+			// Find brand/model chip (icon: 'tag')
+			const brandModelChip = this.richObject.chips.find(chip => chip.icon === 'tag')
+			if (brandModelChip) {
+				parts.push(brandModelChip.label)
+			}
+
+			// Find serial number chip (icon: 'identifier')
+			const serialChip = this.richObject.chips.find(chip => chip.icon === 'identifier')
+			if (serialChip) {
+				parts.push(serialChip.label)
+			}
+
+			return parts.length > 0 ? parts.join(' • ') : null
+		},
+		filteredChips() {
+			if (!this.richObject.chips) {
+				return []
+			}
+
+			// For PhysicalDevice classes, filter out brand/model and serial number chips
+			// since they're displayed in the subtitle
+			if (this.isPhysicalDevice) {
+				return this.richObject.chips.filter(chip =>
+					chip.icon !== 'tag' && chip.icon !== 'identifier',
+				)
+			}
+
+			// For other CI types, show all chips
+			return this.richObject.chips
 		},
 		ticketUrl() {
 			return this.richObject.url
@@ -334,7 +378,9 @@ export default {
 		getChipIcon(iconName) {
 			// Map icon names to emoji/symbols
 			const iconMap = {
+				organization: '🏢',
 				'map-marker': '📍',
+				contacts: '👤',
 				barcode: '🏷️',
 				identifier: '#',
 				tag: '🔖',
@@ -389,8 +435,7 @@ export default {
 			gap: 4px;
 		}
 
-		.row-1,
-		.row-2 {
+		.row-1 {
 			display: flex;
 			justify-content: space-between;
 			align-items: center;
@@ -411,9 +456,7 @@ export default {
 				flex-wrap: wrap;
 				flex-shrink: 0;
 			}
-		}
 
-		.row-1 {
 			.priority-emoji {
 				font-size: 16px;
 			}
@@ -441,8 +484,7 @@ export default {
 			font-size: 13px;
 			color: var(--color-text-maxcontrast);
 
-			.service-breadcrumb,
-			.org-breadcrumb {
+			.service-breadcrumb {
 				::v-deep a {
 					color: inherit !important;
 					&:hover {
@@ -457,6 +499,20 @@ export default {
 		}
 
 		.row-3 {
+			&.ticket-org {
+				font-size: 13px;
+				color: var(--color-text-maxcontrast);
+
+				.org-breadcrumb {
+					::v-deep a {
+						color: inherit !important;
+						&:hover {
+							color: #58a6ff !important;
+						}
+					}
+				}
+			}
+
 			&.ci-chips {
 				display: flex;
 				flex-wrap: wrap;

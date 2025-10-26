@@ -44,6 +44,7 @@ class PreviewMapper {
 	public function mapCIToPreview(array $ciData, string $class): array {
 		$fields = $ciData['fields'] ?? $ciData;
 
+
 		// Build preview DTO structure
 		$preview = [
 			'id' => $fields['id'] ?? null,
@@ -58,6 +59,7 @@ class PreviewMapper {
 			'url' => $this->buildItopUrl($fields, $class),
 			'icon' => $this->getClassIcon($class),
 		];
+
 
 		return $preview;
 	}
@@ -134,11 +136,30 @@ class PreviewMapper {
 	private function formatBadges(array $fields): array {
 		$badges = [];
 
-		// Status badge
+		// Status badge with intelligent move2production date handling
 		if (!empty($fields['status'])) {
+			$status = $fields['status'];
+			$label = ucfirst($status);
+
+			// Debug logging to see what move2production value we have
+			$this->logger->debug('formatBadges: status=' . $status . ', move2production=' . ($fields['move2production'] ?? 'NULL'));
+
+			// If status is "production" and move2production date exists, append short date
+			if (strtolower($status) === 'production' && !empty($fields['move2production'])) {
+				// Format date as DD.MM.YY (e.g., "24.10.25")
+				try {
+					$date = new \DateTime($fields['move2production']);
+					$shortDate = $date->format('d.m.y');
+					$label = ucfirst($status) . ' (' . $shortDate . ')';
+				} catch (\Exception $e) {
+					// If date parsing fails, just use status without date
+					$label = ucfirst($status);
+				}
+			}
+
 			$badges[] = [
-				'label' => ucfirst($fields['status']),
-				'type' => $this->getStatusBadgeType($fields['status'])
+				'label' => $label,
+				'type' => $this->getStatusBadgeType($status)
 			];
 		}
 
@@ -162,11 +183,29 @@ class PreviewMapper {
 	private function formatChips(array $fields): array {
 		$chips = [];
 
+		// Organization
+		if (!empty($fields['org_id_friendlyname'])) {
+			$chips[] = [
+				'icon' => 'organization',
+				'label' => $fields['org_id_friendlyname']
+			];
+		}
+
 		// Location
 		if (!empty($fields['location_id_friendlyname'])) {
 			$chips[] = [
 				'icon' => 'map-marker',
 				'label' => $fields['location_id_friendlyname']
+			];
+		}
+
+		// Contacts count
+		$contactsCount = $this->countFromLinkedSet($fields['contacts_list'] ?? null);
+		// Show 0 if null, otherwise show the actual count
+		if ($contactsCount !== null) {
+			$chips[] = [
+				'icon' => 'contacts',
+				'label' => (string)($contactsCount ?? 0)
 			];
 		}
 
@@ -227,11 +266,6 @@ class PreviewMapper {
 				if (!empty($fields['ram'])) {
 					$extras[] = ['label' => 'RAM', 'value' => $fields['ram']];
 				}
-				// Contacts count
-				$contactsCount = $this->countFromLinkedSet($fields['contacts_list'] ?? null);
-				if ($contactsCount > 0) {
-					$extras[] = ['label' => 'Contacts', 'value' => (string)$contactsCount];
-				}
 				// Software count (PC extends ConnectableCI which has softwares_list)
 				$softwaresCount = $this->countFromLinkedSet($fields['softwares_list'] ?? null);
 				if ($softwaresCount > 0) {
@@ -253,27 +287,13 @@ class PreviewMapper {
 				if (!empty($fields['imei'])) {
 					$extras[] = ['label' => 'IMEI', 'value' => $fields['imei']];
 				}
-				// Contacts count
-				$contactsCount = $this->countFromLinkedSet($fields['contacts_list'] ?? null);
-				if ($contactsCount > 0) {
-					$extras[] = ['label' => 'Contacts', 'value' => (string)$contactsCount];
-				}
 				break;
 
 			case 'Tablet':
-				// Contacts count
-				$contactsCount = $this->countFromLinkedSet($fields['contacts_list'] ?? null);
-				if ($contactsCount > 0) {
-					$extras[] = ['label' => 'Contacts', 'value' => (string)$contactsCount];
-				}
+				// Tablet has no specific extras - contacts shown in chips
 				break;
 
 			case 'Printer':
-				// Contacts count
-				$contactsCount = $this->countFromLinkedSet($fields['contacts_list'] ?? null);
-				if ($contactsCount > 0) {
-					$extras[] = ['label' => 'Contacts', 'value' => (string)$contactsCount];
-				}
 				// Software count (Printer extends ConnectableCI which has softwares_list)
 				$softwaresCount = $this->countFromLinkedSet($fields['softwares_list'] ?? null);
 				if ($softwaresCount > 0) {
@@ -476,8 +496,9 @@ class PreviewMapper {
 	 * @return string|null Formatted brand/model or null
 	 */
 	private function formatBrandModel(array $fields): ?string {
-		$brand = $fields['brand_id_friendlyname'] ?? '';
-		$model = $fields['model_id_friendlyname'] ?? '';
+		// Try both field name formats: brand_name/model_name (external fields) or brand_id_friendlyname/model_id_friendlyname (OQL friendly names)
+		$brand = $fields['brand_name'] ?? $fields['brand_id_friendlyname'] ?? '';
+		$model = $fields['model_name'] ?? $fields['model_id_friendlyname'] ?? '';
 
 		if (empty($brand) && empty($model)) {
 			return null;

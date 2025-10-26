@@ -879,92 +879,83 @@ class ItopAPIService {
 	 * @return string Comma-separated field list
 	 */
 	private function getCIPreviewFields(string $class): string {
-		// Base fields from FunctionalCI (all CI classes inherit these)
-		// Source: itop/datamodels/2.x/itop-config-mgmt/datamodel.itop-config-mgmt.xml
-		$baseFunctionalCIFields = [
-			'id',
-			'name',
-			'friendlyname',
-			'org_id_friendlyname',
-			'description',
-			'business_criticity',
-			'move2production'
-		];
-
-		// Fields added by PhysicalDevice extension
-		// Applies to: PC, Phone, IPPhone, MobilePhone, Tablet, Printer, Peripheral
-		$physicalDeviceFields = [
-			'status',
-			'serialnumber',
-			'location_id_friendlyname',
-			'brand_id_friendlyname',
-			'model_id_friendlyname',
-			'asset_number',
-			'contacts_list',  // Link set for contact counts
-			'softwares_list'  // Link set for installed software counts (ConnectableCI classes only)
-		];
-
-		// Fields added by SoftwareInstance extension
-		// Applies to: PCSoftware, OtherSoftware
-		$softwareInstanceFields = [
-			'status',
-			'system_name',
-			'software_id_friendlyname',
-			'softwarelicence_id_friendlyname',
-			'path'
-		];
-
-		// Determine which extension applies
-		$physicalDeviceClasses = ['PC', 'Phone', 'IPPhone', 'MobilePhone', 'Tablet', 'Printer', 'Peripheral'];
-		$softwareInstanceClasses = ['PCSoftware', 'OtherSoftware'];
-
-		if (in_array($class, $physicalDeviceClasses, true)) {
-			// PhysicalDevice subclasses
-			$fields = array_merge($baseFunctionalCIFields, $physicalDeviceFields);
-		} elseif (in_array($class, $softwareInstanceClasses, true)) {
-			// SoftwareInstance subclasses
-			$fields = array_merge($baseFunctionalCIFields, $softwareInstanceFields);
-			} else {
-				// Direct FunctionalCI subclasses (e.g., WebApplication)
-				// WebApplication extends FunctionalCI directly, not PhysicalDevice or SoftwareInstance
-				$fields = $baseFunctionalCIFields;
-			}
-
-				// Software catalog (not a FunctionalCI) fields for search rows with summary counts
-				if ($class === 'Software') {
-					return implode(',', [
-						'id', 'name', 'version', 'vendor', 'type',
-						// linked sets used to compute subline counts without extra queries
-						'documents_list', 'softwareinstance_list', 'softwarepatch_list', 'softwarelicence_list'
-					]);
-				}
-
-			// Class-specific additional fields
-			$classSpecificFields = [
-				'PC' => ['type', 'osfamily_id_friendlyname', 'osversion_id_friendlyname', 'cpu', 'ram'],
-				'Phone' => ['phonenumber'],
-				'IPPhone' => ['phonenumber'],
-				'MobilePhone' => ['phonenumber', 'imei'],
-				'WebApplication' => ['url', 'webserver_id_friendlyname'],
-			];
-
-		if (isset($classSpecificFields[$class])) {
-			$fields = array_merge($fields, $classSpecificFields[$class]);
-		}
-
-		return implode(',', $fields);
+		// Use '*' to retrieve all fields from iTop
+		// This is simpler, more reliable, and future-proof:
+		// - Avoids field name validation issues (brand_name vs brand_id_friendlyname)
+		// - Automatically includes all fields defined in the iTop datamodel
+		// - Returns both external fields (brand_name, model_name) and friendly names (_friendlyname)
+		// - PreviewMapper handles both field formats gracefully
+		return '*';
 	}
 
 	/**
-	 * Make authenticated request to iTop REST API
+	 * Build cache key from query parameters
+	 *
+	 * Cache key is based on the 'key' parameter (the unique OQL query or ID).
+	 * Hash is created to keep cache key length reasonable.
+	 * Two users requesting the same CI/query will reuse the same cache entry.
+	 *
+	 * @param array $params API parameters
+	 * @return string Cache key (hashed query key)
+	 */
+	private function buildQueryCacheKey(array $params): string {
+		// Hash only the 'key' parameter which contains the unique query
+		// Examples of 'key' values:
+		// - "32" (for direct ID lookup)
+		// - "SELECT PC WHERE name LIKE '%APC0001%'" (for OQL queries)
+		$key = $params['key'] ?? '';
+		$keyHash = md5($key);
+		return 'api:' . $keyHash;
+	}
+
+	/**
+	 * Make authenticated request to iTop REST API with query-based caching
+	 *
+	 * API responses are cached based on the 'key' parameter (OQL query or ID).
+	 * This means if User A and User B request the same CI or search result,
+	 * the cached response is shared (respecting iTop ACL on subsequent validations).
 	 *
 	 * @param string $userId Nextcloud user ID
 	 * @param array $params API parameters (operation, class, key, etc.)
 	 * @param string $method HTTP method (always POST for compatibility)
+	 * @param bool $useCache Whether to use cache for this request (default: true)
 	 * @return array
 	 * @throws Exception
 	 */
-	public function request(string $userId, array $params, string $method = 'POST'): array {
+	public function request(string $userId, array $params, string $method = 'POST', bool $useCache = true): array {
+		// Build cache key from 'key' parameter
+		$cacheKey = $this->buildQueryCacheKey($params);
+		
+		// Check cache first if enabled
+		if ($useCache) {
+			$cached = $this->cache->get($cacheKey);
+			if ($cached !== null) {
+				$cacheData = json_decode($cached, true);
+				// Validate timestamp and TTL are present
+				if (isset($cacheData['_cache_timestamp']) && isset($cacheData['_cache_ttl'])) {
+					$age = time() - $cacheData['_cache_timestamp'];
+					if ($age < $cacheData['_cache_ttl']) {
+						// Cache is still valid, return the result (remove metadata)
+						$result = $cacheData;
+						unset($result['_cache_timestamp'], $result['_cache_ttl']);
+						$this->logger->debug('API query cache HIT', [
+							'app' => Application::APP_ID,
+							'cacheKey' => $cacheKey,
+							'age' => $age,
+							'ttl' => $cacheData['_cache_ttl'],
+							'class' => $params['class'] ?? ''
+						]);
+						return $result;
+					}
+				}
+			}
+			$this->logger->debug('API query cache MISS', [
+				'app' => Application::APP_ID,
+				'cacheKey' => $cacheKey,
+				'class' => $params['class'] ?? ''
+			]);
+		}
+		
 		$itopUrl = $this->getItopUrl($userId);
 		if (!$itopUrl) {
 			return ['error' => $this->l10n->t('iTop URL not configured')];
@@ -1011,6 +1002,27 @@ class ItopAPIService {
 
 			if ($result === null) {
 				return ['error' => $this->l10n->t('Invalid JSON response from iTop')];
+			}
+
+			// Cache successful responses with configurable TTL
+			if ($useCache && !isset($result['error'])) {
+				// Get TTL from config or use default (60 seconds)
+				$defaultTTL = 60;
+				$ttl = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_api_query', $defaultTTL);
+				if ($ttl > 0) {
+					// Add timestamp and TTL metadata to cache data for explicit validation
+					$cacheData = array_merge($result, [
+						'_cache_timestamp' => time(),
+						'_cache_ttl' => $ttl
+					]);
+					$this->cache->set($cacheKey, json_encode($cacheData), $ttl);
+					$this->logger->debug('API query CACHED', [
+						'app' => Application::APP_ID,
+						'cacheKey' => $cacheKey,
+						'ttl' => $ttl,
+						'class' => $params['class'] ?? ''
+					]);
+				}
 			}
 
 			return $result;

@@ -123,31 +123,32 @@ These four classes share the same parent classes (FunctionalCI → PhysicalDevic
   - Map type enum: `laptop` → `Laptop`, `desktop` → `Desktop`
   - Implemented at lines 213-239
 
-- [ ] **ReferenceItopWidget.vue**: Create unified PhysicalDevice layout template
+- [x] **ReferenceItopWidget.vue**: Create unified PhysicalDevice layout template
   - Top section: Icon, Name, Status badge, Criticality badge
-  - Subtitle line: Brand Model • Serial Number
-  - Info badges row: Organization, Location
-  - Specs section (class-specific):
-    - **PC**: Type • CPU • RAM • Contacts (• Software if available)
-    - **Printer**: Contacts (• Software if available)
+  - Subtitle line: Brand Model • Serial Number (extracted from chips)
+  - Info badges row: Organization, Location (filtered chips)
+  - Specs section (class-specific): Displayed via extras array from PreviewMapper
+    - **PC**: Type • OS • CPU • RAM • Contacts • Software
+    - **Printer**: Contacts • Software (if available)
     - **Tablet**: Contacts
-    - **MobilePhone**: Contacts • Phone Number (• IMEI if available)
-  - Bottom row: Move2Production date
+    - **MobilePhone**: Phone Number • IMEI • Contacts
+  - Implementation: Added `isPhysicalDevice()`, `physicalDeviceSubtitle()`, and `filteredChips()` computed properties
 
-- [ ] **ReferenceItopWidget.vue**: Remove class-specific cases for Printer/Tablet/MobilePhone
-  - Currently they may fall back to generic FunctionalCI template
-  - Replace with unified PhysicalDevice template
-  - Keep PC template but align with PhysicalDevice structure
+- [x] **ReferenceItopWidget.vue**: Unified display for all PhysicalDevice classes
+  - All PhysicalDevice classes now use the same template structure
+  - Brand/model and serial number moved to subtitle line
+  - Chips filtered to show only location and asset info (not brand/serial)
+  - Extras section displays class-specific fields from PreviewMapper
 
-- [ ] **Testing**: Verify all four classes display consistently
-  - PC: Should show type, CPU, RAM, contacts count, software count
+- [ ] **Testing**: Verify all four classes display consistently (pending manual testing)
+  - PC: Should show type, OS, CPU, RAM, contacts count, software count
   - Printer: Should show contacts count, software count (if ConnectableCI)
   - Tablet: Should show contacts count
-  - MobilePhone: Should show contacts count, phone number, IMEI
+  - MobilePhone: Should show phone number, IMEI, contacts count
 
 **Reference**: See `../itop/datamodels/2.x/itop-endusers-devices/datamodel.itop-enduser-devices.xml` for field definitions
 
-**Status**: ✅ Core functionality complete. Rich previews fully functional for all 11 supported CI classes. 🔧 Finetuning in progress to align PhysicalDevice preview layouts with unified field display (brand/model, serialnumber, contacts/software counts).
+**Status**: ✅ PhysicalDevice preview alignment COMPLETE! All four PhysicalDevice classes (PC, Printer, Tablet, MobilePhone) now share a unified layout with brand/model and serial number in the subtitle, organization/location in chips, and class-specific extras (type, specs, contacts, software counts). Frontend code implements computed properties to dynamically filter and display data consistently across all device types. Manual testing pending to verify visual consistency.
 
 ### Phase 4: Unified Search Provider ✅ COMPLETED
 - [x] Implement ItopSearchProvider (OCP\Search\IProvider)
@@ -177,8 +178,32 @@ These four classes share the same parent classes (FunctionalCI → PhysicalDevic
 - [ ] Per-class enable/disable toggles (deferred to Phase 4+)
 - [ ] Portal profile detection configuration UI
 - [ ] Ensure portal-only and power-user filtering are in place according to docs/security-auth.md
+- [ ] **Caching Configuration (Configurable TTLs for Administrators)**
+  - [ ] Admin UI section: "Cache & Performance Settings"
+  - [ ] Configurable parameters (all with sensible defaults):
+    - [ ] **CI Preview Cache TTL** (default: 60s)
+      - Range: 10–3600 seconds (10s–1h)
+      - Description: "How long to cache Configuration Item preview data. Lower values = fresher data but higher API load; higher values = better performance. Change to 10s for development/testing."
+    - [ ] **Search Results Cache TTL** (default: 30s)
+      - Range: 10–300 seconds
+      - Description: "How long to cache search results. Shorter TTLs ensure fresher results but increase API load."
+    - [ ] **Picker Suggestions Cache TTL** (default: 60s)
+      - Range: 10–300 seconds
+      - Description: "How long to cache Smart Picker suggestions for CI links in Text/Talk."
+  - [ ] Implementation approach:
+    - [ ] Add config keys to appconfig table: `cache_ttl_ci_preview`, `cache_ttl_search`, `cache_ttl_picker`
+    - [ ] Update CacheService to read TTLs from config instead of class constants
+    - [ ] Create admin settings UI component (similar to existing admin settings)
+    - [ ] Add validation: min=10s, max=3600s, integer values only
+    - [ ] Add "Clear All Cache Now" button for immediate cache invalidation
+  - [ ] **Documentation**: Update docs/caching-performance.md with admin configuration instructions
+  - [ ] **Rationale**:
+    - Different deployments have different requirements (shared CMDB vs. frequently updated CIs)
+    - Development/testing environments benefit from short TTLs
+    - High-traffic Nextcloud instances benefit from longer TTLs
+    - Administrators should have control without code changes
 
-**Note**: Basic configuration implemented in v1.0.0. CI-specific settings pending.
+**Note**: Basic configuration implemented in v1.0.0. CI-specific settings and cache TTL configurability pending.
 
 ### Phase 7: Localization (l10n) 🔄 IN PROGRESS
 - [x] Infrastructure setup: l10n/en.json, l10n/de.json, l10n/de_DE.json

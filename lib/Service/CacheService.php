@@ -34,11 +34,18 @@ class CacheService {
 
 	// Cache TTLs (in seconds)
 	private const CI_PREVIEW_TTL = 60;
+	private const TICKET_INFO_TTL = 60;
 	private const SEARCH_RESULTS_TTL = 30;
 
 	// Cache key prefixes
 	private const PREFIX_CI_PREVIEW = 'ci_preview';
+	private const PREFIX_TICKET_INFO = 'ticket_info';
 	private const PREFIX_SEARCH = 'search';
+
+	// Wrapper keys for stored data
+	private const WRAPPER_CACHED_AT = 'cached_at';
+	private const WRAPPER_TTL = 'ttl';
+	private const WRAPPER_DATA = 'data';
 
 	public function __construct(
 		ICacheFactory $cacheFactory,
@@ -61,13 +68,50 @@ class CacheService {
 		$cached = $this->cache->get($key);
 
 		if ($cached !== null) {
+			$wrapper = json_decode($cached, true);
+
+			// Validate wrapper structure
+			if (!is_array($wrapper) || !isset($wrapper['cached_at']) || !isset($wrapper['ttl']) || !isset($wrapper['data'])) {
+				// Invalid cache format - treat as miss
+				$this->logger->warning('CI preview cache invalid format', [
+					'app' => Application::APP_ID,
+					'userId' => $userId,
+					'class' => $class,
+					'id' => $id
+				]);
+				$this->cache->remove($key);
+				return null;
+			}
+
+			// Application-level TTL validation
+			$currentTime = time();
+			$age = $currentTime - $wrapper['cached_at'];
+			if ($age > $wrapper['ttl']) {
+				// Expired - enforce TTL at application level
+				$this->logger->info('CI preview cache EXPIRED', [
+					'app' => Application::APP_ID,
+					'userId' => $userId,
+					'class' => $class,
+					'id' => $id,
+					'cached_at' => $wrapper['cached_at'],
+					'current_time' => $currentTime,
+					'age' => $age,
+					'ttl' => $wrapper['ttl'],
+					'exceeded_by' => $age - $wrapper['ttl'] . 's'
+				]);
+				$this->cache->remove($key);
+				return null;
+			}
+
 			$this->logger->debug('CI preview cache hit', [
 				'app' => Application::APP_ID,
 				'userId' => $userId,
 				'class' => $class,
-				'id' => $id
+				'id' => $id,
+				'age' => $age,
+				'ttl' => $wrapper['ttl']
 			]);
-			return json_decode($cached, true);
+			return $wrapper['data'];
 		}
 
 		$this->logger->debug('CI preview cache miss', [
@@ -82,6 +126,8 @@ class CacheService {
 	/**
 	 * Set CI preview in cache
 	 *
+	 * Wraps data with timestamp for application-level TTL validation
+	 *
 	 * @param string $userId Nextcloud user ID
 	 * @param string $class iTop CI class
 	 * @param int $id CI ID
@@ -90,16 +136,26 @@ class CacheService {
 	 */
 	public function setCIPreview(string $userId, string $class, int $id, array $previewData): void {
 		$key = $this->buildCIPreviewKey($userId, $class, $id);
-		$this->cache->set($key, json_encode($previewData), self::CI_PREVIEW_TTL);
+
+		// Wrap data with timestamp for application-level TTL enforcement
+		$wrapper = [
+			'cached_at' => time(),
+			'ttl' => self::CI_PREVIEW_TTL,
+			'data' => $previewData
+		];
+
+		$this->cache->set($key, json_encode($wrapper), self::CI_PREVIEW_TTL);
 
 		$this->logger->debug('CI preview cached', [
 			'app' => Application::APP_ID,
 			'userId' => $userId,
 			'class' => $class,
 			'id' => $id,
-			'ttl' => self::CI_PREVIEW_TTL
+			'ttl' => self::CI_PREVIEW_TTL,
+			'cached_at' => $wrapper['cached_at']
 		]);
 	}
+
 
 	/**
 	 * Invalidate CI preview cache for a specific CI
@@ -120,6 +176,115 @@ class CacheService {
 			'userId' => $userId,
 			'class' => $class,
 			'id' => $id
+		]);
+	}
+
+	/**
+	 * Get cached ticket info
+	 *
+	 * Caches both UserRequest and Incident ticket details with timestamps
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param int $ticketId Ticket ID
+	 * @param string $class Ticket class (UserRequest or Incident)
+	 * @return array|null Cached ticket data or null if not found/expired
+	 */
+	public function getTicketInfo(string $userId, int $ticketId, string $class): ?array {
+		$key = $this->buildTicketInfoKey($userId, $ticketId, $class);
+		$cached = $this->cache->get($key);
+
+		if ($cached !== null) {
+			$wrapper = json_decode($cached, true);
+
+			if (!is_array($wrapper) || !isset($wrapper[self::WRAPPER_CACHED_AT], $wrapper[self::WRAPPER_TTL], $wrapper[self::WRAPPER_DATA])) {
+				$this->cache->remove($key);
+				return null;
+			}
+
+			$age = time() - $wrapper[self::WRAPPER_CACHED_AT];
+
+			if ($age > $wrapper[self::WRAPPER_TTL]) {
+				$this->logger->info('Ticket info cache expired', [
+					'app' => Application::APP_ID,
+					'userId' => $userId,
+					'ticketId' => $ticketId,
+					'class' => $class,
+					'age' => $age,
+					'ttl' => $wrapper[self::WRAPPER_TTL]
+				]);
+				$this->cache->remove($key);
+				return null;
+			}
+
+			$this->logger->debug('Ticket info cache hit', [
+				'app' => Application::APP_ID,
+				'userId' => $userId,
+				'ticketId' => $ticketId,
+				'class' => $class,
+				'age' => $age
+			]);
+			return $wrapper[self::WRAPPER_DATA];
+		}
+
+		$this->logger->debug('Ticket info cache miss', [
+			'app' => Application::APP_ID,
+			'userId' => $userId,
+			'ticketId' => $ticketId,
+			'class' => $class
+		]);
+		return null;
+	}
+
+	/**
+	 * Set ticket info in cache
+	 *
+	 * Caches ticket details with timestamp for TTL validation
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param int $ticketId Ticket ID
+	 * @param string $class Ticket class (UserRequest or Incident)
+	 * @param array $ticketData Ticket data to cache
+	 * @return void
+	 */
+	public function setTicketInfo(string $userId, int $ticketId, string $class, array $ticketData): void {
+		$key = $this->buildTicketInfoKey($userId, $ticketId, $class);
+
+		$wrapper = [
+			self::WRAPPER_CACHED_AT => time(),
+			self::WRAPPER_TTL => self::TICKET_INFO_TTL,
+			self::WRAPPER_DATA => $ticketData
+		];
+
+		$this->cache->set($key, json_encode($wrapper), self::TICKET_INFO_TTL);
+
+		$this->logger->debug('Ticket info cached', [
+			'app' => Application::APP_ID,
+			'userId' => $userId,
+			'ticketId' => $ticketId,
+			'class' => $class,
+			'ttl' => self::TICKET_INFO_TTL
+		]);
+	}
+
+	/**
+	 * Invalidate ticket info cache for a specific ticket
+	 *
+	 * Called when ticket data is updated and immediate refresh is needed
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param int $ticketId Ticket ID
+	 * @param string $class Ticket class (UserRequest or Incident)
+	 * @return void
+	 */
+	public function invalidateTicketInfo(string $userId, int $ticketId, string $class): void {
+		$key = $this->buildTicketInfoKey($userId, $ticketId, $class);
+		$this->cache->remove($key);
+
+		$this->logger->info('Ticket info cache invalidated', [
+			'app' => Application::APP_ID,
+			'userId' => $userId,
+			'ticketId' => $ticketId,
+			'class' => $class
 		]);
 	}
 
@@ -205,6 +370,18 @@ class CacheService {
 	 */
 	private function buildCIPreviewKey(string $userId, string $class, int $id): string {
 		return self::PREFIX_CI_PREVIEW . ':' . $userId . ':' . $class . ':' . $id;
+	}
+
+	/**
+	 * Build cache key for ticket info
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param int $ticketId Ticket ID
+	 * @param string $class Ticket class (UserRequest or Incident)
+	 * @return string Cache key
+	 */
+	private function buildTicketInfoKey(string $userId, int $ticketId, string $class): string {
+		return self::PREFIX_TICKET_INFO . ':' . $userId . ':' . $class . ':' . $ticketId;
 	}
 
 	/**

@@ -126,6 +126,13 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 
 			if ($itopUrl !== '') {
 				$parsed = $this->parseItopUrl($referenceText, $itopUrl);
+				if ($parsed !== null) {
+					$this->logger->info('matchReference: TRUE', [
+						'app' => Application::APP_ID,
+						'referenceText' => $referenceText,
+						'parsed' => $parsed
+					]);
+				}
 				return $parsed !== null;
 			}
 		}
@@ -136,6 +143,12 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 * @inheritDoc
 	 */
 	public function resolveReference(string $referenceText): ?IReference {
+		$this->logger->info('resolveReference CALLED', [
+			'app' => Application::APP_ID,
+			'referenceText' => $referenceText,
+			'userId' => $this->userId,
+			'backtrace' => implode(' <- ', array_slice(array_map(function($t) { return ($t['class'] ?? '') . ($t['type'] ?? '') . ($t['function'] ?? ''); }, debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5)), 0, 5))
+		]);
 		if ($this->matchReference($referenceText) && $this->userId !== null) {
 			$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
 			$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
@@ -164,7 +177,29 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 * @inheritDoc
 	 */
 	public function getCachePrefix(string $referenceId): string {
-		return $this->userId ?? '';
+		$prefix = $this->userId ?? '';
+		$this->logger->info('getCachePrefix called', [
+			'app' => Application::APP_ID,
+			'referenceId' => $referenceId,
+			'prefix' => $prefix
+		]);
+		return $prefix;
+	}
+
+	/**
+	 * Specify cache TTL for Nextcloud Reference API
+	 *
+	 * Returns 60 seconds to allow Nextcloud's reference API to cache resolved
+	 * references for a short duration. The application-level cache (CacheService)
+	 * manages API-level caching with separate TTL configurations.
+	 *
+	 * NOTE: This requires Nextcloud core PR #56013 which makes ReferenceManager
+	 * respect the provider's getCacheTTL() return value.
+	 *
+	 * @inheritDoc
+	 */
+	public function getCacheTTL(): int {
+		return 60;
 	}
 
 	/**
@@ -310,6 +345,34 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 */
 	private function getTicketReference(int $ticketId, string $class, string $url): ?IReference {
 		try {
+			$this->logger->info('getTicketReference called', [
+				'app' => Application::APP_ID,
+				'userId' => $this->userId,
+				'class' => $class,
+				'id' => $ticketId
+			]);
+
+			// Check cache first
+			$cachedTicketInfo = $this->cacheService->getTicketInfo($this->userId, $ticketId, $class);
+
+			if ($cachedTicketInfo !== null) {
+				$this->logger->debug('Ticket info cache hit', [
+					'app' => Application::APP_ID,
+					'userId' => $this->userId,
+					'class' => $class,
+					'id' => $ticketId
+				]);
+				return $this->buildTicketReference($cachedTicketInfo, $url);
+			}
+
+			// Cache miss - fetch data from iTop API
+			$this->logger->debug('Ticket info cache miss', [
+				'app' => Application::APP_ID,
+				'userId' => $this->userId,
+				'class' => $class,
+				'id' => $ticketId
+			]);
+
 			// Get ticket details from iTop API
 			if ($class === 'UserRequest' || $class === 'Incident') {
 				$ticketInfo = $this->itopAPIService->getTicketInfo($this->userId, $ticketId, $class);
@@ -332,48 +395,10 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			$ticket = $ticketInfo['objects'][array_key_first($ticketInfo['objects'])];
 			$fields = $ticket['fields'] ?? [];
 
-			// Get iTop URL for building links
-			$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
-			$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
-			$itopUrl = $userItopUrl ?: $adminItopUrl;
+			// Cache the ticket info for next request
+			$this->cacheService->setTicketInfo($this->userId, $ticketId, $class, $fields);
 
-			$reference = new Reference($url);
-
-			// Set minimal OpenGraph data - this helps Nextcloud understand the reference type
-			// Without this, Talk may add "Enable interactive view" button
-			$ticketRef = $fields['ref'] ?? $class . '-' . $ticketId;
-			$ticketTitle = $fields['title'] ?? 'iTop Ticket';
-			$reference->setTitle('[' . $ticketRef . '] ' . $ticketTitle);
-
-			$reference->setRichObject(
-				self::RICH_OBJECT_TYPE,
-				[
-					'id' => $ticketId,
-					'class' => $class,
-					'title' => $fields['title'] ?? '',
-					'ref' => $fields['ref'] ?? '',
-					'status' => $fields['status'] ?? '',
-					'priority' => $fields['priority'] ?? '',
-					'caller_id' => $fields['caller_id'] ?? '',
-					'caller_id_friendlyname' => $fields['caller_id_friendlyname'] ?? '',
-					'agent_id' => $fields['agent_id'] ?? '',
-					'agent_id_friendlyname' => $fields['agent_id_friendlyname'] ?? '',
-					'org_name' => $fields['org_name'] ?? '',
-					'org_id_friendlyname' => $fields['org_id_friendlyname'] ?? '',
-					'team_id_friendlyname' => $fields['team_id_friendlyname'] ?? '',
-					'service_name' => $fields['service_name'] ?? '',
-					'servicesubcategory_name' => $fields['servicesubcategory_name'] ?? '',
-					'description' => strip_tags($fields['description'] ?? ''),
-					'creation_date' => $fields['creation_date'] ?? '',
-					'last_update' => $fields['last_update'] ?? '',
-					'close_date' => $fields['close_date'] ?? '',
-					'start_date' => $fields['start_date'] ?? '',
-					'url' => $url,
-					'itop_url' => $itopUrl,
-				]
-			);
-
-			return $reference;
+			return $this->buildTicketReference($fields, $url);
 		} catch (\Exception $e) {
 			$this->logger->error('Error getting iTop ticket reference: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return null;
@@ -392,6 +417,13 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 */
 	private function getCIReference(int $ciId, string $class, string $url): ?IReference {
 		try {
+			$this->logger->info('getCIReference called', [
+				'app' => Application::APP_ID,
+				'userId' => $this->userId,
+				'class' => $class,
+				'id' => $ciId
+			]);
+
 			// Check cache first
 			$cachedPreview = $this->cacheService->getCIPreview($this->userId, $class, $ciId);
 
@@ -404,6 +436,14 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 				]);
 				return $this->buildCIReferenceFromPreview($cachedPreview, $url);
 			}
+
+			// Cache miss - fetch data from iTop API
+			$this->logger->debug('CI preview cache miss', [
+				'app' => Application::APP_ID,
+				'userId' => $this->userId,
+				'class' => $class,
+				'id' => $ciId
+			]);
 
 			// Determine if user is portal-only
 			$isPortalOnly = $this->profileService->isPortalOnly($this->userId);
@@ -428,7 +468,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			$ciObject = $ciData['objects'][array_key_first($ciData['objects'])];
 			$preview = $this->previewMapper->mapCIToPreview($ciObject, $class);
 
-			// Cache the preview
+			// Cache the fresh preview
 			$this->cacheService->setCIPreview($this->userId, $class, $ciId, $preview);
 
 			return $this->buildCIReferenceFromPreview($preview, $url);
@@ -570,6 +610,56 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 		}
 
 		return implode(' • ', $parts);
+	}
+
+	/**
+	 * Build IReference object from ticket fields data
+	 *
+	 * @param array $fields Ticket fields data
+	 * @param string $url Original iTop URL
+	 * @return IReference
+	 */
+	private function buildTicketReference(array $fields, string $url): IReference {
+		// Get iTop URL for building links
+		$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
+		$itopUrl = $userItopUrl ?: $adminItopUrl;
+
+		$reference = new Reference($url);
+
+		// Set title from ticket
+		$ticketRef = $fields['ref'] ?? '';
+		$ticketTitle = $fields['title'] ?? 'iTop Ticket';
+		$reference->setTitle('[' . $ticketRef . '] ' . $ticketTitle);
+
+		// Set rich object with all ticket details
+		$reference->setRichObject(
+			self::RICH_OBJECT_TYPE,
+			[
+				'title' => $fields['title'] ?? '',
+				'ref' => $fields['ref'] ?? '',
+				'status' => $fields['status'] ?? '',
+				'priority' => $fields['priority'] ?? '',
+				'caller_id' => $fields['caller_id'] ?? '',
+				'caller_id_friendlyname' => $fields['caller_id_friendlyname'] ?? '',
+				'agent_id' => $fields['agent_id'] ?? '',
+				'agent_id_friendlyname' => $fields['agent_id_friendlyname'] ?? '',
+				'org_name' => $fields['org_name'] ?? '',
+				'org_id_friendlyname' => $fields['org_id_friendlyname'] ?? '',
+				'team_id_friendlyname' => $fields['team_id_friendlyname'] ?? '',
+				'service_name' => $fields['service_name'] ?? '',
+				'servicesubcategory_name' => $fields['servicesubcategory_name'] ?? '',
+				'description' => strip_tags($fields['description'] ?? ''),
+				'creation_date' => $fields['creation_date'] ?? '',
+				'last_update' => $fields['last_update'] ?? '',
+				'close_date' => $fields['close_date'] ?? '',
+				'start_date' => $fields['start_date'] ?? '',
+				'url' => $url,
+				'itop_url' => $itopUrl,
+			]
+		);
+
+		return $reference;
 	}
 
 	/**
