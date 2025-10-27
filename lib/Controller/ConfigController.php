@@ -75,7 +75,7 @@ class ConfigController extends Controller {
 		// Get JSON data from request body
 		$input = json_decode(file_get_contents('php://input'), true);
 		if (!is_array($input)) {
-			return new DataResponse(['message' => 'Invalid request data'], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(['message' => $this->l10n->t('Invalid request data')], Http::STATUS_BAD_REQUEST);
 		}
 
 		$this->logger->info('iTop setConfig called for user: ' . $this->userId, ['app' => Application::APP_ID]);
@@ -172,20 +172,20 @@ class ConfigController extends Controller {
 	 */
 	public function getUserInfo(): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'User not authenticated'], Http::STATUS_UNAUTHORIZED);
+			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
 		}
 
 		$personId = $this->config->getUserValue($this->userId, Application::APP_ID, 'person_id', '');
 
 		if (empty($personId)) {
-			return new DataResponse(['error' => 'User not configured'], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['error' => $this->l10n->t('User not configured')], Http::STATUS_NOT_FOUND);
 		}
 
 		// Fetch person details from iTop using application token
 		$encryptedAppToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
 
 		if (empty($encryptedAppToken)) {
-			return new DataResponse(['error' => 'Application token not configured'], Http::STATUS_SERVICE_UNAVAILABLE);
+			return new DataResponse(['error' => $this->l10n->t('Application token not configured')], Http::STATUS_SERVICE_UNAVAILABLE);
 		}
 
 		try {
@@ -193,7 +193,7 @@ class ConfigController extends Controller {
 			$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
 
 			if (empty($adminInstanceUrl)) {
-				return new DataResponse(['error' => 'Server URL not configured'], Http::STATUS_SERVICE_UNAVAILABLE);
+				return new DataResponse(['error' => $this->l10n->t('Server URL not configured')], Http::STATUS_SERVICE_UNAVAILABLE);
 			}
 
 			$apiUrl = rtrim($adminInstanceUrl, '/') . '/webservices/rest.php?version=1.3';
@@ -226,18 +226,18 @@ class ConfigController extends Controller {
 			curl_close($ch);
 
 			if ($result === false || !empty($error)) {
-				return new DataResponse(['error' => 'Connection failed: ' . ($error ?: 'Unknown error')], Http::STATUS_SERVICE_UNAVAILABLE);
+				return new DataResponse(['error' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])], Http::STATUS_SERVICE_UNAVAILABLE);
 			}
 
 			$responseData = json_decode($result, true);
 
 			if ($responseData === null || !isset($responseData['code']) || $responseData['code'] !== 0) {
-				$errorMsg = $responseData['message'] ?? 'Failed to fetch user information';
+				$errorMsg = $responseData['message'] ?? $this->l10n->t('Failed to fetch user information');
 				return new DataResponse(['error' => $errorMsg], Http::STATUS_BAD_REQUEST);
 			}
 
 			if (!isset($responseData['objects']) || empty($responseData['objects'])) {
-				return new DataResponse(['error' => 'Person not found'], Http::STATUS_NOT_FOUND);
+				return new DataResponse(['error' => $this->l10n->t('Person not found')], Http::STATUS_NOT_FOUND);
 			}
 
 			$personObject = reset($responseData['objects']);
@@ -246,7 +246,7 @@ class ConfigController extends Controller {
 			$userName = trim(($personFields['first_name'] ?? '') . ' ' . ($personFields['name'] ?? ''));
 
 			return new DataResponse([
-				'name' => $userName ?: 'Unknown User',
+				'name' => $userName ?: $this->l10n->t('Unknown User'),
 				'email' => $personFields['email'] ?? '',
 				'organization' => $personFields['org_id_friendlyname'] ?? '',
 				'person_id' => $personId
@@ -254,7 +254,7 @@ class ConfigController extends Controller {
 
 		} catch (\Exception $e) {
 			$this->logger->error('Failed to fetch user info: ' . $e->getMessage(), ['app' => Application::APP_ID]);
-			return new DataResponse(['error' => 'Failed to fetch user information'], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return new DataResponse(['error' => $this->l10n->t('Failed to fetch user information')], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -312,7 +312,7 @@ class ConfigController extends Controller {
 		if (empty($adminInstanceUrl)) {
 			return new DataResponse([
 				'status' => 'error',
-				'message' => 'Server URL not configured'
+				'message' => $this->l10n->t('Server URL not configured')
 			], Http::STATUS_BAD_REQUEST);
 		}
 
@@ -323,7 +323,7 @@ class ConfigController extends Controller {
 			if (empty($encryptedToken)) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Application token not configured'
+					'message' => $this->l10n->t('Application token not configured')
 				], Http::STATUS_BAD_REQUEST);
 			}
 
@@ -333,7 +333,7 @@ class ConfigController extends Controller {
 			} catch (\Exception $e) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Failed to decrypt saved token'
+					'message' => $this->l10n->t('Failed to decrypt saved token')
 				], Http::STATUS_BAD_REQUEST);
 			}
 		}
@@ -373,7 +373,7 @@ class ConfigController extends Controller {
 			if ($result === false || !empty($error)) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Connection failed: ' . ($error ?: 'Unknown error')
+					'message' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])
 				]);
 			}
 
@@ -382,7 +382,7 @@ class ConfigController extends Controller {
 			if ($responseData === null) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Invalid response from server'
+					'message' => $this->l10n->t('Invalid response from server')
 				]);
 			}
 
@@ -393,7 +393,7 @@ class ConfigController extends Controller {
 					$operationCount = count($responseData['operations'] ?? []);
 					return new DataResponse([
 						'status' => 'success',
-						'message' => 'Application token is valid and working',
+						'message' => $this->l10n->t('Application token is valid and working'),
 						'details' => [
 							'api_version' => $responseData['version'] ?? 'Unknown',
 							'available_operations' => $operationCount,
@@ -405,10 +405,10 @@ class ConfigController extends Controller {
 					$errorMsg = $responseData['message'] ?? 'Unauthorized';
 					return new DataResponse([
 						'status' => 'error',
-						'message' => 'Application token authentication failed',
+						'message' => $this->l10n->t('Application token authentication failed'),
 						'details' => [
 							'error' => $errorMsg,
-							'hint' => 'Application tokens in iTop must have "Administrator" + "REST Services User" profiles. Token may be invalid or expired.',
+							'hint' => $this->l10n->t('Application tokens in iTop must have "Administrator" + "REST Services User" profiles. Token may be invalid or expired.'),
 							'token_length' => strlen($token),
 							'response_code' => $responseData['code']
 						]
@@ -416,7 +416,7 @@ class ConfigController extends Controller {
 				} else {
 					return new DataResponse([
 						'status' => 'error',
-						'message' => 'API error: ' . ($responseData['message'] ?? 'Unknown error'),
+						'message' => $this->l10n->t('API error: %s', [$responseData['message'] ?? $this->l10n->t('Unknown error')]),
 						'details' => [
 							'code' => $responseData['code'],
 							'full_response' => $responseData
@@ -427,7 +427,7 @@ class ConfigController extends Controller {
 
 			return new DataResponse([
 				'status' => 'error',
-				'message' => 'Unexpected response format',
+				'message' => $this->l10n->t('Unexpected response format'),
 				'details' => [
 					'response' => $responseData
 				]
@@ -437,7 +437,7 @@ class ConfigController extends Controller {
 			$this->logger->error('iTop application token test failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return new DataResponse([
 				'status' => 'error',
-				'message' => 'Test failed: ' . $e->getMessage()
+				'message' => $this->l10n->t('Test failed: %s', [$e->getMessage()])
 			]);
 		}
 	}
@@ -451,9 +451,9 @@ class ConfigController extends Controller {
 	public function testAdminConnection(string $url = ''): DataResponse {
 		// Use provided URL or fall back to saved configuration
 		$testUrl = !empty($url) ? trim($url) : $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
-		
+
 		if (empty($testUrl)) {
-			return new DataResponse(['status' => 'error', 'message' => 'No server URL provided for testing'], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(['status' => 'error', 'message' => $this->l10n->t('No server URL provided for testing')], Http::STATUS_BAD_REQUEST);
 		}
 		
 		$this->logger->info('iTop testing connection to URL: ' . $testUrl, ['app' => Application::APP_ID]);
@@ -491,31 +491,31 @@ class ConfigController extends Controller {
 			if ($result === false || !empty($error)) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Connection failed: ' . ($error ?: 'Unknown error'),
+					'message' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')]),
 					'details' => ['url' => $testUrl, 'api_url' => $apiUrl]
 				]);
 			}
-			
+
 			if ($httpCode !== 200) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'iTop API endpoint returned HTTP ' . $httpCode,
+					'message' => $this->l10n->t('iTop API endpoint returned HTTP %d', [$httpCode]),
 					'details' => ['http_code' => $httpCode, 'url' => $testUrl, 'api_url' => $apiUrl]
 				]);
 			}
-			
+
 			// Parse the JSON response
 			$responseData = json_decode($result, true);
 			if ($responseData === null) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Server did not return valid JSON - not an iTop instance',
+					'message' => $this->l10n->t('Server did not return valid JSON - not an iTop instance'),
 					'details' => ['url' => $testUrl, 'response' => substr($result, 0, 200)]
 				]);
 			}
-			
+
 			$this->logger->info('iTop API response: ' . json_encode($responseData), ['app' => Application::APP_ID]);
-			
+
 			// Check for proper iTop response structure
 			if (isset($responseData['code'])) {
 				// iTop returns status codes: 0 = OK, 1 = UNAUTHORIZED, 2 = MISSING_VERSION, etc.
@@ -523,7 +523,7 @@ class ConfigController extends Controller {
 					// UNAUTHORIZED - this is expected and proves it's an iTop instance
 					return new DataResponse([
 						'status' => 'success',
-						'message' => 'iTop instance detected (authentication required)',
+						'message' => $this->l10n->t('iTop instance detected (authentication required)'),
 						'details' => [
 							'url' => $testUrl,
 							'api_url' => $apiUrl,
@@ -535,7 +535,7 @@ class ConfigController extends Controller {
 					// Successful response (shouldn't happen without credentials, but still valid iTop)
 					return new DataResponse([
 						'status' => 'success',
-						'message' => 'iTop instance detected and accessible',
+						'message' => $this->l10n->t('iTop instance detected and accessible'),
 						'details' => [
 							'url' => $testUrl,
 							'api_url' => $apiUrl,
@@ -546,7 +546,7 @@ class ConfigController extends Controller {
 					// Other iTop error codes
 					return new DataResponse([
 						'status' => 'warning',
-						'message' => 'iTop instance detected with error: ' . ($responseData['message'] ?? 'Unknown error'),
+						'message' => $this->l10n->t('iTop instance detected with error: %s', [$responseData['message'] ?? $this->l10n->t('Unknown error')]),
 						'details' => [
 							'url' => $testUrl,
 							'api_url' => $apiUrl,
@@ -558,16 +558,16 @@ class ConfigController extends Controller {
 			} else {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Server response does not match iTop API format',
+					'message' => $this->l10n->t('Server response does not match iTop API format'),
 					'details' => ['url' => $testUrl, 'response' => $responseData]
 				]);
 			}
-			
+
 		} catch (\Exception $e) {
 			$this->logger->error('iTop connection test failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return new DataResponse([
 				'status' => 'error',
-				'message' => 'Connection test failed: ' . $e->getMessage(),
+				'message' => $this->l10n->t('Connection test failed: %s', [$e->getMessage()]),
 				'details' => ['url' => $testUrl]
 			]);
 		}
@@ -747,7 +747,7 @@ class ConfigController extends Controller {
 	 */
 	public function getUserDisabledCIClasses(): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'User not authenticated'], Http::STATUS_UNAUTHORIZED);
+			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
 		}
 
 		$userDisabledJson = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
@@ -780,7 +780,7 @@ class ConfigController extends Controller {
 	 */
 	public function saveUserDisabledCIClasses(array $disabledClasses): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'User not authenticated'], Http::STATUS_UNAUTHORIZED);
+			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
 		}
 
 		// Validate that all provided classes are supported
@@ -957,7 +957,7 @@ class ConfigController extends Controller {
 				'success' => false,
 				'person_id' => null,
 				'user_info' => null,
-				'error' => 'Server URL not configured by administrator'
+				'error' => $this->l10n->t('Server URL not configured by administrator')
 			];
 		}
 
@@ -999,7 +999,7 @@ class ConfigController extends Controller {
 					'success' => false,
 					'person_id' => null,
 					'user_info' => null,
-					'error' => 'Connection failed: ' . ($error ?: 'Unknown error')
+					'error' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])
 				];
 			}
 
@@ -1010,24 +1010,24 @@ class ConfigController extends Controller {
 					'success' => false,
 					'person_id' => null,
 					'user_info' => null,
-					'error' => 'Invalid response from server'
+					'error' => $this->l10n->t('Invalid response from server')
 				];
 			}
 
 			// Check for authentication errors (invalid/expired token)
 			if (!isset($responseData['code']) || $responseData['code'] !== 0) {
 				$errorMsg = $responseData['message'] ?? 'Invalid or expired token';
-				
+
 				// Special handling for Portal user block
 				if (strpos($errorMsg, 'Portal user is not allowed') !== false) {
-					$errorMsg = 'Portal users cannot use REST API directly. This is expected - the application token will handle all queries.';
+					$errorMsg = $this->l10n->t('Portal users cannot use REST API directly. This is expected - the application token will handle all queries.');
 				}
-				
+
 				return [
 					'success' => false,
 					'person_id' => null,
 					'user_info' => null,
-					'error' => 'Personal token validation failed: ' . $errorMsg
+					'error' => $this->l10n->t('Personal token validation failed: %s', [$errorMsg])
 				];
 			}
 
@@ -1037,7 +1037,7 @@ class ConfigController extends Controller {
 					'success' => false,
 					'person_id' => null,
 					'user_info' => null,
-					'error' => 'No Person found for this user. The user may not have a linked contact in iTop.'
+					'error' => $this->l10n->t('No Person found for this user. The user may not have a linked contact in iTop.')
 				];
 			}
 
@@ -1052,7 +1052,7 @@ class ConfigController extends Controller {
 					'success' => false,
 					'person_id' => null,
 					'user_info' => null,
-					'error' => 'Could not extract Person ID from iTop response'
+					'error' => $this->l10n->t('Could not extract Person ID from iTop response')
 				];
 			}
 
@@ -1123,7 +1123,7 @@ class ConfigController extends Controller {
 				'success' => false,
 				'person_id' => null,
 				'user_info' => null,
-				'error' => 'Validation failed: ' . $e->getMessage()
+				'error' => $this->l10n->t('Validation failed: %s', [$e->getMessage()])
 			];
 		}
 	}

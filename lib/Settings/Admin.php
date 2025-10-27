@@ -14,7 +14,6 @@ namespace OCA\Itop\Settings;
 
 use OCA\Itop\AppInfo\Application;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\AppFramework\Services\IInitialState;
 use OCP\IConfig;
 use OCP\IL10N;
 use OCP\Settings\ISettings;
@@ -25,7 +24,6 @@ class Admin implements ISettings {
 	public function __construct(
 		private IConfig $config,
 		private IL10N $l10n,
-		private IInitialState $initialStateService,
 		private LoggerInterface $logger,
 	) {
 		$this->logger->info('iTop Admin settings constructor called', ['app' => Application::APP_ID]);
@@ -52,7 +50,7 @@ class Admin implements ISettings {
 		// Get 3-state CI class configuration
 		$ciClassConfig = Application::getCIClassConfig($this->config);
 
-		$adminConfig = [
+		$parameters = [
 			'admin_instance_url' => $adminInstanceUrl,
 			'user_facing_name' => $userFacingName,
 			'has_application_token' => $hasApplicationToken,
@@ -65,11 +63,10 @@ class Admin implements ISettings {
 			'cache_ttl_profile' => $cacheTtlProfile,
 			'ci_class_config' => $ciClassConfig,
 			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES,
+			'connected_users' => 0, // Will be populated by JavaScript via AJAX
 		];
 
-		$this->initialStateService->provideInitialState('admin-config', $adminConfig);
-
-		return new TemplateResponse(Application::APP_ID, 'adminSettings');
+		return new TemplateResponse(Application::APP_ID, 'adminSettings', $parameters);
 	}
 
 	public function getSection(): string {

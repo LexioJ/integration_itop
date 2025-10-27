@@ -7,6 +7,9 @@
 (function() {
     'use strict';
 
+    // Use Nextcloud's global translation function
+    const t = window.t || function(app, text) { return text; };
+
     document.addEventListener('DOMContentLoaded', function() {
 
         const saveButton = document.getElementById('itop-save');
@@ -18,9 +21,9 @@
             return;
         }
 
-        // Check if user is configured and load data if so
-        const connectionStatusValue = document.getElementById('itop-personal-connection-value');
-        if (connectionStatusValue && connectionStatusValue.textContent.trim() === 'Configured') {
+        // Check if user is configured and load data if so (use CSS class, not translated text)
+        const connectionStatusCard = document.getElementById('itop-personal-connection-status');
+        if (connectionStatusCard && connectionStatusCard.classList.contains('success')) {
             loadUserDataIfConfigured();
         }
 
@@ -128,8 +131,8 @@
 
                     ticketsValue.innerHTML = `
                         <div class="itop-ticket-counts">
-                            Incident(s): <span class="itop-count-large">${incidents}</span> |
-                            Request(s): <span class="itop-count-large">${requests}</span>
+                            ${t('integration_itop', 'Incident(s):')} <span class="itop-count-large">${incidents}</span> |
+                            ${t('integration_itop', 'Request(s):')} <span class="itop-count-large">${requests}</span>
                         </div>
                     `;
 
@@ -139,7 +142,7 @@
                         ticketsCard.className = 'itop-personal-status-card connected';
                     }
                 } else {
-                    ticketsValue.innerHTML = 'Incident(s): <span class="itop-count-large">0</span> | Request(s): <span class="itop-count-large">0</span>';
+                    ticketsValue.innerHTML = `${t('integration_itop', 'Incident(s):')} <span class="itop-count-large">0</span> | ${t('integration_itop', 'Request(s):')} <span class="itop-count-large">0</span>`;
                 }
             })
             .catch(error => {

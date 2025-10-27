@@ -7,17 +7,17 @@ script('integration_itop', 'personal-settings');
 
 // CI class label mapping
 $ciClassLabels = [
-	'PC' => 'Computers (PC)',
-	'Phone' => 'Phones',
-	'IPPhone' => 'IP Phones',
-	'MobilePhone' => 'Mobile Phones',
-	'Tablet' => 'Tablets',
-	'Printer' => 'Printers',
-	'Peripheral' => 'Peripherals',
-	'PCSoftware' => 'PC Software',
-	'OtherSoftware' => 'Other Software',
-	'WebApplication' => 'Web Applications',
-	'Software' => 'Software Catalog'
+	'PC' => $l->t('Computers (PC)'),
+	'Phone' => $l->t('Phones'),
+	'IPPhone' => $l->t('IP Phones'),
+	'MobilePhone' => $l->t('Mobile Phones'),
+	'Tablet' => $l->t('Tablets'),
+	'Printer' => $l->t('Printers'),
+	'Peripheral' => $l->t('Peripherals'),
+	'PCSoftware' => $l->t('PC Software'),
+	'OtherSoftware' => $l->t('Other Software'),
+	'WebApplication' => $l->t('Web Applications'),
+	'Software' => $l->t('Software Catalog')
 ];
 ?>
 
@@ -45,42 +45,42 @@ $ciClassLabels = [
 
 	<!-- Status Dashboard -->
 	<div class="itop-personal-status">
-		<h3>📊 Current Status</h3>
+		<h3><?php p($l->t('Current Status')); ?></h3>
 		<div class="itop-personal-status-grid">
 			<div class="itop-personal-status-card itop-connection-status <?php echo $_['person_id_configured'] ? 'success' : ''; ?>" id="itop-personal-connection-status">
 				<div class="itop-status-header">
 					<span class="itop-status-icon">🔌</span>
-					<span class="itop-status-title">Connection</span>
+					<span class="itop-status-title"><?php p($l->t('Connection')); ?></span>
 				</div>
 				<div class="itop-status-value" id="itop-personal-connection-value">
-					<?php echo $_['person_id_configured'] ? 'Configured' : 'Not configured'; ?>
+					<?php echo $_['person_id_configured'] ? $l->t('Configured') : $l->t('Not configured'); ?>
 				</div>
 			</div>
 
 			<div class="itop-personal-status-card <?php echo $_['person_id_configured'] ? 'connected' : ''; ?>" id="itop-personal-user-info">
 				<div class="itop-status-header">
 					<span class="itop-status-icon">👤</span>
-					<span class="itop-status-title">Connected as</span>
+					<span class="itop-status-title"><?php p($l->t('Connected as')); ?></span>
 				</div>
 				<div class="itop-status-value" id="itop-personal-user-value">
-					<?php echo $_['person_id_configured'] ? 'Loading...' : '-'; ?>
+					<?php echo $_['person_id_configured'] ? $l->t('Loading...') : '-'; ?>
 				</div>
 			</div>
 
 			<div class="itop-personal-status-card <?php echo $_['person_id_configured'] ? 'connected' : ''; ?>" id="itop-personal-tickets-info">
 				<div class="itop-status-header">
 					<span class="itop-status-icon">🎫</span>
-					<span class="itop-status-title">Open Tickets</span>
+					<span class="itop-status-title"><?php p($l->t('Open Tickets')); ?></span>
 				</div>
 				<div class="itop-status-value" id="itop-personal-tickets-value">
-					<?php echo $_['person_id_configured'] ? 'Loading...' : '-'; ?>
+					<?php echo $_['person_id_configured'] ? $l->t('Loading...') : '-'; ?>
 				</div>
 			</div>
 		</div>
 	</div>
 
 	<div class="itop-personal-settings">
-		<h3>⚙️ My Settings</h3>
+		<h3><?php p($l->t('My Settings')); ?></h3>
 
 		<div class="field token-field">
 			<label for="itop-personal-token" class="token-label">
