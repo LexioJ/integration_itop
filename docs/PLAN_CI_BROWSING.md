@@ -246,29 +246,31 @@ All Phase 6 objectives achieved:
    - Test clear cache functionality (confirmation dialog + cache invalidation)
    - Verify validation rules work correctly (10s min, 3600s/300s max)
 
-### Phase 7: Localization (l10n) ✅ COMPLETED (119 strings)
-- [x] Infrastructure setup: l10n/en.json, l10n/de.json, l10n/de_DE.json
+### Phase 7: Localization (l10n) ✅ COMPLETED (280 strings in 3 languages)
+- [x] Infrastructure setup: l10n/en.json, l10n/de.json, l10n/de_DE.json, l10n/fr.json
 - [x] Initial 58 strings translated (Phase 1-6 features)
 - [x] German informal (Du) and formal (Sie) variants
 - [x] All services use $this->l10n->t() for translation
 - [x] Document translation contribution process in docs/l10n.md
 - [x] Extract Phase 2 service strings (ProfileService, PreviewMapper, CacheService)
 - [x] Extract Phase 3+ UI strings (search results, preview widgets, picker)
-- [x] **COMPREHENSIVE AUDIT**: Extracted ALL missing translatable strings (61 new strings)
-- [x] Complete German translations for all strings (119 total)
+- [x] **COMPREHENSIVE AUDIT**: Extracted ALL missing translatable strings (161 new strings)
+- [x] Complete German translations for all strings (280 total)
+- [x] **French Translation**: Complete fr.json with all 280 strings (formal "vous" form)
 - [x] **ConfigController.php**: Translated 42 hardcoded error messages
 - [x] **ItopSearchProvider.php**: Translated 7 time format strings
 - [x] **ReferenceItopWidget.vue**: All 8 strings using t() functions
-- [x] **Final Count**: 119 translatable strings (58 original + 61 comprehensive audit)
+- [x] **Final Count**: 280 translatable strings covering all app features
 
 **STATUS: PHASE 7 FULLY COMPLETE!**
 
 All Phase 7 objectives achieved with comprehensive localization coverage:
 
 ✅ **Comprehensive Audit** - Systematic review of entire codebase for hardcoded strings
-✅ **English Base File** - l10n/en.json with all 119 strings
+✅ **English Base File** - l10n/en.json with all 280 strings
 ✅ **German Informal** - Complete de.json translation with informal tone (Du-form)
 ✅ **German Formal** - Complete de_DE.json translation with formal tone (Sie-form)
+✅ **French Translation** - Complete fr.json translation with formal tone (vous-form)
 ✅ **ConfigController.php** - 42 error messages fully translated:
    - API response errors (connection failures, authentication, server validation)
    - Admin/Test connection messages (token validation, iTop instance detection)
@@ -310,6 +312,15 @@ All Phase 7 objectives achieved with comprehensive localization coverage:
 - de.json (informal): "Du bist jetzt verbunden", "Klicke zum Erweitern"
 - de_DE.json (formal): "Sie sind jetzt verbunden", "Klicken Sie zum Erweitern"
 - Technical errors remain identical (professional tone in both variants)
+
+**Key French Translations:**
+- **Hardware**: Ordinateur, Imprimante, Tablette, Périphérique, Téléphone IP, Téléphone mobile
+- **Software**: Logiciel, Application web, Licence, Correctifs, Documents
+- **Metadata**: N° série, Emplacement, Organisation, Fournisseur
+- **Specs**: Processeur, Mémoire RAM, Système d'exploitation, Version du système
+- **Errors**: Échec de la connexion, Identifiants incorrects, Échec de la validation du jeton
+- **Time**: à l'instant, il y a Xmin, il y a Xh, il y a Xj, il y a X jours
+- **Admin**: Paramètres du cache, Configuration de classe de CI, Jeton d'application
 
 **Community Contribution Ready:**
 - Translation template established in docs/l10n.md
