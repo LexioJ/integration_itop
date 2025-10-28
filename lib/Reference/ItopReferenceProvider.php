@@ -90,15 +90,15 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 		// Determine icon based on ticket state
 		$iconName = '';
 
-		// Check for closed state first
+		// Check for closed state first (based on close_date)
 		if (!empty($closeDate)) {
 			$iconName = strtolower($type) . '-closed.svg';
 		}
-		// Check for escalated state (high priority)
-		elseif (stripos($priority, 'high') !== false || stripos($priority, 'critical') !== false) {
+		// Check for escalated state (high priority: 1 or 2)
+		elseif (is_numeric($priority) && (int)$priority <= 2) {
 			$iconName = strtolower($type) . '-escalated.svg';
 		}
-		// Check for deadline state (you may need to adjust this logic based on your needs)
+		// Check for deadline state (pending/waiting status)
 		elseif (stripos($status, 'pending') !== false || stripos($status, 'waiting') !== false) {
 			$iconName = strtolower($type) . '-deadline.svg';
 		}
@@ -362,7 +362,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 					'class' => $class,
 					'id' => $ticketId
 				]);
-				return $this->buildTicketReference($cachedTicketInfo, $url);
+				return $this->buildTicketReference($cachedTicketInfo, $url, $class);
 			}
 
 			// Cache miss - fetch data from iTop API
@@ -398,7 +398,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			// Cache the ticket info for next request
 			$this->cacheService->setTicketInfo($this->userId, $ticketId, $class, $fields);
 
-			return $this->buildTicketReference($fields, $url);
+			return $this->buildTicketReference($fields, $url, $class);
 		} catch (\Exception $e) {
 			$this->logger->error('Error getting iTop ticket reference: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return null;
@@ -619,7 +619,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 * @param string $url Original iTop URL
 	 * @return IReference
 	 */
-	private function buildTicketReference(array $fields, string $url): IReference {
+	private function buildTicketReference(array $fields, string $url, string $class = ''): IReference {
 		// Get iTop URL for building links
 		$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
 		$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
@@ -636,6 +636,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 		$reference->setRichObject(
 			self::RICH_OBJECT_TYPE,
 			[
+				'class' => $class,
 				'title' => $fields['title'] ?? '',
 				'ref' => $fields['ref'] ?? '',
 				'status' => $fields['status'] ?? '',

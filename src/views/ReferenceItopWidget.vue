@@ -220,31 +220,51 @@ export default {
 			return null
 		},
 		ticketIcon() {
-			const objectClass = this.richObject.class || ''
+			// Determine class robustly: explicit rich object, URL param, or ref prefix
+			const explicitClass = this.richObject.class || ''
+			const fromUrl = this.getClassFromUrl(this.richObject.url)
+			const fromRef = this.getClassFromRef(this.richObject.ref)
+			const objectClass = explicitClass || fromUrl || fromRef || ''
 			const status = this.richObject.status?.toLowerCase() || ''
-			const isClosed = status.includes('resolved') || status.includes('closed')
+			const closeDate = this.richObject.close_date || ''
+			const priority = this.richObject.priority || ''
 
 			// Use direct path without generateUrl to avoid /index.php/ prefix
 			const basePath = window.location.origin + '/apps/integration_itop/img/'
 
 			if (this.isCI) {
-				// CI icons
+				// CI icons only; do not mix with ticket fallbacks
 				const iconFile = this.richObject.icon || 'ci-default.svg'
 				return basePath + iconFile
 			}
 
-			// Ticket icons
-			if (objectClass === 'Incident') {
-				return basePath + 'incident.svg'
+			// If we cannot determine ticket class at all, use a generic ticket icon
+			if (!objectClass) {
+				return basePath + 'ticket.svg'
 			}
-			if (objectClass === 'UserRequest') {
-				if (isClosed) {
-					return basePath + 'user-request-closed.svg'
-				}
-				return basePath + 'user-request.svg'
+
+			// Ticket icons with state-specific logic matching SearchProvider
+			let iconName = ''
+			const ticketType = objectClass.toLowerCase()
+
+			// Check for closed state first (based on close_date)
+			if (closeDate) {
+				iconName = ticketType + '-closed.svg'
+			} else if (priority && !isNaN(priority) && parseInt(priority) <= 2) {
+				// Check for escalated state (high priority: 1 or 2)
+				iconName = ticketType + '-escalated.svg'
+			} else if (status.includes('pending') || status.includes('waiting')) {
+				// Check for deadline state (pending/waiting status)
+				iconName = ticketType + '-deadline.svg'
+			} else {
+				// Default icon for the ticket type
+				iconName = ticketType + '.svg'
 			}
-			// Default fallback
-			return basePath + 'ticket.svg'
+
+			// Convert class names to match icon filenames
+			iconName = iconName.replace('userrequest', 'user-request')
+
+			return basePath + iconName
 		},
 		statusColor() {
 			const status = this.richObject.status?.toLowerCase() || ''
@@ -386,6 +406,23 @@ export default {
 				tag: '🔖',
 			}
 			return iconMap[iconName] || '•'
+		},
+		getClassFromUrl(url) {
+			try {
+				if (!url) return ''
+				const u = new URL(url)
+				const cls = u.searchParams.get('class')
+				return cls || ''
+			} catch (e) {
+				return ''
+			}
+		},
+		getClassFromRef(ref) {
+			if (!ref || typeof ref !== 'string') return ''
+			const r = ref.toUpperCase()
+			if (r.startsWith('I-')) return 'Incident'
+			if (r.startsWith('R-')) return 'UserRequest'
+			return ''
 		},
 	},
 }
