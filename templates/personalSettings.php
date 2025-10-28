@@ -4,6 +4,21 @@
  */
 style('integration_itop', 'personal-settings');
 script('integration_itop', 'personal-settings');
+
+// CI class label mapping
+$ciClassLabels = [
+	'PC' => $l->t('Computers (PC)'),
+	'Phone' => $l->t('Phones'),
+	'IPPhone' => $l->t('IP Phones'),
+	'MobilePhone' => $l->t('Mobile Phones'),
+	'Tablet' => $l->t('Tablets'),
+	'Printer' => $l->t('Printers'),
+	'Peripheral' => $l->t('Peripherals'),
+	'PCSoftware' => $l->t('PC Software'),
+	'OtherSoftware' => $l->t('Other Software'),
+	'WebApplication' => $l->t('Web Applications'),
+	'Software' => $l->t('Software Catalog')
+];
 ?>
 
 <div id="itop_prefs" class="section">
@@ -13,9 +28,9 @@ script('integration_itop', 'personal-settings');
 		</div>
 		<div class="header-content">
 			<h2><?php p($l->t('%s Integration', [$_['display_name']])); ?></h2>
-			<p class="subtitle"><?php p($l->t('Configure your iTop system integration settings')); ?></p>
+			<p class="subtitle"><?php p($l->t('Configure your %s system integration settings', [$_['display_name']])); ?></p>
 		</div>
-		<div class="version-badge">V1.0.0</div>
+		<div class="version-badge">v<?php p($_['version']); ?></div>
 	</div>
 
 	<?php if (!$_['has_application_token']): ?>
@@ -30,42 +45,42 @@ script('integration_itop', 'personal-settings');
 
 	<!-- Status Dashboard -->
 	<div class="itop-personal-status">
-		<h3>📊 Current Status</h3>
+		<h3><?php p($l->t('Current Status')); ?></h3>
 		<div class="itop-personal-status-grid">
 			<div class="itop-personal-status-card itop-connection-status <?php echo $_['person_id_configured'] ? 'success' : ''; ?>" id="itop-personal-connection-status">
 				<div class="itop-status-header">
 					<span class="itop-status-icon">🔌</span>
-					<span class="itop-status-title">Connection</span>
+					<span class="itop-status-title"><?php p($l->t('Connection')); ?></span>
 				</div>
 				<div class="itop-status-value" id="itop-personal-connection-value">
-					<?php echo $_['person_id_configured'] ? 'Configured' : 'Not configured'; ?>
+					<?php echo $_['person_id_configured'] ? $l->t('Configured') : $l->t('Not configured'); ?>
 				</div>
 			</div>
 
 			<div class="itop-personal-status-card <?php echo $_['person_id_configured'] ? 'connected' : ''; ?>" id="itop-personal-user-info">
 				<div class="itop-status-header">
 					<span class="itop-status-icon">👤</span>
-					<span class="itop-status-title">Connected as</span>
+					<span class="itop-status-title"><?php p($l->t('Connected as')); ?></span>
 				</div>
 				<div class="itop-status-value" id="itop-personal-user-value">
-					<?php echo $_['person_id_configured'] ? 'Loading...' : '-'; ?>
+					<?php echo $_['person_id_configured'] ? $l->t('Loading...') : '-'; ?>
 				</div>
 			</div>
 
 			<div class="itop-personal-status-card <?php echo $_['person_id_configured'] ? 'connected' : ''; ?>" id="itop-personal-tickets-info">
 				<div class="itop-status-header">
 					<span class="itop-status-icon">🎫</span>
-					<span class="itop-status-title">Open Tickets</span>
+					<span class="itop-status-title"><?php p($l->t('Open Tickets')); ?></span>
 				</div>
 				<div class="itop-status-value" id="itop-personal-tickets-value">
-					<?php echo $_['person_id_configured'] ? 'Loading...' : '-'; ?>
+					<?php echo $_['person_id_configured'] ? $l->t('Loading...') : '-'; ?>
 				</div>
 			</div>
 		</div>
 	</div>
 
 	<div class="itop-personal-settings">
-		<h3>⚙️ My Settings</h3>
+		<h3><?php p($l->t('My Settings')); ?></h3>
 
 		<div class="field token-field">
 			<label for="itop-personal-token" class="token-label">
@@ -102,6 +117,33 @@ script('integration_itop', 'personal-settings');
 			<label for="itop-search-enabled"><?php p($l->t('Enable unified search')); ?></label>
 			<p class="hint"><?php p($l->t('Search your %s tickets from the search bar (tickets you created or are assigned to you)',[$_['display_name']])); ?></p>
 		</div>
+
+		<?php if (!empty($_['user_choice_ci_classes'])): ?>
+		<div class="field ci-class-preferences">
+			<h4><?php p($l->t('Configuration Item Classes')); ?></h4>
+			<p class="hint"><?php p($l->t('Choose which CI types you want to see in search, smart picker, and previews')); ?></p>
+			<div id="ci-class-user-toggles" class="ci-class-user-list">
+				<?php foreach ($_['user_choice_ci_classes'] as $className): ?>
+				<div class="ci-class-user-toggle">
+					<input
+						type="checkbox"
+						name="user_ci_class"
+						id="ci-class-<?php p($className); ?>"
+						value="<?php p($className); ?>"
+						<?php echo !in_array($className, $_['user_disabled_ci_classes']) ? 'checked' : ''; ?>
+						<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>
+					/>
+					<label for="ci-class-<?php p($className); ?>" class="ci-class-user-label-container">
+						<span class="ci-class-user-icon">
+							<img src="<?php p(\OC::$server->getURLGenerator()->imagePath('integration_itop', $className . '.svg')); ?>" alt="<?php p($className); ?>" width="24" height="24" />
+						</span>
+						<span class="ci-class-user-label"><?php p(isset($ciClassLabels[$className]) ? $ciClassLabels[$className] : $className); ?></span>
+					</label>
+				</div>
+				<?php endforeach; ?>
+			</div>
+		</div>
+		<?php endif; ?>
 
 		<button id="itop-save" class="button" <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 			<span class="icon icon-checkmark"></span>

@@ -14,6 +14,7 @@ namespace OCA\Itop\Controller;
 
 use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\ItopAPIService;
+use OCA\Itop\Service\CacheService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -34,6 +35,7 @@ class ConfigController extends Controller {
 		private ICrypto $crypto,
 		private IL10N $l10n,
 		private ItopAPIService $itopAPIService,
+		private CacheService $cacheService,
 		private LoggerInterface $logger,
 		private ?string $userId
 	) {
@@ -73,7 +75,7 @@ class ConfigController extends Controller {
 		// Get JSON data from request body
 		$input = json_decode(file_get_contents('php://input'), true);
 		if (!is_array($input)) {
-			return new DataResponse(['message' => 'Invalid request data'], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(['message' => $this->l10n->t('Invalid request data')], Http::STATUS_BAD_REQUEST);
 		}
 
 		$this->logger->info('iTop setConfig called for user: ' . $this->userId, ['app' => Application::APP_ID]);
@@ -82,8 +84,20 @@ class ConfigController extends Controller {
 
 		// Save non-token settings first
 		foreach ($values as $key => $value) {
-			if ($key !== 'token' && $key !== 'personal_token') {
+			if ($key !== 'token' && $key !== 'personal_token' && $key !== 'disabled_ci_classes') {
 				$this->config->setUserValue($this->userId, Application::APP_ID, $key, $value);
+			}
+		}
+		
+		// Handle disabled CI classes (user preferences)
+		if (isset($values['disabled_ci_classes']) && is_array($values['disabled_ci_classes'])) {
+			$disabledClasses = array_values(array_unique($values['disabled_ci_classes']));
+			// Validate classes
+			$validDisabled = array_intersect($disabledClasses, Application::SUPPORTED_CI_CLASSES);
+			if (empty($validDisabled)) {
+				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes');
+			} else {
+				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', json_encode($validDisabled));
 			}
 		}
 
@@ -158,20 +172,20 @@ class ConfigController extends Controller {
 	 */
 	public function getUserInfo(): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'User not authenticated'], Http::STATUS_UNAUTHORIZED);
+			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
 		}
 
 		$personId = $this->config->getUserValue($this->userId, Application::APP_ID, 'person_id', '');
 
 		if (empty($personId)) {
-			return new DataResponse(['error' => 'User not configured'], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['error' => $this->l10n->t('User not configured')], Http::STATUS_NOT_FOUND);
 		}
 
 		// Fetch person details from iTop using application token
 		$encryptedAppToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
 
 		if (empty($encryptedAppToken)) {
-			return new DataResponse(['error' => 'Application token not configured'], Http::STATUS_SERVICE_UNAVAILABLE);
+			return new DataResponse(['error' => $this->l10n->t('Application token not configured')], Http::STATUS_SERVICE_UNAVAILABLE);
 		}
 
 		try {
@@ -179,7 +193,7 @@ class ConfigController extends Controller {
 			$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
 
 			if (empty($adminInstanceUrl)) {
-				return new DataResponse(['error' => 'Server URL not configured'], Http::STATUS_SERVICE_UNAVAILABLE);
+				return new DataResponse(['error' => $this->l10n->t('Server URL not configured')], Http::STATUS_SERVICE_UNAVAILABLE);
 			}
 
 			$apiUrl = rtrim($adminInstanceUrl, '/') . '/webservices/rest.php?version=1.3';
@@ -212,18 +226,18 @@ class ConfigController extends Controller {
 			curl_close($ch);
 
 			if ($result === false || !empty($error)) {
-				return new DataResponse(['error' => 'Connection failed: ' . ($error ?: 'Unknown error')], Http::STATUS_SERVICE_UNAVAILABLE);
+				return new DataResponse(['error' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])], Http::STATUS_SERVICE_UNAVAILABLE);
 			}
 
 			$responseData = json_decode($result, true);
 
 			if ($responseData === null || !isset($responseData['code']) || $responseData['code'] !== 0) {
-				$errorMsg = $responseData['message'] ?? 'Failed to fetch user information';
+				$errorMsg = $responseData['message'] ?? $this->l10n->t('Failed to fetch user information');
 				return new DataResponse(['error' => $errorMsg], Http::STATUS_BAD_REQUEST);
 			}
 
 			if (!isset($responseData['objects']) || empty($responseData['objects'])) {
-				return new DataResponse(['error' => 'Person not found'], Http::STATUS_NOT_FOUND);
+				return new DataResponse(['error' => $this->l10n->t('Person not found')], Http::STATUS_NOT_FOUND);
 			}
 
 			$personObject = reset($responseData['objects']);
@@ -232,7 +246,7 @@ class ConfigController extends Controller {
 			$userName = trim(($personFields['first_name'] ?? '') . ' ' . ($personFields['name'] ?? ''));
 
 			return new DataResponse([
-				'name' => $userName ?: 'Unknown User',
+				'name' => $userName ?: $this->l10n->t('Unknown User'),
 				'email' => $personFields['email'] ?? '',
 				'organization' => $personFields['org_id_friendlyname'] ?? '',
 				'person_id' => $personId
@@ -240,7 +254,7 @@ class ConfigController extends Controller {
 
 		} catch (\Exception $e) {
 			$this->logger->error('Failed to fetch user info: ' . $e->getMessage(), ['app' => Application::APP_ID]);
-			return new DataResponse(['error' => 'Failed to fetch user information'], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return new DataResponse(['error' => $this->l10n->t('Failed to fetch user information')], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -257,13 +271,30 @@ class ConfigController extends Controller {
 		// Count users with configured tokens
 		$connectedUsers = $this->getConnectedUsersCount();
 
+		// Get cache TTL values (with defaults matching CacheService)
+		$cacheTtlCiPreview = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ci_preview', '60');
+		$cacheTtlTicketInfo = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ticket_info', '60');
+		$cacheTtlSearch = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_search', '30');
+		$cacheTtlPicker = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_picker', '60');
+		$cacheTtlProfile = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_profile', '1800');
+
+		// Get 3-state CI class configuration
+		$ciClassConfig = Application::getCIClassConfig($this->config);
+
 		$adminConfig = [
 			'admin_instance_url' => $adminInstanceUrl,
 			'user_facing_name' => $userFacingName,
 			'has_application_token' => $hasApplicationToken,
 			'connected_users' => $connectedUsers,
 			'last_updated' => date('Y-m-d H:i:s'),
-			'version' => '1.0.0',
+			'version' => Application::VERSION,
+			'cache_ttl_ci_preview' => $cacheTtlCiPreview,
+			'cache_ttl_ticket_info' => $cacheTtlTicketInfo,
+			'cache_ttl_search' => $cacheTtlSearch,
+			'cache_ttl_picker' => $cacheTtlPicker,
+			'cache_ttl_profile' => $cacheTtlProfile,
+			'ci_class_config' => $ciClassConfig,
+			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES,
 		];
 
 		return new DataResponse($adminConfig);
@@ -281,7 +312,7 @@ class ConfigController extends Controller {
 		if (empty($adminInstanceUrl)) {
 			return new DataResponse([
 				'status' => 'error',
-				'message' => 'Server URL not configured'
+				'message' => $this->l10n->t('Server URL not configured')
 			], Http::STATUS_BAD_REQUEST);
 		}
 
@@ -292,7 +323,7 @@ class ConfigController extends Controller {
 			if (empty($encryptedToken)) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Application token not configured'
+					'message' => $this->l10n->t('Application token not configured')
 				], Http::STATUS_BAD_REQUEST);
 			}
 
@@ -302,7 +333,7 @@ class ConfigController extends Controller {
 			} catch (\Exception $e) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Failed to decrypt saved token'
+					'message' => $this->l10n->t('Failed to decrypt saved token')
 				], Http::STATUS_BAD_REQUEST);
 			}
 		}
@@ -342,7 +373,7 @@ class ConfigController extends Controller {
 			if ($result === false || !empty($error)) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Connection failed: ' . ($error ?: 'Unknown error')
+					'message' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])
 				]);
 			}
 
@@ -351,7 +382,7 @@ class ConfigController extends Controller {
 			if ($responseData === null) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Invalid response from server'
+					'message' => $this->l10n->t('Invalid response from server')
 				]);
 			}
 
@@ -362,7 +393,7 @@ class ConfigController extends Controller {
 					$operationCount = count($responseData['operations'] ?? []);
 					return new DataResponse([
 						'status' => 'success',
-						'message' => 'Application token is valid and working',
+						'message' => $this->l10n->t('Application token is valid and working'),
 						'details' => [
 							'api_version' => $responseData['version'] ?? 'Unknown',
 							'available_operations' => $operationCount,
@@ -374,10 +405,10 @@ class ConfigController extends Controller {
 					$errorMsg = $responseData['message'] ?? 'Unauthorized';
 					return new DataResponse([
 						'status' => 'error',
-						'message' => 'Application token authentication failed',
+						'message' => $this->l10n->t('Application token authentication failed'),
 						'details' => [
 							'error' => $errorMsg,
-							'hint' => 'Application tokens in iTop must have "Administrator" + "REST Services User" profiles. Token may be invalid or expired.',
+							'hint' => $this->l10n->t('Application tokens in iTop must have "Administrator" + "REST Services User" profiles. Token may be invalid or expired.'),
 							'token_length' => strlen($token),
 							'response_code' => $responseData['code']
 						]
@@ -385,7 +416,7 @@ class ConfigController extends Controller {
 				} else {
 					return new DataResponse([
 						'status' => 'error',
-						'message' => 'API error: ' . ($responseData['message'] ?? 'Unknown error'),
+						'message' => $this->l10n->t('API error: %s', [$responseData['message'] ?? $this->l10n->t('Unknown error')]),
 						'details' => [
 							'code' => $responseData['code'],
 							'full_response' => $responseData
@@ -396,7 +427,7 @@ class ConfigController extends Controller {
 
 			return new DataResponse([
 				'status' => 'error',
-				'message' => 'Unexpected response format',
+				'message' => $this->l10n->t('Unexpected response format'),
 				'details' => [
 					'response' => $responseData
 				]
@@ -406,7 +437,7 @@ class ConfigController extends Controller {
 			$this->logger->error('iTop application token test failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return new DataResponse([
 				'status' => 'error',
-				'message' => 'Test failed: ' . $e->getMessage()
+				'message' => $this->l10n->t('Test failed: %s', [$e->getMessage()])
 			]);
 		}
 	}
@@ -420,9 +451,9 @@ class ConfigController extends Controller {
 	public function testAdminConnection(string $url = ''): DataResponse {
 		// Use provided URL or fall back to saved configuration
 		$testUrl = !empty($url) ? trim($url) : $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
-		
+
 		if (empty($testUrl)) {
-			return new DataResponse(['status' => 'error', 'message' => 'No server URL provided for testing'], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(['status' => 'error', 'message' => $this->l10n->t('No server URL provided for testing')], Http::STATUS_BAD_REQUEST);
 		}
 		
 		$this->logger->info('iTop testing connection to URL: ' . $testUrl, ['app' => Application::APP_ID]);
@@ -460,31 +491,31 @@ class ConfigController extends Controller {
 			if ($result === false || !empty($error)) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Connection failed: ' . ($error ?: 'Unknown error'),
+					'message' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')]),
 					'details' => ['url' => $testUrl, 'api_url' => $apiUrl]
 				]);
 			}
-			
+
 			if ($httpCode !== 200) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'iTop API endpoint returned HTTP ' . $httpCode,
+					'message' => $this->l10n->t('iTop API endpoint returned HTTP %d', [$httpCode]),
 					'details' => ['http_code' => $httpCode, 'url' => $testUrl, 'api_url' => $apiUrl]
 				]);
 			}
-			
+
 			// Parse the JSON response
 			$responseData = json_decode($result, true);
 			if ($responseData === null) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Server did not return valid JSON - not an iTop instance',
+					'message' => $this->l10n->t('Server did not return valid JSON - not an iTop instance'),
 					'details' => ['url' => $testUrl, 'response' => substr($result, 0, 200)]
 				]);
 			}
-			
+
 			$this->logger->info('iTop API response: ' . json_encode($responseData), ['app' => Application::APP_ID]);
-			
+
 			// Check for proper iTop response structure
 			if (isset($responseData['code'])) {
 				// iTop returns status codes: 0 = OK, 1 = UNAUTHORIZED, 2 = MISSING_VERSION, etc.
@@ -492,7 +523,7 @@ class ConfigController extends Controller {
 					// UNAUTHORIZED - this is expected and proves it's an iTop instance
 					return new DataResponse([
 						'status' => 'success',
-						'message' => 'iTop instance detected (authentication required)',
+						'message' => $this->l10n->t('iTop instance detected (authentication required)'),
 						'details' => [
 							'url' => $testUrl,
 							'api_url' => $apiUrl,
@@ -504,7 +535,7 @@ class ConfigController extends Controller {
 					// Successful response (shouldn't happen without credentials, but still valid iTop)
 					return new DataResponse([
 						'status' => 'success',
-						'message' => 'iTop instance detected and accessible',
+						'message' => $this->l10n->t('iTop instance detected and accessible'),
 						'details' => [
 							'url' => $testUrl,
 							'api_url' => $apiUrl,
@@ -515,7 +546,7 @@ class ConfigController extends Controller {
 					// Other iTop error codes
 					return new DataResponse([
 						'status' => 'warning',
-						'message' => 'iTop instance detected with error: ' . ($responseData['message'] ?? 'Unknown error'),
+						'message' => $this->l10n->t('iTop instance detected with error: %s', [$responseData['message'] ?? $this->l10n->t('Unknown error')]),
 						'details' => [
 							'url' => $testUrl,
 							'api_url' => $apiUrl,
@@ -527,16 +558,16 @@ class ConfigController extends Controller {
 			} else {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => 'Server response does not match iTop API format',
+					'message' => $this->l10n->t('Server response does not match iTop API format'),
 					'details' => ['url' => $testUrl, 'response' => $responseData]
 				]);
 			}
-			
+
 		} catch (\Exception $e) {
 			$this->logger->error('iTop connection test failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return new DataResponse([
 				'status' => 'error',
-				'message' => 'Connection test failed: ' . $e->getMessage(),
+				'message' => $this->l10n->t('Connection test failed: %s', [$e->getMessage()]),
 				'details' => ['url' => $testUrl]
 			]);
 		}
@@ -608,6 +639,282 @@ class ConfigController extends Controller {
 	}
 
 	/**
+	 * Save cache TTL settings with validation
+	 *
+	 * @param int $ciPreviewTTL CI preview cache TTL in seconds
+	 * @param int $ticketInfoTTL Ticket info cache TTL in seconds
+	 * @param int $searchTTL Search results cache TTL in seconds
+	 * @param int $pickerTTL Picker suggestions cache TTL in seconds
+	 * @param int $profileTTL Profile cache TTL in seconds
+	 * @return DataResponse
+	 */
+	public function saveCacheSettings(int $ciPreviewTTL, int $ticketInfoTTL, int $searchTTL, int $pickerTTL, int $profileTTL): DataResponse {
+		// Validation ranges
+		$minTTL = 10;  // 10 seconds minimum
+		$maxTTLPreview = 3600;  // 1 hour maximum for previews
+		$maxTTLOther = 300;  // 5 minutes maximum for search/picker
+		$maxTTLProfile = 3600;  // 1 hour maximum for profile cache
+
+		// Validate CI Preview TTL
+		if ($ciPreviewTTL < $minTTL || $ciPreviewTTL > $maxTTLPreview) {
+			return new DataResponse([
+				'message' => $this->l10n->t('CI Preview cache TTL must be between %d and %d seconds', [$minTTL, $maxTTLPreview])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Validate Ticket Info TTL
+		if ($ticketInfoTTL < $minTTL || $ticketInfoTTL > $maxTTLPreview) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Ticket Info cache TTL must be between %d and %d seconds', [$minTTL, $maxTTLPreview])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Validate Search TTL
+		if ($searchTTL < $minTTL || $searchTTL > $maxTTLOther) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Search cache TTL must be between %d and %d seconds', [$minTTL, $maxTTLOther])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Validate Picker TTL
+		if ($pickerTTL < $minTTL || $pickerTTL > $maxTTLOther) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Picker cache TTL must be between %d and %d seconds', [$minTTL, $maxTTLOther])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Validate Profile TTL
+		if ($profileTTL < $minTTL || $profileTTL > $maxTTLProfile) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Profile cache TTL must be between %d and %d seconds', [$minTTL, $maxTTLProfile])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Save validated values
+		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_ci_preview', (string)$ciPreviewTTL);
+		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_ticket_info', (string)$ticketInfoTTL);
+		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_search', (string)$searchTTL);
+		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_picker', (string)$pickerTTL);
+		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_profile', (string)$profileTTL);
+
+		$this->logger->info('Cache TTL settings updated', [
+			'app' => Application::APP_ID,
+			'ci_preview' => $ciPreviewTTL,
+			'ticket_info' => $ticketInfoTTL,
+			'search' => $searchTTL,
+			'picker' => $pickerTTL,
+			'profile' => $profileTTL
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('Cache settings saved successfully'),
+			'cache_ttl_ci_preview' => $ciPreviewTTL,
+			'cache_ttl_ticket_info' => $ticketInfoTTL,
+			'cache_ttl_search' => $searchTTL,
+			'cache_ttl_picker' => $pickerTTL,
+			'cache_ttl_profile' => $profileTTL
+		]);
+	}
+
+	/**
+	 * Get enabled CI classes from configuration
+	 *
+	 * @return array List of enabled CI class names
+	 */
+	private function getEnabledCIClasses(): array {
+		$enabledClassesJson = $this->config->getAppValue(Application::APP_ID, 'enabled_ci_classes', '');
+
+		if ($enabledClassesJson === '') {
+			// Default: no classes enabled (opt-in model)
+			return [];
+		}
+
+		$enabledClasses = json_decode($enabledClassesJson, true);
+		if (!is_array($enabledClasses)) {
+			// Fallback on invalid JSON: no classes enabled
+			return [];
+		}
+
+		// Filter to only valid classes
+		return array_values(array_intersect($enabledClasses, Application::SUPPORTED_CI_CLASSES));
+	}
+
+	/**
+	 * Get user's disabled CI classes
+	 *
+	 * @NoAdminRequired
+	 * @return DataResponse
+	 */
+	public function getUserDisabledCIClasses(): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
+		}
+
+		$userDisabledJson = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
+		$userDisabled = [];
+
+		if ($userDisabledJson !== '') {
+			$userDisabled = json_decode($userDisabledJson, true);
+			if (!is_array($userDisabled)) {
+				$userDisabled = [];
+			}
+		}
+
+		// Also get admin-enabled classes for reference
+		$adminEnabled = Application::getEnabledCIClasses($this->config);
+
+		return new DataResponse([
+			'admin_enabled_classes' => $adminEnabled,
+			'user_disabled_classes' => $userDisabled,
+			'effective_enabled_classes' => Application::getEffectiveEnabledCIClasses($this->config, $this->userId),
+			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES
+		]);
+	}
+
+	/**
+	 * Save user's disabled CI classes
+	 *
+	 * @NoAdminRequired
+	 * @param array $disabledClasses Array of CI class names user wants to disable
+	 * @return DataResponse
+	 */
+	public function saveUserDisabledCIClasses(array $disabledClasses): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
+		}
+
+		// Validate that all provided classes are supported
+		$validClasses = array_intersect($disabledClasses, Application::SUPPORTED_CI_CLASSES);
+
+		// Remove duplicates and re-index
+		$validClasses = array_values(array_unique($validClasses));
+
+		// Save to user config
+		if (empty($validClasses)) {
+			// Remove config if no classes disabled
+			$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes');
+		} else {
+			$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', json_encode($validClasses));
+		}
+
+		$this->logger->info('User disabled CI classes updated', [
+			'app' => Application::APP_ID,
+			'userId' => $this->userId,
+			'disabled_classes' => $validClasses
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('CI class preferences saved successfully'),
+			'user_disabled_classes' => $validClasses,
+			'effective_enabled_classes' => Application::getEffectiveEnabledCIClasses($this->config, $this->userId)
+		]);
+	}
+
+	/**
+	 * Save CI class configuration (admin only) - 3-state model
+	 *
+	 * @param array $classConfig Map of class name => state (disabled/forced/user_choice)
+	 * @return DataResponse
+	 */
+	public function saveCIClassConfig(array $classConfig): DataResponse {
+		// Validate format and values
+		$validConfig = [];
+		foreach ($classConfig as $className => $state) {
+			// Only process supported classes
+			if (!in_array($className, Application::SUPPORTED_CI_CLASSES, true)) {
+				continue;
+			}
+
+			// Validate state
+			if (!in_array($state, [
+				Application::CI_CLASS_STATE_DISABLED,
+				Application::CI_CLASS_STATE_FORCED,
+				Application::CI_CLASS_STATE_USER_CHOICE
+			], true)) {
+				return new DataResponse([
+					'message' => $this->l10n->t('Invalid state for class %s: %s', [$className, $state])
+				], Http::STATUS_BAD_REQUEST);
+			}
+
+			$validConfig[$className] = $state;
+		}
+
+		// Save to config
+		$this->config->setAppValue(Application::APP_ID, 'ci_class_config', json_encode($validConfig));
+
+		$this->logger->info('CI class configuration updated', [
+			'app' => Application::APP_ID,
+			'config' => $validConfig
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('CI class configuration saved successfully'),
+			'ci_class_config' => $validConfig
+		]);
+	}
+
+	/**
+	 * Save enabled CI classes configuration (admin only)
+	 * DEPRECATED: Use saveCIClassConfig() instead
+	 *
+	 * @param array $enabledClasses Array of CI class names to enable
+	 * @return DataResponse
+	 */
+	public function saveEnabledCIClasses(array $enabledClasses): DataResponse {
+		// Validate that all provided classes are supported
+		$validClasses = array_intersect($enabledClasses, Application::SUPPORTED_CI_CLASSES);
+
+		if (count($validClasses) === 0) {
+			return new DataResponse([
+				'message' => $this->l10n->t('At least one CI class must be enabled')
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Remove duplicates and re-index
+		$validClasses = array_values(array_unique($validClasses));
+
+		// Save to config
+		$this->config->setAppValue(Application::APP_ID, 'enabled_ci_classes', json_encode($validClasses));
+
+		$this->logger->info('Enabled CI classes updated', [
+			'app' => Application::APP_ID,
+			'enabled_classes' => $validClasses
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('CI class configuration saved successfully'),
+			'enabled_ci_classes' => $validClasses
+		]);
+	}
+
+	/**
+	 * Clear all cache entries
+	 *
+	 * @return DataResponse
+	 */
+	public function clearAllCache(): DataResponse {
+		try {
+			$this->cacheService->clearAll();
+
+			$this->logger->info('All cache entries cleared by admin', [
+				'app' => Application::APP_ID
+			]);
+
+			return new DataResponse([
+				'message' => $this->l10n->t('All cache entries cleared successfully')
+			]);
+		} catch (\Exception $e) {
+			$this->logger->error('Failed to clear cache: ' . $e->getMessage(), [
+				'app' => Application::APP_ID
+			]);
+
+			return new DataResponse([
+				'message' => $this->l10n->t('Failed to clear cache: %s', [$e->getMessage()])
+			], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	/**
 	 * Count users who have configured iTop
 	 *
 	 * @return int
@@ -650,7 +957,7 @@ class ConfigController extends Controller {
 				'success' => false,
 				'person_id' => null,
 				'user_info' => null,
-				'error' => 'Server URL not configured by administrator'
+				'error' => $this->l10n->t('Server URL not configured by administrator')
 			];
 		}
 
@@ -692,7 +999,7 @@ class ConfigController extends Controller {
 					'success' => false,
 					'person_id' => null,
 					'user_info' => null,
-					'error' => 'Connection failed: ' . ($error ?: 'Unknown error')
+					'error' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])
 				];
 			}
 
@@ -703,24 +1010,24 @@ class ConfigController extends Controller {
 					'success' => false,
 					'person_id' => null,
 					'user_info' => null,
-					'error' => 'Invalid response from server'
+					'error' => $this->l10n->t('Invalid response from server')
 				];
 			}
 
 			// Check for authentication errors (invalid/expired token)
 			if (!isset($responseData['code']) || $responseData['code'] !== 0) {
 				$errorMsg = $responseData['message'] ?? 'Invalid or expired token';
-				
+
 				// Special handling for Portal user block
 				if (strpos($errorMsg, 'Portal user is not allowed') !== false) {
-					$errorMsg = 'Portal users cannot use REST API directly. This is expected - the application token will handle all queries.';
+					$errorMsg = $this->l10n->t('Portal users cannot use REST API directly. This is expected - the application token will handle all queries.');
 				}
-				
+
 				return [
 					'success' => false,
 					'person_id' => null,
 					'user_info' => null,
-					'error' => 'Personal token validation failed: ' . $errorMsg
+					'error' => $this->l10n->t('Personal token validation failed: %s', [$errorMsg])
 				];
 			}
 
@@ -730,7 +1037,7 @@ class ConfigController extends Controller {
 					'success' => false,
 					'person_id' => null,
 					'user_info' => null,
-					'error' => 'No Person found for this user. The user may not have a linked contact in iTop.'
+					'error' => $this->l10n->t('No Person found for this user. The user may not have a linked contact in iTop.')
 				];
 			}
 
@@ -745,7 +1052,7 @@ class ConfigController extends Controller {
 					'success' => false,
 					'person_id' => null,
 					'user_info' => null,
-					'error' => 'Could not extract Person ID from iTop response'
+					'error' => $this->l10n->t('Could not extract Person ID from iTop response')
 				];
 			}
 
@@ -816,7 +1123,7 @@ class ConfigController extends Controller {
 				'success' => false,
 				'person_id' => null,
 				'user_info' => null,
-				'error' => 'Validation failed: ' . $e->getMessage()
+				'error' => $this->l10n->t('Validation failed: %s', [$e->getMessage()])
 			];
 		}
 	}

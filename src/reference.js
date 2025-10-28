@@ -21,25 +21,30 @@
 
 import { registerWidget } from '@nextcloud/vue/dist/Components/NcRichText.js'
 
-// Try to register the widget, but catch the error if it's already registered
-// This can happen when navigating between Talk conversations
-try {
-	registerWidget('integration_itop_ticket', async (el, { richObjectType, richObject, accessible }) => {
-		const { default: Vue } = await import('vue')
-		const { default: ReferenceItopWidget } = await import('./views/ReferenceItopWidget.vue')
-		const { translate, translatePlural } = await import('@nextcloud/l10n')
-		Vue.mixin({ methods: { t: translate, n: translatePlural } })
-		const Widget = Vue.extend(ReferenceItopWidget)
-		const widget = new Widget({
-			propsData: {
-				richObjectType,
-				richObject,
-				accessible,
-			},
-		}).$mount(el)
-		return widget
-	}, () => {}, { hasInteractiveView: false })
-} catch (error) {
-	// Widget already registered, this is fine - just ignore the error
-	console.debug('iTop widget already registered, skipping')
+// Shared widget registration function
+const registerItopWidget = (widgetType) => {
+	try {
+		registerWidget(widgetType, async (el, { richObjectType, richObject, accessible }) => {
+			const { default: Vue } = await import('vue')
+			const { default: ReferenceItopWidget } = await import('./views/ReferenceItopWidget.vue')
+			const { translate, translatePlural } = await import('@nextcloud/l10n')
+			Vue.mixin({ methods: { t: translate, n: translatePlural } })
+			const Widget = Vue.extend(ReferenceItopWidget)
+			const widget = new Widget({
+				propsData: {
+					richObjectType,
+					richObject,
+					accessible,
+				},
+			}).$mount(el)
+			return widget
+		}, () => {}, { hasInteractiveView: false })
+	} catch (error) {
+		// Widget already registered, this is fine - just ignore the error
+		console.debug(`iTop ${widgetType} widget already registered, skipping`)
+	}
 }
+
+// Register both ticket and CI widgets
+registerItopWidget('integration_itop_ticket')
+registerItopWidget('integration_itop_ci')

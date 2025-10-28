@@ -37,14 +37,17 @@ return $response;
 
 **What to Cache:**
 
-| Data Type | Cache Key Pattern | TTL | Invalidation |
-|-----------|-------------------|-----|--------------|
-| CI Previews | `ci_preview_{userId}_{class}_{id}` | 60s | Manual or TTL |
-| Search Results | `search_{userId}_{md5(query)}` | 30s | TTL only |
-| Profile Data | `profile_{userId}` | 300s | Manual or TTL |
-| User Info | `user_info_{userId}` | 600s | Manual |
-| Picker Results | `picker_{userId}_{md5(query)}` | 60s | TTL only |
-| Ticket Lists | `tickets_{userId}_{type}` | 120s | TTL only |
+| Data Type | Cache Layer | Cache Key Pattern | Default TTL | Config Key | Invalidation |
+|-----------|-------------|-------------------|-------------|------------|---------------|
+| **API Queries** (CIs, tickets, searches) | ItopAPIService | `api:{md5(key)}` | 60s | `cache_ttl_api_query` | TTL only |
+| CI Previews | ItopReferenceProvider (via CacheService) | `ci_preview:{userId}:{class}:{id}` | 60s | *(same as API)* | Manual or TTL |
+| Search Results | ItopSearchProvider | `api:{md5(query)}` | 30s | *(planned)* | TTL only |
+| Profile Data | ProfileService | `profile:{userId}` | 300s | *(planned)* | Manual or TTL |
+| User Info | ItopAPIService | `api:{md5(key)}` | 600s | *(planned)* | Manual |
+| Picker Results | ItopReferenceProvider.search() | `api:{md5(query)}` | 60s | *(planned)* | TTL only |
+| Ticket Lists | ItopAPIService | `api:{md5(key)}` | 120s | *(planned)* | TTL only |
+
+**Key:** *(planned)* = future admin configuration in Phase 6
 
 **Implementation:**
 ```php
@@ -120,6 +123,113 @@ integration_itop/user_{userId}/preview_{class}_{id}
 - High availability
 - Fast access (~1ms)
 
+## Query-Based API Caching (ItopAPIService)
+
+**Status:** ✅ Implemented (Phase 2-3)
+
+**Overview:** The `ItopAPIService->request()` method implements automatic query-based caching independent of user ID. All API responses are cached based on the OQL query or ID provided, allowing multiple users to share the same cache entry for identical queries.
+
+### Cache Flow: API Call → Store → Deliver
+
+```
+1. User A requests CI id=32
+   ├─ Build cache key: md5("32") → "c4ca4238a0b923820dcc509a6f75849b"
+   ├─ Check cache: cache.get("api:c4ca4238...") → null (MISS)
+   ├─ Call iTop API with app token
+   ├─ Add metadata: _cache_timestamp + _cache_ttl
+   └─ Store in cache: cache.set(..., 60s TTL)
+
+2. User B requests same CI id=32 (within 60s)
+   ├─ Build same cache key: md5("32")
+   ├─ Check cache: cache.get("api:c4ca4238...") → hit!
+   ├─ Validate: age (15s) < ttl (60s) ✓
+   └─ Return cached result (no API call)
+
+3. User A requests CI id=32 after 60s
+   ├─ Build cache key: md5("32")
+   ├─ Check cache: cache.get(...) → null (expired)
+   ├─ Call iTop API again
+   └─ Cache refreshed with new TTL
+```
+
+### Implementation Details
+
+**Cache Key Generation:**
+```php
+$key = $params['key'] ?? '';  // OQL query or ID
+$keyHash = md5($key);         // Hash for reasonable length
+return 'api:' . $keyHash;     // Final key: api:c4ca4238...
+```
+
+**Examples of Query Keys:**
+```
+Direct ID lookup:
+  $params['key'] = "32"
+  Cache key: api:c4ca4238a0b923820dcc509a6f75849b
+
+OQL query:
+  $params['key'] = "SELECT PC WHERE name LIKE '%APC0001%'"
+  Cache key: api:a1b2c3d4e5f6...
+
+Search query:
+  $params['key'] = "SELECT Software AS ci WHERE ci.name LIKE '%Office%'"
+  Cache key: api:f6e5d4c3b2a1...
+```
+
+**Metadata Storage:**
+Cache payload includes internal metadata for explicit TTL validation:
+```json
+{
+  "code": 0,
+  "message": "Found: 1",
+  "objects": {...},
+  "_cache_timestamp": 1729886322,
+  "_cache_ttl": 60
+}
+```
+Metadata is stripped before returning to callers.
+
+**Multi-User Cache Sharing:**
+- User A requests PC id=32 → cache miss → API call → cache stored
+- User B requests PC id=32 → cache hit → serves same entry
+- Same query = same cache key = shared cache entry
+- No userId in cache key (intentional for efficiency)
+
+### Configuration
+
+**Admin Settings (Phase 6):**
+Administrators can configure TTL per data type via appconfig:
+
+| Config Key | Default | Description | Planned |
+|------------|---------|-------------|----------|
+| `cache_ttl_api_query` | 60s | General API query caching (CIs, searches, tickets) | ✅ Implemented |
+| `cache_ttl_search` | 30s | Search results specifically | Phase 6 |
+| `cache_ttl_profile` | 300s | User profile/permission data | Phase 6 |
+| `cache_ttl_ci_preview` | 60s | CI preview rendering | Phase 6 |
+| `cache_ttl_tickets` | 120s | Ticket list data | Phase 6 |
+
+**Code Pattern:**
+```php
+// Get TTL from admin config with default fallback
+$defaultTTL = 60;
+$ttl = (int)$this->config->getAppValue('integration_itop', 'cache_ttl_api_query', $defaultTTL);
+
+// Cache if TTL > 0 (allows disabling cache with TTL=0)
+if ($ttl > 0) {
+    $this->cache->set($cacheKey, json_encode($data), $ttl);
+}
+```
+
+### Logging
+
+Cache operations are logged with debug level for monitoring:
+
+```
+API query cache HIT: age=15s, ttl=60s, class=PC
+API query cache MISS: cacheKey=api:c4ca4238...
+API query CACHED: cacheKey=api:c4ca4238..., ttl=60s
+```
+
 ## TTL Values Per Data Type
 
 ### Short TTL (30-60s) - Frequently Changing Data
@@ -189,6 +299,133 @@ private const CACHE_TTL_USER_INFO = 600;
 ```php
 // Stored in appconfig table, not cache
 $url = $this->config->getAppValue('integration_itop', 'admin_instance_url');
+```
+
+## Administrator Configuration
+
+**Status:** ✅ Implemented (Phase 6)
+
+Administrators can now configure cache TTL values via the Nextcloud admin settings panel without modifying code. This allows fine-tuning performance based on deployment requirements.
+
+### Accessing Cache Settings
+
+1. Navigate to **Settings** → **Administration** → **iTop Integration**
+2. Scroll to the **Cache & Performance Settings** section
+3. Configure TTL values for each cache type
+4. Click **Save Cache Settings** to apply changes
+
+### Configurable Parameters
+
+| Parameter | Default | Range | Description |
+|-----------|---------|-------|-------------|
+| **CI Preview Cache TTL** | 60s | 10–3600s (1h) | How long to cache Configuration Item preview data. Lower values = fresher data but higher API load; higher values = better performance. |
+| **Ticket Info Cache TTL** | 60s | 10–3600s (1h) | How long to cache ticket preview data (UserRequest and Incident previews). |
+| **Search Results Cache TTL** | 30s | 10–300s (5min) | How long to cache search results. Shorter TTLs ensure fresher results but increase API load. |
+| **Picker Suggestions Cache TTL** | 60s | 10–300s (5min) | How long to cache Smart Picker suggestions for CI links in Text/Talk. |
+
+### Clear All Cache
+
+The admin panel also provides a **Clear All Cache** button that immediately invalidates all cached entries. This is useful:
+- After major iTop data changes
+- When troubleshooting stale data issues
+- During testing and development
+
+**Warning:** Clearing cache will temporarily reduce performance until the cache is rebuilt through normal usage.
+
+### Recommended TTL Values by Scenario
+
+#### Development/Testing Environment
+```
+CI Preview TTL: 10s      (frequent changes expected)
+Ticket Info TTL: 10s     (rapid testing cycles)
+Search TTL: 10s          (immediate feedback needed)
+Picker TTL: 10s          (testing different queries)
+```
+
+#### Shared CMDB (High Activity)
+```
+CI Preview TTL: 30s      (balance freshness vs performance)
+Ticket Info TTL: 30s     (frequent ticket updates)
+Search TTL: 20s          (users expect recent results)
+Picker TTL: 30s          (similar to search)
+```
+
+#### Dedicated CMDB (Stable Data)
+```
+CI Preview TTL: 300s     (CIs change infrequently)
+Ticket Info TTL: 120s    (moderate ticket activity)
+Search TTL: 60s          (acceptable staleness)
+Picker TTL: 120s         (longer cache for performance)
+```
+
+#### High-Traffic Nextcloud Instance
+```
+CI Preview TTL: 600s     (maximize cache hits)
+Ticket Info TTL: 300s    (reduce iTop API load)
+Search TTL: 120s         (balance load vs freshness)
+Picker TTL: 180s         (optimize for performance)
+```
+
+### Implementation Details
+
+**Backend Storage:**
+Cache TTL values are stored in Nextcloud's `appconfig` table:
+```php
+cache_ttl_ci_preview    → integer (10-3600 seconds)
+cache_ttl_ticket_info   → integer (10-3600 seconds)
+cache_ttl_search        → integer (10-300 seconds)
+cache_ttl_picker        → integer (10-300 seconds)
+```
+
+**Validation:**
+- CI Preview and Ticket Info TTL: 10s minimum, 3600s (1 hour) maximum
+- Search and Picker TTL: 10s minimum, 300s (5 minutes) maximum
+- Values are validated server-side before saving
+
+**Live Updates:**
+TTL changes take effect immediately:
+- New cache entries use the updated TTL
+- Existing cache entries retain their original TTL until expiration
+- Clear cache after changing TTLs if immediate effect is needed
+
+### API Endpoints
+
+The cache configuration feature exposes these endpoints:
+
+**Get Current Settings:**
+```
+GET /apps/integration_itop/admin-config
+Response: {
+  "cache_ttl_ci_preview": 60,
+  "cache_ttl_ticket_info": 60,
+  "cache_ttl_search": 30,
+  "cache_ttl_picker": 60,
+  ...
+}
+```
+
+**Save Cache Settings:**
+```
+POST /apps/integration_itop/cache-settings
+Body: {
+  "ciPreviewTTL": 120,
+  "ticketInfoTTL": 120,
+  "searchTTL": 60,
+  "pickerTTL": 90
+}
+Response: {
+  "message": "Cache settings saved successfully",
+  "cache_ttl_ci_preview": 120,
+  ...
+}
+```
+
+**Clear All Cache:**
+```
+POST /apps/integration_itop/clear-cache
+Response: {
+  "message": "All cache entries cleared successfully"
+}
 ```
 
 ## Cache Key Patterns
@@ -396,6 +633,144 @@ private function getRateLimitForFeature(string $feature): array {
         default => ['limit' => 5, 'window' => 1]
     };
 }
+```
+
+## Cache Topology and Service Relationships
+
+**Overview:** The application uses multiple caching layers across different services. Understanding how they interact is critical for debugging and optimization.
+
+### Cache Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Nextcloud App                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │ Layer 1: UI Components (Vue)                             │  │
+│  │ ├─ ReferenceItopWidget (CI preview display)             │  │
+│  │ ├─ ItopSearchProvider results                            │  │
+│  │ └─ ItopSmartPickerProvider suggestions                   │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                            ↓                                    │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │ Layer 2: Services (PHP)                                  │  │
+│  │ ├─ ItopReferenceProvider                                 │  │
+│  │ │  └─ Uses CacheService for CI preview caching          │  │
+│  │ ├─ ItopSearchProvider                                    │  │
+│  │ │  └─ Calls ItopAPIService.searchCIs()                  │  │
+│  │ └─ ProfileService                                        │  │
+│  │    └─ Determines user permissions (portal vs power)     │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                            ↓                                    │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │ Layer 3: API Service (ItopAPIService)                   │  │
+│  │ ├─ buildQueryCacheKey() → md5(key)                      │  │
+│  │ ├─ Cache check: cache.get(api:hash) → HIT/MISS         │  │
+│  │ ├─ If MISS: Call iTop REST API                          │  │
+│  │ ├─ Add metadata: _cache_timestamp, _cache_ttl           │  │
+│  │ ├─ Cache store: cache.set(api:hash, $data, $ttl)       │  │
+│  │ └─ Methods:                                              │  │
+│  │    - getCIPreview()  → Single CI by ID                  │  │
+│  │    - searchCIs()     → OQL search query                  │  │
+│  │    - getTicketInfo() → Single ticket by ID              │  │
+│  │    - search()        → Broad search (tickets + CIs)    │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                            ↓                                    │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │ Layer 4: Cache Backend (Nextcloud ICacheFactory)         │  │
+│  │ ├─ Redis (recommended for multi-server)                  │  │
+│  │ ├─ Memcached (alternative)                               │  │
+│  │ ├─ APCu (single-server)                                  │  │
+│  │ └─ File cache (fallback)                                 │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                            ↓                                    │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │ Layer 5: iTop API (External)                             │  │
+│  │ ├─ REST endpoint: /webservices/rest.php                  │  │
+│  │ ├─ Authentication: App token (admin-configured)          │  │
+│  │ └─ Queries: SELECT OQL or core/get operations           │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Cache Decision Flow
+
+```
+Request from UI Component
+        ↓
+    [Check Scope]
+        ├─ CI Preview? → Use CacheService (user-isolated)
+        ├─ Search/Pick? → Use ItopAPIService (query-based)
+        └─ Other? → Direct API call
+        ↓
+    [Build Cache Key]
+        ├─ CacheService: ci_preview:userId:class:id
+        └─ ItopAPIService: api:md5(oql_query)
+        ↓
+    [Check Cache]
+        ├─ HIT: Validate TTL & timestamp → Return
+        └─ MISS: Call iTop API
+        ↓
+    [Process Response]
+        ├─ Success: Add metadata + cache
+        └─ Error: Return without caching
+        ↓
+    [Strip Metadata]
+        └─ Remove _cache_timestamp, _cache_ttl before returning
+        ↓
+    Response to UI
+```
+
+### Service Cache Responsibility Matrix
+
+| Service | Cache Type | Key Pattern | TTL Config | Sharing |
+|---------|-----------|-------------|------------|----------|
+| **ItopAPIService** | Query-based | `api:{md5(key)}` | `cache_ttl_api_query` | Cross-user |
+| **ItopReferenceProvider** | CI preview | `ci_preview:{userId}:{class}:{id}` | Uses API TTL | Per-user |
+| **ItopSearchProvider** | Search results | Via ItopAPIService | `cache_ttl_api_query` | Cross-user |
+| **ItopSmartPickerProvider** | Picker results | Via ItopAPIService | `cache_ttl_api_query` | Cross-user |
+| **ProfileService** | Profile data | `profile:{userId}` | `cache_ttl_profile` (Phase 6) | Per-user |
+
+### Data Flow Examples
+
+**Example 1: Getting CI Preview (PC id=32)**
+```
+ReferenceItopWidget (Vue component)
+  └─ getCIReference() in ItopReferenceProvider
+     ├─ CacheService.getCIPreview(userId, 'PC', 32)
+     │  └─ Key: ci_preview:boris:PC:32
+     │     ├─ HIT: Return cached preview
+     │     └─ MISS: Continue to API
+     └─ ItopAPIService.getCIPreview(userId, 'PC', 32)
+        ├─ buildQueryCacheKey() → api:c4ca4238...
+        ├─ cache.get() → MISS
+        ├─ request(userId, {operation, class, key='32', output_fields='*'})
+        │  ├─ POST /webservices/rest.php?version=1.3
+        │  └─ Auth-Token: [app_token]
+        └─ Store in cache with _cache_timestamp + _cache_ttl
+```
+
+**Example 2: Searching Software (term="Office")**
+```
+ItopSearchProvider.search("Office")
+  └─ ItopAPIService.searchCIs(userId, "Office", [], isPortalOnly)
+     ├─ buildQueryCacheKey() → api:a1b2c3d4...
+     ├─ cache.get() → MISS
+     └─ request(userId, {operation: 'core/get', class: 'Software', key: "SELECT Software ... LIKE '%Office%'", ...})
+        ├─ Multiple API calls per class (if needed)
+        └─ Cache entire result set once
+```
+
+**Example 3: Multiple Users, Same Query**
+```
+User A: getCIPreview(PC, 32)
+  └─ buildQueryCacheKey() → api:c4ca4238... → MISS → API call → CACHED
+
+User B: getCIPreview(PC, 32)
+  └─ buildQueryCacheKey() → api:c4ca4238... → HIT! → No API call
+  └─ Result served from cache (same entry as User A)
 ```
 
 ## Performance Targets

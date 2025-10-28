@@ -1,7 +1,394 @@
 <?php
+/**
+ * @var array $_ Template parameters
+ */
 $appId = OCA\Itop\AppInfo\Application::APP_ID;
 script($appId, 'admin-settings');
 style($appId, 'admin-settings');
+
+// CI class label mapping
+$ciClassLabels = [
+	'PC' => $l->t('Computers (PC)'),
+	'Phone' => $l->t('Phones'),
+	'IPPhone' => $l->t('IP Phones'),
+	'MobilePhone' => $l->t('Mobile Phones'),
+	'Tablet' => $l->t('Tablets'),
+	'Printer' => $l->t('Printers'),
+	'Peripheral' => $l->t('Peripherals'),
+	'PCSoftware' => $l->t('PC Software'),
+	'OtherSoftware' => $l->t('Other Software'),
+	'WebApplication' => $l->t('Web Applications'),
+	'Software' => $l->t('Software Catalog')
+];
 ?>
 
-<div id="itop_prefs"></div>
+<div id="itop_prefs" class="section">
+	<div class="itop-settings-wrapper">
+		<div class="itop-admin-header">
+			<div class="icon-container">
+				<div class="app-icon"></div>
+			</div>
+			<div class="header-content">
+				<h2><?php p($l->t('%s integration', [$_['user_facing_name']])); ?></h2>
+				<p class="subtitle"><?php p($l->t('Configure your iTop system integration settings')); ?></p>
+			</div>
+			<div class="version-badge">v<?php p($_['version']); ?></div>
+		</div>
+
+		<!-- Current Status Section -->
+		<div class="settings-section">
+			<div class="section-header">
+				<h3><?php p($l->t('📊 Current Status')); ?></h3>
+			</div>
+
+			<div class="status-grid">
+				<div class="status-card">
+					<div class="status-header">
+						<span class="status-icon">👥</span>
+						<span class="status-title"><?php p($l->t('Connected Users')); ?></span>
+					</div>
+					<div class="status-value" id="connected-users-count"><?php p($_['connected_users']); ?> <?php p($l->t('users')); ?></div>
+				</div>
+
+				<div class="status-card connection-status">
+					<div class="status-header">
+						<span class="status-icon">🔌</span>
+						<span class="status-title"><?php p($l->t('Connection')); ?></span>
+					</div>
+					<div class="status-value" id="connection-status"
+						data-text-testing="<?php p($l->t('Testing...')); ?>"
+						data-text-connected="<?php p($l->t('Connected')); ?>"
+						data-text-error="<?php p($l->t('Error')); ?>"
+						data-text-not-configured="<?php p($l->t('No URL configured')); ?>"
+						data-text-not-tested="<?php p($l->t('Not tested')); ?>"
+						data-text-failed="<?php p($l->t('Connection failed')); ?>">
+						<?php echo !empty($_['admin_instance_url']) ? $l->t('Not tested') : $l->t('No URL configured'); ?>
+					</div>
+				</div>
+
+				<div class="status-card version-status" id="version-status-card">
+					<div class="status-header">
+						<span class="status-icon" id="version-status-icon">📦</span>
+						<span class="status-title"><?php p($l->t('App Version')); ?></span>
+					</div>
+					<div class="status-value" id="version-status">
+						<span id="version-current">v<?php p($_['version']); ?></span>
+						<span id="version-check-result"></span>
+					</div>
+				</div>
+
+				<div class="status-card">
+					<div class="status-header">
+						<span class="status-icon">🏷️</span>
+						<span class="status-title"><?php p($l->t('Display Name')); ?></span>
+					</div>
+					<div class="status-value" id="current-name"><?php p($_['user_facing_name']); ?></div>
+				</div>
+
+				<div class="status-card">
+					<div class="status-header">
+						<span class="status-icon">🌐</span>
+						<span class="status-title"><?php p($l->t('Server URL')); ?></span>
+					</div>
+					<div class="status-value" id="current-url"><?php echo !empty($_['admin_instance_url']) ? p($_['admin_instance_url']) : p($l->t('Not configured')); ?></div>
+				</div>
+
+				<div class="status-card">
+					<div class="status-header">
+						<span class="status-icon">⏰</span>
+						<span class="status-title"><?php p($l->t('Last Updated')); ?></span>
+					</div>
+					<div class="status-value"><?php p($_['last_updated']); ?></div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Connection Configuration Section -->
+		<div class="settings-section">
+			<div class="section-header">
+				<h3><?php p($l->t('📡 Connection Configuration')); ?></h3>
+				<p class="section-description"><?php p($l->t('Configure the connection to your iTop system instance')); ?></p>
+			</div>
+
+			<div class="settings-form">
+				<div class="form-group">
+					<label for="itop-user-facing-name" class="form-label">
+						<span class="icon">🏷️</span>
+						<?php p($l->t('Display Name')); ?>
+					</label>
+					<input
+						type="text"
+						id="itop-user-facing-name"
+						value="<?php p($_['user_facing_name']); ?>"
+						placeholder="<?php p($l->t('e.g., ServicePoint, Helpdesk, iTop')); ?>"
+						class="form-input"
+						maxlength="100"
+					/>
+					<p class="form-hint"><?php p($l->t('The name users will see throughout Nextcloud (e.g., "ServicePoint Integration")')); ?></p>
+				</div>
+
+				<div class="form-group">
+					<label for="itop-instance-url" class="form-label">
+						<span class="icon">🌐</span>
+						<?php p($l->t('Server URL')); ?>
+					</label>
+					<div class="form-input-group">
+						<input
+							type="url"
+							id="itop-instance-url"
+							value="<?php p($_['admin_instance_url']); ?>"
+							placeholder="<?php p($l->t('https://your-itop-server.com')); ?>"
+							class="form-input"
+						/>
+						<button id="test-connection" class="btn-secondary btn-inline" <?php echo empty($_['admin_instance_url']) ? 'disabled' : ''; ?>
+							data-text-test="<?php p($l->t('Test Connection')); ?>"
+							data-text-testing="<?php p($l->t('Testing...')); ?>">
+							<span class="btn-icon">🔍</span>
+							<?php p($l->t('Test Connection')); ?>
+						</button>
+					</div>
+					<p class="form-hint"><?php p($l->t('The complete URL to your iTop system instance')); ?></p>
+				</div>
+
+				<div class="form-group">
+					<label for="itop-application-token" class="form-label">
+						<span class="icon">🔑</span>
+						<?php p($l->t('Application Token (Administrator)')); ?>
+					</label>
+					<div class="form-input-group">
+						<input
+							type="text"
+							id="itop-application-token"
+							value=""
+							placeholder="<?php echo $_['has_application_token'] ? '••••••••••••••••  ' . $l->t('(Configuration is saved - enter new token to update)') : $l->t('Paste your personal token here'); ?>"
+							class="form-input password-style"
+							autocomplete="off"
+						/>
+						<button id="test-application-token" class="btn-secondary btn-inline" disabled>
+							<span class="btn-icon">🔍</span>
+							<?php p($l->t('Test Token')); ?>
+						</button>
+					</div>
+					<p class="form-hint">
+						<strong><?php p($l->t('Phase 2:')); ?></strong> <?php p($l->t('Required Administrator-level token for querying user data')); ?>.
+						<a href="https://github.com/LexioJ/integration_itop#admin-configuration-phase-2" target="_blank"><?php p($l->t('How to create →')); ?></a>
+					</p>
+					<div class="form-info-box">
+						<strong><?php p($l->t('⚠️ Important:')); ?></strong> <?php p($l->t('This token must have')); ?> <strong><?php p($l->t('Administrator')); ?></strong> + <strong><?php p($l->t('REST Services User')); ?></strong> <?php p($l->t('profiles')); ?>.
+						<?php p($l->t('It will be used securely to query user data (filtered by Person ID for security)')); ?>.
+					</div>
+				</div>
+
+				<div class="form-actions">
+					<button id="save-itop-config" class="btn-primary">
+						<span class="btn-icon">💾</span>
+						<?php p($l->t('Save Configuration')); ?>
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- User Permission Requirements Section -->
+		<div class="settings-section">
+			<div class="section-header">
+				<h3><?php p($l->t('⚙️ User Permission Requirements')); ?></h3>
+				<p class="section-description"><?php p($l->t('Important: Configure these iTop user permissions to prevent connection issues')); ?></p>
+			</div>
+			<div class="info-cards">
+				<div class="info-card permission-steps">
+					<div class="info-icon">📋</div>
+					<div class="info-content">
+						<h4><?php p($l->t('How to Configure User Permissions')); ?></h4>
+						<ol>
+							<li><strong><?php p($l->t('Admin Setup')); ?>:</strong> <?php p($l->t('Log into %s', ['iTop'])); ?></li>
+							<li><strong><?php p($l->t('User Profiles')); ?>:</strong> <?php p($l->t('Admin Tools → User Management → User Accounts')); ?></li>
+							<li><strong><?php p($l->t('Edit User')); ?>:</strong> <?php p($l->t('Each user must create a Personal Token with specific settings')); ?></li>
+							<li><strong><?php p($l->t('Add Profile')); ?>:</strong> <?php p($l->t('Profiles')); ?></li>
+							<li><strong><?php p($l->t('Save User')); ?>:</strong> <?php p($l->t('Save User')); ?></li>
+							<li><strong><?php p($l->t('User Token')); ?>:</strong> <?php p($l->t('Each user must create a Personal Token with specific settings')); ?></li>
+							<li><strong><?php p($l->t('⚠️ CRITICAL')); ?>:</strong> <?php p($l->t('"REST API"')); ?></li>
+						</ol>
+					</div>
+				</div>
+
+				<div class="info-card token-requirements">
+					<div class="info-icon">🔑</div>
+					<div class="info-content">
+						<h4><?php p($l->t('Personal Token Requirements')); ?></h4>
+						<p><strong><?php p($l->t('Each user must create a Personal Token with specific settings')); ?>:</strong></p>
+						<ul>
+							<li><strong><?php p($l->t('Location')); ?>:</strong> <?php p($l->t('Navigate to "My Account" → "Personal Tokens"')); ?></li>
+							<li><strong><?php p($l->t('Application Name')); ?>:</strong> <?php p($l->t('Nextcloud Integration')); ?></li>
+							<li><strong><?php p($l->t('⚠️ REQUIRED')); ?>:</strong> <?php p($l->t('REST/JSON (Required!)')); ?></li>
+							<li><strong><?php p($l->t('Expiration')); ?>:</strong> <?php p($l->t('Choose based on your policy')); ?></li>
+							<li><strong><?php p($l->t('Important')); ?>:</strong> <?php p($l->t('Copy the generated token immediately (it won\'t be shown again)')); ?></li>
+						</ul>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Cache & Performance Settings Section -->
+		<div class="settings-section">
+			<div class="section-header">
+				<h3><?php p($l->t('⚡ Cache & Performance Settings')); ?></h3>
+				<p class="section-description"><?php p($l->t('Configure cache TTL (Time To Live) settings to balance performance and data freshness')); ?></p>
+			</div>
+
+			<div class="settings-form">
+				<div class="cache-settings-grid">
+					<div class="form-group">
+						<label for="cache-ttl-ci-preview" class="form-label">
+							<span class="icon">📄</span>
+							<?php p($l->t('CI Preview Cache TTL (seconds)')); ?>
+						</label>
+						<input
+							type="number"
+							id="cache-ttl-ci-preview"
+							value="<?php p($_['cache_ttl_ci_preview']); ?>"
+							min="10"
+							max="3600"
+							class="form-input"
+						/>
+						<p class="form-hint"><?php p($l->t('How long to cache Configuration Item preview data (10s–1h). Lower = fresher data, higher = better performance')); ?></p>
+					</div>
+
+					<div class="form-group">
+						<label for="cache-ttl-ticket-info" class="form-label">
+							<span class="icon">🎫</span>
+							<?php p($l->t('Ticket Info Cache TTL (seconds)')); ?>
+						</label>
+						<input
+							type="number"
+							id="cache-ttl-ticket-info"
+							value="<?php p($_['cache_ttl_ticket_info']); ?>"
+							min="10"
+							max="3600"
+							class="form-input"
+						/>
+						<p class="form-hint"><?php p($l->t('How long to cache ticket preview data (10s–1h)')); ?></p>
+					</div>
+
+					<div class="form-group">
+						<label for="cache-ttl-search" class="form-label">
+							<span class="icon">🔍</span>
+							<?php p($l->t('Search Results Cache TTL (seconds)')); ?>
+						</label>
+						<input
+							type="number"
+							id="cache-ttl-search"
+							value="<?php p($_['cache_ttl_search']); ?>"
+							min="10"
+							max="300"
+							class="form-input"
+						/>
+						<p class="form-hint"><?php p($l->t('How long to cache search results (10s–5min). Shorter TTLs ensure fresher results')); ?></p>
+					</div>
+
+					<div class="form-group">
+						<label for="cache-ttl-picker" class="form-label">
+							<span class="icon">🎯</span>
+							<?php p($l->t('Picker Suggestions Cache TTL (seconds)')); ?>
+						</label>
+						<input
+							type="number"
+							id="cache-ttl-picker"
+							value="<?php p($_['cache_ttl_picker']); ?>"
+							min="10"
+							max="300"
+							class="form-input"
+						/>
+						<p class="form-hint"><?php p($l->t('How long to cache Smart Picker suggestions for CI links in Text/Talk (10s–5min)')); ?></p>
+					</div>
+
+					<div class="form-group">
+						<label for="cache-ttl-profile" class="form-label">
+							<span class="icon">👤</span>
+							<?php p($l->t('Profile Cache TTL (seconds)')); ?>
+						</label>
+						<input
+							type="number"
+							id="cache-ttl-profile"
+							value="<?php p($_['cache_ttl_profile']); ?>"
+							min="10"
+							max="3600"
+							class="form-input"
+						/>
+						<p class="form-hint"><?php p($l->t('How long to cache user profile data for access control (10s–1h). Default: 30 minutes')); ?></p>
+					</div>
+				</div>
+
+				<div class="form-actions cache-actions">
+					<button id="save-cache-settings" class="btn-primary">
+						<span class="btn-icon">💾</span>
+						<?php p($l->t('Save Cache Settings')); ?>
+					</button>
+					<button id="clear-all-cache" class="btn-warning">
+						<span class="btn-icon">🗑️</span>
+						<?php p($l->t('Clear All Cache')); ?>
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- CI Class Configuration Section -->
+		<div class="settings-section">
+			<div class="section-header">
+				<h3><?php p($l->t('🎯 CI Class Configuration')); ?></h3>
+				<p class="section-description"><?php p($l->t('Configure access levels for Configuration Item types in search, smart picker, and previews')); ?></p>
+			</div>
+
+			<div class="settings-form">
+				<div class="ci-class-config-grid">
+					<?php foreach ($_['supported_ci_classes'] as $className): ?>
+						<?php
+							$currentState = $_['ci_class_config'][$className] ?? 'disabled';
+							$classLabel = $ciClassLabels[$className] ?? $className;
+							$iconPath = \OC::$server->getURLGenerator()->imagePath($appId, $className . '.svg');
+						?>
+						<div class="ci-class-config-row">
+							<div class="ci-class-info">
+								<span class="ci-class-icon" data-class="<?php p($className); ?>">
+									<img src="<?php p($iconPath); ?>" alt="<?php p($className); ?>" width="25" height="25" style="display: block;" />
+								</span>
+								<span class="ci-class-label"><?php p($classLabel); ?></span>
+							</div>
+							<div class="state-toggle-group" data-class="<?php p($className); ?>">
+								<button type="button" class="state-button <?php echo $currentState === 'disabled' ? 'active' : ''; ?>" data-state="disabled">
+									<span class="state-icon">🚫</span>
+									<span class="state-text"><?php p($l->t('Disable')); ?></span>
+								</button>
+								<button type="button" class="state-button <?php echo $currentState === 'forced' ? 'active' : ''; ?>" data-state="forced">
+									<span class="state-icon">✓</span>
+									<span class="state-text"><?php p($l->t('Force Enable')); ?></span>
+								</button>
+								<button type="button" class="state-button <?php echo $currentState === 'user_choice' ? 'active' : ''; ?>" data-state="user_choice">
+									<span class="state-icon">⚙️</span>
+									<span class="state-text"><?php p($l->t('User Choice')); ?></span>
+								</button>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				</div>
+
+				<div class="form-info-box" style="margin-top: 16px;">
+					<strong><?php p($l->t('🎯 Configuration States')); ?>:</strong><br>
+					<strong style="color: #e53e3e;">🚫 <?php p($l->t('Disable')); ?></strong> - <?php p($l->t('Choose which Configuration Item types to enable for search and previews')); ?><br>
+					<strong style="color: #38a169;">✓ <?php p($l->t('All')); ?></strong> - <?php p($l->t('Force Enable')); ?><br>
+					<strong style="color: #3182ce;">⚙️ <?php p($l->t('User Choice')); ?></strong> - <?php p($l->t('Advanced')); ?>
+				</div>
+
+				<div class="form-actions">
+					<button id="save-ci-classes" class="btn-primary">
+						<span class="btn-icon">💾</span>
+						<?php p($l->t('Save CI Class Configuration')); ?>
+					</button>
+					<button id="toggle-all-ci-classes" class="btn-secondary">
+						<span class="btn-icon">🔄</span>
+						<?php p($l->t('Toggle All')); ?>
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>

@@ -14,7 +14,6 @@ namespace OCA\Itop\Settings;
 
 use OCA\Itop\AppInfo\Application;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\AppFramework\Services\IInitialState;
 use OCP\IConfig;
 use OCP\IL10N;
 use OCP\Settings\ISettings;
@@ -25,7 +24,6 @@ class Admin implements ISettings {
 	public function __construct(
 		private IConfig $config,
 		private IL10N $l10n,
-		private IInitialState $initialStateService,
 		private LoggerInterface $logger,
 	) {
 		$this->logger->info('iTop Admin settings constructor called', ['app' => Application::APP_ID]);
@@ -42,17 +40,33 @@ class Admin implements ISettings {
 		$hasApplicationToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '') !== '';
 		$this->logger->info('iTop Admin current config values - URL: ' . $adminInstanceUrl . ', Name: ' . $userFacingName . ', Has Token: ' . ($hasApplicationToken ? 'yes' : 'no'), ['app' => Application::APP_ID]);
 
-		$adminConfig = [
+		// Get cache TTL values (with defaults matching CacheService)
+		$cacheTtlCiPreview = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ci_preview', '60');
+		$cacheTtlTicketInfo = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ticket_info', '60');
+		$cacheTtlSearch = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_search', '30');
+		$cacheTtlPicker = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_picker', '60');
+		$cacheTtlProfile = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_profile', '1800');
+
+		// Get 3-state CI class configuration
+		$ciClassConfig = Application::getCIClassConfig($this->config);
+
+		$parameters = [
 			'admin_instance_url' => $adminInstanceUrl,
 			'user_facing_name' => $userFacingName,
 			'has_application_token' => $hasApplicationToken,
 			'last_updated' => date('Y-m-d H:i:s'),
 			'version' => Application::VERSION,
+			'cache_ttl_ci_preview' => $cacheTtlCiPreview,
+			'cache_ttl_ticket_info' => $cacheTtlTicketInfo,
+			'cache_ttl_search' => $cacheTtlSearch,
+			'cache_ttl_picker' => $cacheTtlPicker,
+			'cache_ttl_profile' => $cacheTtlProfile,
+			'ci_class_config' => $ciClassConfig,
+			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES,
+			'connected_users' => 0, // Will be populated by JavaScript via AJAX
 		];
 
-		$this->initialStateService->provideInitialState('admin-config', $adminConfig);
-
-		return new TemplateResponse(Application::APP_ID, 'adminSettings');
+		return new TemplateResponse(Application::APP_ID, 'adminSettings', $parameters);
 	}
 
 	public function getSection(): string {

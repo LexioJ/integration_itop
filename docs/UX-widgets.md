@@ -4,9 +4,11 @@
 
 This document provides comprehensive design specifications for all user-facing widgets in the iTop Integration app, including layout wireframes, component breakdowns, responsive behavior, icon usage, and theming guidelines.
 
-## CI Preview Widget
+## CI Preview Widget (Phase 3)
 
-### Desktop Layout (≥768px)
+The CI Preview Widget displays both tickets and Configuration Items (CIs) with a unified, flexible layout that adapts to different object types.
+
+### Desktop Layout - Tickets (≥768px)
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -22,6 +24,35 @@ This document provides comprehensive design specifications for all user-facing w
 └────────────────────────────────────────────────────────────────┘
 ```
 
+### Desktop Layout - CIs PhysicalDevice (≥768px)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  ┌────┐  💻 Dell Latitude 7420                [Active] · 1d    │
+│  │Icon│                                                         │
+│  │48px│  Dell Latitude 7420 • SN12345                          │
+│  │    │                                                         │
+│  └────┘  📍 Vienna Office • 🏢 Demo Org                       │
+│                                                                 │
+│  Type: Laptop • OS: Windows 11 Pro • CPU: i7-1185G7 •         │
+│  RAM: 16GB • Contacts: 2 • Software: 8                         │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Desktop Layout - CIs Software (≥768px)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  ┌────┐  💾 Microsoft Office 365              [Active]         │
+│  │Icon│                                                         │
+│  │48px│  PC Software • Vendor: Microsoft • Version: 2024       │
+│  │    │                                                         │
+│  └────┘  📍 Vienna Office • 🏢 Demo Org                       │
+│                                                                 │
+│  Deployed on: 42 PCs                                            │
+└────────────────────────────────────────────────────────────────┘
+```
+
 **Dimensions:**
 - Width: 100% of container (fluid)
 - Min-width: 300px
@@ -30,7 +61,7 @@ This document provides comprehensive design specifications for all user-facing w
 - Icon size: 48x48px
 - Gap between elements: 12px
 
-### Mobile Layout (<768px)
+### Mobile Layout - Tickets (<768px)
 
 ```
 ┌──────────────────────────────┐
@@ -48,6 +79,27 @@ This document provides comprehensive design specifications for all user-facing w
 ├───────────────────────────────┤
 │ Description: My laptop has... │
 │ [Click to expand]             │
+└───────────────────────────────┘
+```
+
+### Mobile Layout - CIs PhysicalDevice (<768px)
+
+```
+┌──────────────────────────────┐
+│ ┌────┐  💻 Dell Latitude    │
+│ │Icon│  7420                 │
+│ │36px│  [Active]             │
+│ └────┘  · 1d ago              │
+│                               │
+│ Dell Latitude • SN12345       │
+│                               │
+│ 📍 Vienna Office              │
+│ 🏢 Demo Org                   │
+│                               │
+│ Type: Laptop                  │
+│ OS: Windows 11 Pro            │
+│ CPU: i7-1185G7                │
+│ Contacts: 2 • Software: 8     │
 └───────────────────────────────┘
 ```
 
@@ -136,40 +188,144 @@ Status Badge + Date
 }
 ```
 
-#### Row 2: Breadcrumbs
+#### Row 2: Breadcrumbs / CI Subtitle
 
-**Left Side (Service Breadcrumb):**
+**Tickets (Service Breadcrumb):**
 ```
 🏷️ Service > Subcategory for Caller (Org)
 ```
 
-**Right Side (Org/Team/Agent Breadcrumb):**
+**CIs (Brand/Model/Serial Subtitle):**
 ```
-🏢 Org > 👥 Team > 👤 Agent
+Dell Latitude 7420 • SN12345
 ```
+(PhysicalDevice classes only: PC, Printer, Tablet, MobilePhone)
 
 **Styles:**
 ```scss
 .row-2 {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+  font-size: 13px;
+  color: var(--color-text-maxcontrast);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  .service-breadcrumb,
+  .ci-subtitle {
+    a {
+      color: inherit;
+      text-decoration: none;
+
+      &:hover {
+        color: #58a6ff;
+      }
+    }
+  }
+
+  .ci-subtitle.physical-device {
+    // Brand • Model • Serial format
+    // Example: Dell Latitude 7420 • SN12345
+  }
+}
+```
+
+#### Row 3: Organization/Location Chips (CIs) or Org/Team/Agent Breadcrumb (Tickets)
+
+**Tickets (Org/Team/Agent Breadcrumb):**
+```
+🏢 Org > 👥 Team > 👤 Agent
+```
+
+**CIs (Filtered Chips - Location & Organization only):**
+```
+📍 Vienna Office • 🏢 Demo Org
+```
+(Other chips like brand, serial filtered out to avoid duplication with subtitle)
+
+**Styles:**
+```scss
+.row-3 {
   font-size: 13px;
   color: var(--color-text-maxcontrast);
 
-  .left, .right {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  &.ticket-org {
+    .org-breadcrumb {
+      a {
+        color: inherit;
+        text-decoration: none;
+
+        &:hover {
+          color: #58a6ff;
+        }
+      }
+    }
   }
 
-  a {
-    color: inherit;
-    text-decoration: none;
+  &.ci-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 
-    &:hover {
-      color: #58a6ff;
+    .ci-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: var(--color-background-dark);
+      border-radius: var(--border-radius);
+      font-size: 12px;
+      flex-shrink: 0;
+
+      .chip-icon {
+        font-size: 14px;
+      }
+    }
+  }
+}
+```
+
+#### Row 4: CI Extras (Class-Specific Fields)
+
+**Display:** Only for CIs, shows class-specific details extracted from PreviewMapper
+
+**Examples:**
+```
+PC: Type: Laptop • OS: Windows 11 Pro • CPU: i7-1185G7 • RAM: 16GB • Contacts: 2 • Software: 8
+Phone: Phone Number: +43-1-2345 • IMEI: 123456789012345 • Contacts: 1
+Printer: Contacts: 3 • Software: 2
+Software: Vendor: Microsoft • Version: 2024 • Deployed on: 42 PCs
+```
+
+**Styles:**
+```scss
+.row-4 {
+  &.ci-extras {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--color-text-maxcontrast);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--color-border);
+
+    .ci-extra {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+
+      .extra-label {
+        font-weight: 500;
+      }
+
+      .extra-value {
+        color: var(--color-main-text);
+      }
+
+      &:not(:last-child)::after {
+        content: ' •';
+        margin-left: 4px;
+      }
     }
   }
 }
@@ -536,17 +692,25 @@ Border-radius: var(--border-radius)
 const emojiIcons = {
   PC: '💻',
   Phone: '📱',
-  Printer: '🖨️',
+  IPPhone: '📱',
+  MobilePhone: '📱',
+  Printer: '🖨',
   Tablet: '📱',
+  Peripheral: '🖥️',
   PCSoftware: '💾',
+  OtherSoftware: '💾',
   WebApplication: '🌐',
   Location: '📍',
   Organization: '🏢',
+  Contacts: '👤',
   Person: '👤',
   Team: '👥',
   Service: '🏷️',
   AssetNumber: '🔖',
+  SerialNumber: '#️⃣',
   Status: '📊',
+  Brand: '🎯',
+  Model: '💾',
 }
 ```
 

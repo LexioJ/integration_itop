@@ -1,0 +1,570 @@
+<?php
+
+/**
+ * Nextcloud - iTop
+ *
+ * This file is licensed under the Affero General Public License version 3 or
+ * later. See the COPYING file.
+ *
+ * @author iTop Integration Team
+ * @copyright iTop Integration Team 2025
+ */
+
+namespace OCA\Itop\Service;
+
+use OCA\Itop\AppInfo\Application;
+use OCP\IConfig;
+use OCP\IL10N;
+use Psr\Log\LoggerInterface;
+
+/**
+ * Preview Mapper Service
+ *
+ * Transforms iTop CI data into preview DTOs for consistent rendering
+ * across Unified Search, Smart Picker, and Rich Preview widgets
+ *
+ * Handles class-specific field mappings defined in docs/class-mapping.md
+ */
+class PreviewMapper {
+
+	public function __construct(
+		private IConfig $config,
+		private IL10N $l10n,
+		private LoggerInterface $logger,
+	) {
+	}
+
+	/**
+	 * Map CI data from iTop API to preview DTO
+	 *
+	 * @param array $ciData CI data from iTop API (fields from core/get response)
+	 * @param string $class iTop class name (PC, Phone, WebApplication, etc.)
+	 * @return array Preview DTO with title, subtitle, badges, chips, extras, etc.
+	 */
+	public function mapCIToPreview(array $ciData, string $class): array {
+		$fields = $ciData['fields'] ?? $ciData;
+
+
+		// Build preview DTO structure
+		$preview = [
+			'id' => $fields['id'] ?? null,
+			'class' => $class,
+			'title' => $this->getTitle($fields),
+			'subtitle' => $this->getSubtitle($fields, $class),
+			'badges' => $this->formatBadges($fields),
+			'chips' => $this->formatChips($fields),
+			'extras' => $this->getClassSpecificExtras($fields, $class),
+			'description' => $this->formatDescription($fields),
+			'timestamps' => $this->formatTimestamps($fields),
+			'url' => $this->buildItopUrl($fields, $class),
+			'icon' => $this->getClassIcon($class),
+		];
+
+
+		return $preview;
+	}
+
+	/**
+	 * Get title for preview (uses name field)
+	 *
+	 * For Software: name + version (e.g., "Microsoft Office 2021")
+	 * For others: name
+	 *
+	 * @param array $fields CI fields
+	 * @return string Title text
+	 */
+	private function getTitle(array $fields): string {
+		$name = $fields['name'] ?? $fields['friendlyname'] ?? 'Unknown CI';
+		
+		// For Software class, append version if available
+		if (!empty($fields['version']) && !empty($fields['vendor'])) {
+			return trim($name . ' ' . $fields['version']);
+		}
+		
+		return $name;
+	}
+
+	/**
+	 * Get subtitle for preview
+	 *
+	 * For Software: "Vendor • Type" (e.g., "Microsoft • Office Suite")
+	 * For others: "Class • Organization"
+	 *
+	 * @param array $fields CI fields
+	 * @param string $class iTop class name
+	 * @return string Subtitle text
+	 */
+	private function getSubtitle(array $fields, string $class): string {
+		$parts = [];
+
+		// For Software: Show vendor and type
+		if ($class === 'Software' && !empty($fields['vendor'])) {
+			if (!empty($fields['vendor'])) {
+				$parts[] = $fields['vendor'];
+			}
+			if (!empty($fields['type'])) {
+				// Map enum values to readable names
+				$typeMap = [
+					'PCSoftware' => 'PC Software',
+					'OtherSoftware' => 'Other Software',
+					'DBServer' => 'DB Server',
+					'Middleware' => 'Middleware',
+					'WebServer' => 'Web Server',
+				];
+				$parts[] = $typeMap[$fields['type']] ?? $fields['type'];
+			}
+			return implode(' • ', $parts);
+		}
+
+		// Add class label
+		$parts[] = $this->getClassLabel($class);
+
+		// Add organization
+		if (!empty($fields['org_id_friendlyname'])) {
+			$parts[] = $fields['org_id_friendlyname'];
+		}
+
+		return implode(' • ', $parts);
+	}
+
+	/**
+	 * Format status and criticality badges
+	 *
+	 * @param array $fields CI fields
+	 * @return array List of badge objects
+	 */
+	private function formatBadges(array $fields): array {
+		$badges = [];
+
+		// Status badge with intelligent move2production date handling
+		if (!empty($fields['status'])) {
+			$status = $fields['status'];
+			$label = ucfirst($status);
+
+			// Debug logging to see what move2production value we have
+			$this->logger->debug('formatBadges: status=' . $status . ', move2production=' . ($fields['move2production'] ?? 'NULL'));
+
+			// If status is "production" and move2production date exists, append short date
+			if (strtolower($status) === 'production' && !empty($fields['move2production'])) {
+				// Format date as DD.MM.YY (e.g., "24.10.25")
+				try {
+					$date = new \DateTime($fields['move2production']);
+					$shortDate = $date->format('d.m.y');
+					$label = ucfirst($status) . ' (' . $shortDate . ')';
+				} catch (\Exception $e) {
+					// If date parsing fails, just use status without date
+					$label = ucfirst($status);
+				}
+			}
+
+			$badges[] = [
+				'label' => $label,
+				'type' => $this->getStatusBadgeType($status)
+			];
+		}
+
+		// Business criticality badge
+		if (!empty($fields['business_criticity'])) {
+			$badges[] = [
+				'label' => $fields['business_criticity'],
+				'type' => $this->getCriticalityBadgeType($fields['business_criticity'])
+			];
+		}
+
+		return $badges;
+	}
+
+	/**
+	 * Format info chips (location, asset numbers, brand/model)
+	 *
+	 * @param array $fields CI fields
+	 * @return array List of chip objects
+	 */
+	private function formatChips(array $fields): array {
+		$chips = [];
+
+		// Organization
+		if (!empty($fields['org_id_friendlyname'])) {
+			$chips[] = [
+				'icon' => 'organization',
+				'label' => $fields['org_id_friendlyname']
+			];
+		}
+
+		// Location
+		if (!empty($fields['location_id_friendlyname'])) {
+			$chips[] = [
+				'icon' => 'map-marker',
+				'label' => $fields['location_id_friendlyname']
+			];
+		}
+
+		// Contacts count
+		$contactsCount = $this->countFromLinkedSet($fields['contacts_list'] ?? null);
+		// Show 0 if null, otherwise show the actual count
+		if ($contactsCount !== null) {
+			$chips[] = [
+				'icon' => 'contacts',
+				'label' => (string)($contactsCount ?? 0)
+			];
+		}
+
+		// Asset number
+		if (!empty($fields['asset_number'])) {
+			$chips[] = [
+				'icon' => 'barcode',
+				'label' => $fields['asset_number']
+			];
+		}
+
+		// Serial number
+		if (!empty($fields['serialnumber'])) {
+			$chips[] = [
+				'icon' => 'identifier',
+				'label' => 'SN: ' . $fields['serialnumber']
+			];
+		}
+
+		// Brand/Model (combined)
+		$brandModel = $this->formatBrandModel($fields);
+		if ($brandModel) {
+			$chips[] = [
+				'icon' => 'tag',
+				'label' => $brandModel
+			];
+		}
+
+		return $chips;
+	}
+
+	/**
+	 * Get class-specific extra fields
+	 *
+	 * @param array $fields CI fields
+	 * @param string $class iTop class name
+	 * @return array List of extra field objects
+	 */
+	private function getClassSpecificExtras(array $fields, string $class): array {
+		$extras = [];
+
+		switch ($class) {
+			case 'PC':
+				// Type (laptop/desktop) - map enum to readable format
+				if (!empty($fields['type'])) {
+					$typeMap = ['laptop' => 'Laptop', 'desktop' => 'Desktop'];
+					$extras[] = ['label' => 'Type', 'value' => $typeMap[$fields['type']] ?? ucfirst($fields['type'])];
+				}
+				if (!empty($fields['osfamily_id_friendlyname'])) {
+					$extras[] = ['label' => 'OS', 'value' => $fields['osfamily_id_friendlyname']];
+				}
+				if (!empty($fields['osversion_id_friendlyname'])) {
+					$extras[] = ['label' => 'OS Version', 'value' => $fields['osversion_id_friendlyname']];
+				}
+				if (!empty($fields['cpu'])) {
+					$extras[] = ['label' => 'CPU', 'value' => $fields['cpu']];
+				}
+				if (!empty($fields['ram'])) {
+					$extras[] = ['label' => 'RAM', 'value' => $fields['ram']];
+				}
+				// Software count (PC extends ConnectableCI which has softwares_list)
+				$softwaresCount = $this->countFromLinkedSet($fields['softwares_list'] ?? null);
+				if ($softwaresCount > 0) {
+					$extras[] = ['label' => 'Software', 'value' => (string)$softwaresCount];
+				}
+				break;
+
+			case 'Phone':
+			case 'IPPhone':
+				if (!empty($fields['phonenumber'])) {
+					$extras[] = ['label' => 'Phone', 'value' => $fields['phonenumber']];
+				}
+				break;
+
+			case 'MobilePhone':
+				if (!empty($fields['phonenumber'])) {
+					$extras[] = ['label' => 'Phone', 'value' => $fields['phonenumber']];
+				}
+				if (!empty($fields['imei'])) {
+					$extras[] = ['label' => 'IMEI', 'value' => $fields['imei']];
+				}
+				break;
+
+			case 'Tablet':
+				// Tablet has no specific extras - contacts shown in chips
+				break;
+
+			case 'Printer':
+				// Software count (Printer extends ConnectableCI which has softwares_list)
+				$softwaresCount = $this->countFromLinkedSet($fields['softwares_list'] ?? null);
+				if ($softwaresCount > 0) {
+					$extras[] = ['label' => 'Software', 'value' => (string)$softwaresCount];
+				}
+				break;
+
+			case 'WebApplication':
+				if (!empty($fields['url'])) {
+					$extras[] = ['label' => 'URL', 'value' => $fields['url']];
+				}
+				if (!empty($fields['webserver_name'])) {
+					$extras[] = ['label' => 'Web Server', 'value' => $fields['webserver_name']];
+				}
+				break;
+
+			case 'PCSoftware':
+			case 'OtherSoftware':
+				if (!empty($fields['system_name'])) {
+					$extras[] = ['label' => 'System', 'value' => $fields['system_name']];
+				}
+				if (!empty($fields['software_id_friendlyname'])) {
+					$extras[] = ['label' => 'Software', 'value' => $fields['software_id_friendlyname']];
+				}
+				if (!empty($fields['softwarelicence_id_friendlyname'])) {
+					$extras[] = ['label' => 'License', 'value' => $fields['softwarelicence_id_friendlyname']];
+				}
+				if (!empty($fields['path'])) {
+					$extras[] = ['label' => 'Path', 'value' => $fields['path']];
+				}
+				break;
+
+			case 'Software':
+				// Software catalog: Show counts line (Documents, Instances, Patches, Licenses)
+				// Counts may come pre-computed from searchCIs, or we compute from linked sets here
+				$counts = $fields['counts'] ?? null;
+				
+				if ($counts === null) {
+					// If counts not pre-computed, compute from linked sets
+					$counts = [
+						'documents' => $this->countFromLinkedSet($fields['documents_list'] ?? null),
+						'instances' => $this->countFromLinkedSet($fields['softwareinstance_list'] ?? null),
+						'patches' => $this->countFromLinkedSet($fields['softwarepatch_list'] ?? null),
+						'licenses' => $this->countFromLinkedSet($fields['softwarelicence_list'] ?? null),
+					];
+				}
+				
+				if (!empty($counts)) {
+					$countParts = [];
+					if (isset($counts['documents'])) {
+						$countParts[] = 'Documents: ' . $counts['documents'];
+					}
+					if (isset($counts['instances'])) {
+						$countParts[] = 'Installed: ' . $counts['instances'];
+					}
+					if (isset($counts['patches'])) {
+						$countParts[] = 'Patches: ' . $counts['patches'];
+					}
+					if (isset($counts['licenses'])) {
+						$countParts[] = 'Licenses: ' . $counts['licenses'];
+					}
+					if (!empty($countParts)) {
+						$extras[] = ['label' => '', 'value' => implode(' • ', $countParts)];
+					}
+				}
+				break;
+
+			// Peripheral has no class-specific extras beyond common fields
+		}
+
+		return $extras;
+	}
+
+	/**
+	 * Format description with HTML stripping and length limit
+	 *
+	 * @param array $fields CI fields
+	 * @return string|null Formatted description or null
+	 */
+	private function formatDescription(array $fields): ?string {
+		$description = $fields['description'] ?? '';
+
+		if (empty($description)) {
+			return null;
+		}
+
+		// Strip HTML tags
+		$description = strip_tags($description);
+
+		// Limit length to 300 characters
+		if (strlen($description) > 300) {
+			$description = substr($description, 0, 297) . '...';
+		}
+
+		return $description;
+	}
+
+	/**
+	 * Format timestamps (last update, move to production)
+	 *
+	 * @param array $fields CI fields
+	 * @return array Timestamp objects
+	 */
+	private function formatTimestamps(array $fields): array {
+		$timestamps = [];
+
+		if (!empty($fields['last_update'])) {
+			$timestamps['last_update'] = [
+				'label' => 'Last Updated',
+				'value' => $fields['last_update'],
+				'formatted' => $this->formatDate($fields['last_update'])
+			];
+		}
+
+		if (!empty($fields['move2production'])) {
+			$timestamps['move2production'] = [
+				'label' => 'In Production Since',
+				'value' => $fields['move2production'],
+				'formatted' => $this->formatDate($fields['move2production'])
+			];
+		}
+
+		return $timestamps;
+	}
+
+	/**
+	 * Format date string for display
+	 *
+	 * @param string $dateString Date string from iTop (e.g., "2025-01-15 10:30:00")
+	 * @return string Formatted date
+	 */
+	private function formatDate(string $dateString): string {
+		try {
+			$date = new \DateTime($dateString);
+			return $date->format('Y-m-d H:i');
+		} catch (\Exception $e) {
+			return $dateString;
+		}
+	}
+
+	/**
+	 * Build iTop URL for CI details page
+	 *
+	 * @param array $fields CI fields
+	 * @param string $class iTop class name
+	 * @return string URL to CI in iTop
+	 */
+	private function buildItopUrl(array $fields, string $class): string {
+		$itopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		$ciId = $fields['id'] ?? '';
+
+		if (empty($itopUrl) || empty($ciId)) {
+			return '';
+		}
+
+		return rtrim($itopUrl, '/') . '/pages/UI.php?operation=details&class=' . urlencode($class) . '&id=' . urlencode($ciId);
+	}
+
+	/**
+	 * Get icon filename for CI class
+	 *
+	 * @param string $class iTop class name
+	 * @return string Icon filename (without path)
+	 */
+	private function getClassIcon(string $class): string {
+		// Icon filename matches class name (e.g., PC.svg, Phone.svg, etc.)
+		// Fallback to FunctionalCI.svg for unknown classes
+		$iconName = in_array($class, Application::SUPPORTED_CI_CLASSES, true) ? $class : 'FunctionalCI';
+		return $iconName . '.svg';
+	}
+
+	/**
+	 * Get human-readable label for CI class
+	 *
+	 * @param string $class iTop class name
+	 * @return string Human-readable label
+	 */
+	private function getClassLabel(string $class): string {
+		$labels = [
+			'PC' => $this->l10n->t('Computer'),
+			'Phone' => $this->l10n->t('Phone'),
+			'IPPhone' => $this->l10n->t('IP Phone'),
+			'MobilePhone' => $this->l10n->t('Mobile Phone'),
+			'Tablet' => $this->l10n->t('Tablet'),
+			'Printer' => $this->l10n->t('Printer'),
+			'Peripheral' => $this->l10n->t('Peripheral'),
+			'PCSoftware' => $this->l10n->t('Software'),
+			'OtherSoftware' => $this->l10n->t('Software'),
+			'Software' => $this->l10n->t('Software'),
+			'WebApplication' => $this->l10n->t('Web Application'),
+		];
+
+		return $labels[$class] ?? $class;
+	}
+
+	/**
+	 * Format brand and model as single string
+	 *
+	 * @param array $fields CI fields
+	 * @return string|null Formatted brand/model or null
+	 */
+	private function formatBrandModel(array $fields): ?string {
+		// Try both field name formats: brand_name/model_name (external fields) or brand_id_friendlyname/model_id_friendlyname (OQL friendly names)
+		$brand = $fields['brand_name'] ?? $fields['brand_id_friendlyname'] ?? '';
+		$model = $fields['model_name'] ?? $fields['model_id_friendlyname'] ?? '';
+
+		if (empty($brand) && empty($model)) {
+			return null;
+		}
+
+		if (!empty($brand) && !empty($model)) {
+			return $brand . ' ' . $model;
+		}
+
+		return $brand ?: $model;
+	}
+
+	/**
+	 * Get badge type for status value
+	 *
+	 * @param string $status Status value (production, implementation, obsolete, etc.)
+	 * @return string Badge type (success, warning, error, neutral)
+	 */
+	private function getStatusBadgeType(string $status): string {
+		$statusMap = [
+			'production' => 'success',
+			'implementation' => 'info',
+			'active' => 'success',
+			'obsolete' => 'error',
+			'stock' => 'neutral',
+		];
+
+		return $statusMap[strtolower($status)] ?? 'neutral';
+	}
+
+	/**
+	 * Get badge type for business criticality
+	 *
+	 * @param string $criticality Criticality value (high, medium, low)
+	 * @return string Badge type
+	 */
+	private function getCriticalityBadgeType(string $criticality): string {
+		$criticalityMap = [
+			'high' => 'error',
+			'medium' => 'warning',
+			'low' => 'info',
+		];
+
+		return $criticalityMap[strtolower($criticality)] ?? 'neutral';
+	}
+
+	/**
+	 * Count items in an iTop linked set (AttributeLinkedSet)
+	 *
+	 * iTop returns linked sets in different formats depending on the query:
+	 * - As an array with 'items' key containing the actual items
+	 * - As a plain array of items
+	 *
+	 * @param mixed $linkedSet Linked set data from iTop API
+	 * @return int Number of items in the linked set
+	 */
+	private function countFromLinkedSet($linkedSet): int {
+		if (!is_array($linkedSet)) {
+			return 0;
+		}
+
+		// iTop may return ['items' => [id => fields, ...]] or a plain array
+		if (isset($linkedSet['items']) && is_array($linkedSet['items'])) {
+			return count($linkedSet['items']);
+		}
+
+		return count($linkedSet);
+	}
+}

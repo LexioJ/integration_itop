@@ -21,18 +21,29 @@
 		<div v-if="!isError" class="ticket-wrapper">
 			<img :src="ticketIcon" class="ticket-icon" alt="">
 			<div class="ticket-content">
-				<!-- Row 1: Priority + Title | Status + Date -->
+				<!-- Row 1: Title | Status/Badges + Date -->
 				<div class="row-1">
 					<div class="left">
-						<span v-if="richObject.priority" class="priority-emoji">{{ priorityEmoji }}</span>
+						<span v-if="!isCI && richObject.priority" class="priority-emoji">{{ priorityEmoji }}</span>
 						<a :href="ticketUrl" class="ticket-link" target="_blank">
 							<strong>{{ ticketTitle }}</strong>
 						</a>
 					</div>
 					<div class="right">
-						<span class="status-badge" :style="{ backgroundColor: statusBadgeColor, color: statusColor }">
+						<!-- Ticket status -->
+						<span v-if="!isCI && richObject.status" class="status-badge" :style="{ backgroundColor: statusBadgeColor, color: statusColor }">
 							{{ richObject.status }}
 						</span>
+						<!-- CI badges -->
+						<template v-if="isCI">
+							<span v-for="badge in richObject.badges"
+								:key="badge.label"
+								class="ci-badge"
+								:class="'badge-' + badge.type">
+								{{ badge.label }}
+							</span>
+						</template>
+						<!-- Dates -->
 						<span v-if="richObject.close_date"
 							v-tooltip.top="{ content: closedAtFormatted }"
 							class="date-with-tooltip">
@@ -45,13 +56,33 @@
 						</span>
 					</div>
 				</div>
-				<!-- Row 2: Service breadcrumb | Org/Team/Agent breadcrumb -->
+				<!-- Row 2: Service breadcrumb (Tickets) OR CI subtitle (CIs) -->
 				<div class="row-2">
-					<div class="left">
-						<span v-if="serviceBreadcrumb" class="service-breadcrumb" v-html="serviceBreadcrumb" />
-					</div>
-					<div class="right">
-						<span v-if="orgTeamAgentBreadcrumb" class="org-breadcrumb" v-html="orgTeamAgentBreadcrumb" />
+					<!-- Ticket service breadcrumb -->
+					<span v-if="!isCI && serviceBreadcrumb" class="service-breadcrumb" v-html="serviceBreadcrumb" />
+					<!-- CI subtitle: For PhysicalDevice show brand/model/serial inline; for others show regular subtitle -->
+					<span v-if="isCI && physicalDeviceSubtitle" class="ci-subtitle physical-device">
+						{{ physicalDeviceSubtitle }}
+					</span>
+					<span v-else-if="isCI && richObject.subtitle" class="ci-subtitle">
+						{{ richObject.subtitle }}
+					</span>
+				</div>
+				<!-- Row 3: Org/Team/Agent breadcrumb (Tickets) OR CI Chips (CIs) -->
+				<div v-if="!isCI && orgTeamAgentBreadcrumb" class="row-3 ticket-org">
+					<span class="org-breadcrumb" v-html="orgTeamAgentBreadcrumb" />
+				</div>
+				<div v-if="isCI && filteredChips.length > 0" class="row-3 ci-chips">
+					<span v-for="chip in filteredChips" :key="chip.label" class="ci-chip">
+						<span class="chip-icon">{{ getChipIcon(chip.icon) }}</span>
+						<span class="chip-label">{{ chip.label }}</span>
+					</span>
+				</div>
+				<!-- Row 4: CI Extras (class-specific fields) -->
+				<div v-if="isCI && richObject.extras && richObject.extras.length > 0" class="row-4 ci-extras">
+					<div v-for="extra in richObject.extras" :key="extra.label" class="ci-extra">
+						<span v-if="extra.label" class="extra-label">{{ extra.label }}:</span>
+						<span class="extra-value">{{ extra.value }}</span>
 					</div>
 				</div>
 			</div>
@@ -116,10 +147,62 @@ export default {
 		isError() {
 			return !!this.richObject.error
 		},
+		isCI() {
+			// Check if this is a CI (not a ticket)
+			return this.richObjectType === 'integration_itop_ci'
+		},
+		isPhysicalDevice() {
+			// PhysicalDevice classes: PC, Printer, Tablet, MobilePhone
+			const physicalDeviceClasses = ['PC', 'Printer', 'Tablet', 'MobilePhone']
+			return this.isCI && physicalDeviceClasses.includes(this.richObject.class)
+		},
+		physicalDeviceSubtitle() {
+			if (!this.isPhysicalDevice || !this.richObject.chips) {
+				return null
+			}
+
+			// Extract brand/model and serial number from chips
+			const parts = []
+
+			// Find brand/model chip (icon: 'tag')
+			const brandModelChip = this.richObject.chips.find(chip => chip.icon === 'tag')
+			if (brandModelChip) {
+				parts.push(brandModelChip.label)
+			}
+
+			// Find serial number chip (icon: 'identifier')
+			const serialChip = this.richObject.chips.find(chip => chip.icon === 'identifier')
+			if (serialChip) {
+				parts.push(serialChip.label)
+			}
+
+			return parts.length > 0 ? parts.join(' • ') : null
+		},
+		filteredChips() {
+			if (!this.richObject.chips) {
+				return []
+			}
+
+			// For PhysicalDevice classes, filter out brand/model and serial number chips
+			// since they're displayed in the subtitle
+			if (this.isPhysicalDevice) {
+				return this.richObject.chips.filter(chip =>
+					chip.icon !== 'tag' && chip.icon !== 'identifier',
+				)
+			}
+
+			// For other CI types, show all chips
+			return this.richObject.chips
+		},
 		ticketUrl() {
 			return this.richObject.url
 		},
 		ticketTitle() {
+			if (this.isCI) {
+				// For CIs, show title directly
+				return this.richObject.title
+			}
+			// For tickets, show ref + title
 			return '[' + this.richObject.ref + '] ' + this.richObject.title
 		},
 		callerUrl() {
@@ -137,24 +220,51 @@ export default {
 			return null
 		},
 		ticketIcon() {
-			const ticketClass = this.richObject.class || ''
+			// Determine class robustly: explicit rich object, URL param, or ref prefix
+			const explicitClass = this.richObject.class || ''
+			const fromUrl = this.getClassFromUrl(this.richObject.url)
+			const fromRef = this.getClassFromRef(this.richObject.ref)
+			const objectClass = explicitClass || fromUrl || fromRef || ''
 			const status = this.richObject.status?.toLowerCase() || ''
-			const isClosed = status.includes('resolved') || status.includes('closed')
+			const closeDate = this.richObject.close_date || ''
+			const priority = this.richObject.priority || ''
 
-			// Return appropriate icon based on class and status
 			// Use direct path without generateUrl to avoid /index.php/ prefix
 			const basePath = window.location.origin + '/apps/integration_itop/img/'
-			if (ticketClass === 'Incident') {
-				return basePath + 'incident.svg'
+
+			if (this.isCI) {
+				// CI icons only; do not mix with ticket fallbacks
+				const iconFile = this.richObject.icon || 'ci-default.svg'
+				return basePath + iconFile
 			}
-			if (ticketClass === 'UserRequest') {
-				if (isClosed) {
-					return basePath + 'user-request-closed.svg'
-				}
-				return basePath + 'user-request.svg'
+
+			// If we cannot determine ticket class at all, use a generic ticket icon
+			if (!objectClass) {
+				return basePath + 'ticket.svg'
 			}
-			// Default fallback
-			return basePath + 'ticket.svg'
+
+			// Ticket icons with state-specific logic matching SearchProvider
+			let iconName = ''
+			const ticketType = objectClass.toLowerCase()
+
+			// Check for closed state first (based on close_date)
+			if (closeDate) {
+				iconName = ticketType + '-closed.svg'
+			} else if (priority && !isNaN(priority) && parseInt(priority) <= 2) {
+				// Check for escalated state (high priority: 1 or 2)
+				iconName = ticketType + '-escalated.svg'
+			} else if (status.includes('pending') || status.includes('waiting')) {
+				// Check for deadline state (pending/waiting status)
+				iconName = ticketType + '-deadline.svg'
+			} else {
+				// Default icon for the ticket type
+				iconName = ticketType + '.svg'
+			}
+
+			// Convert class names to match icon filenames
+			iconName = iconName.replace('userrequest', 'user-request')
+
+			return basePath + iconName
 		},
 		statusColor() {
 			const status = this.richObject.status?.toLowerCase() || ''
@@ -285,6 +395,35 @@ export default {
 	},
 
 	methods: {
+		getChipIcon(iconName) {
+			// Map icon names to emoji/symbols
+			const iconMap = {
+				organization: '🏢',
+				'map-marker': '📍',
+				contacts: '👤',
+				barcode: '🏷️',
+				identifier: '#',
+				tag: '🔖',
+			}
+			return iconMap[iconName] || '•'
+		},
+		getClassFromUrl(url) {
+			try {
+				if (!url) return ''
+				const u = new URL(url)
+				const cls = u.searchParams.get('class')
+				return cls || ''
+			} catch (e) {
+				return ''
+			}
+		},
+		getClassFromRef(ref) {
+			if (!ref || typeof ref !== 'string') return ''
+			const r = ref.toUpperCase()
+			if (r.startsWith('I-')) return 'Incident'
+			if (r.startsWith('R-')) return 'UserRequest'
+			return ''
+		},
 	},
 }
 </script>
@@ -333,8 +472,7 @@ export default {
 			gap: 4px;
 		}
 
-		.row-1,
-		.row-2 {
+		.row-1 {
 			display: flex;
 			justify-content: space-between;
 			align-items: center;
@@ -355,9 +493,7 @@ export default {
 				flex-wrap: wrap;
 				flex-shrink: 0;
 			}
-		}
 
-		.row-1 {
 			.priority-emoji {
 				font-size: 16px;
 			}
@@ -385,14 +521,116 @@ export default {
 			font-size: 13px;
 			color: var(--color-text-maxcontrast);
 
-			.service-breadcrumb,
-			.org-breadcrumb {
+			.service-breadcrumb {
 				::v-deep a {
 					color: inherit !important;
 					&:hover {
 						color: #58a6ff !important;
 					}
 				}
+			}
+
+			.ci-subtitle {
+				color: var(--color-text-maxcontrast);
+			}
+		}
+
+		.row-3 {
+			&.ticket-org {
+				font-size: 13px;
+				color: var(--color-text-maxcontrast);
+
+				.org-breadcrumb {
+					::v-deep a {
+						color: inherit !important;
+						&:hover {
+							color: #58a6ff !important;
+						}
+					}
+				}
+			}
+
+			&.ci-chips {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 6px;
+				margin-top: 4px;
+
+				.ci-chip {
+					display: inline-flex;
+					align-items: center;
+					gap: 4px;
+					padding: 3px 8px;
+					background-color: var(--color-background-hover);
+					border-radius: var(--border-radius-pill);
+					font-size: 12px;
+					color: var(--color-text-maxcontrast);
+
+					.chip-icon {
+						font-size: 11px;
+					}
+
+					.chip-label {
+						line-height: 1.2;
+					}
+				}
+			}
+		}
+
+		.row-4 {
+			&.ci-extras {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 12px;
+				margin-top: 6px;
+				font-size: 12px;
+
+				.ci-extra {
+					display: flex;
+					gap: 4px;
+
+					.extra-label {
+						font-weight: 500;
+						color: var(--color-text-maxcontrast);
+					}
+
+					.extra-value {
+						color: var(--color-main-text);
+					}
+				}
+			}
+		}
+
+		// CI badges styling
+		.ci-badge {
+			padding: 2px 8px;
+			border-radius: var(--border-radius-pill);
+			font-size: 12px;
+			font-weight: 500;
+
+			&.badge-success {
+				background-color: rgba(40, 167, 69, 0.15);
+				color: #28a745;
+			}
+
+			&.badge-info {
+				background-color: rgba(59, 130, 246, 0.15);
+				color: #3b82f6;
+			}
+
+			&.badge-warning {
+				background-color: rgba(245, 158, 11, 0.15);
+				color: #f59e0b;
+			}
+
+			&.badge-error {
+				background-color: rgba(239, 68, 68, 0.15);
+				color: #ef4444;
+			}
+
+			&.badge-neutral {
+				background-color: var(--color-background-dark);
+				color: var(--color-text-maxcontrast);
 			}
 		}
 	}

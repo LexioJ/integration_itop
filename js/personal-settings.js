@@ -7,6 +7,9 @@
 (function() {
     'use strict';
 
+    // Use Nextcloud's global translation function
+    const t = window.t || function(app, text) { return text; };
+
     document.addEventListener('DOMContentLoaded', function() {
 
         const saveButton = document.getElementById('itop-save');
@@ -18,9 +21,9 @@
             return;
         }
 
-        // Check if user is configured and load data if so
-        const connectionStatusValue = document.getElementById('itop-personal-connection-value');
-        if (connectionStatusValue && connectionStatusValue.textContent.trim() === 'Configured') {
+        // Check if user is configured and load data if so (use CSS class, not translated text)
+        const connectionStatusCard = document.getElementById('itop-personal-connection-status');
+        if (connectionStatusCard && connectionStatusCard.classList.contains('success')) {
             loadUserDataIfConfigured();
         }
 
@@ -128,8 +131,8 @@
 
                     ticketsValue.innerHTML = `
                         <div class="itop-ticket-counts">
-                            Incident(s): <span class="itop-count-large">${incidents}</span> |
-                            Request(s): <span class="itop-count-large">${requests}</span>
+                            ${t('integration_itop', 'Incident(s):')} <span class="itop-count-large">${incidents}</span> |
+                            ${t('integration_itop', 'Request(s):')} <span class="itop-count-large">${requests}</span>
                         </div>
                     `;
 
@@ -139,7 +142,7 @@
                         ticketsCard.className = 'itop-personal-status-card connected';
                     }
                 } else {
-                    ticketsValue.innerHTML = 'Incident(s): <span class="itop-count-large">0</span> | Request(s): <span class="itop-count-large">0</span>';
+                    ticketsValue.innerHTML = `${t('integration_itop', 'Incident(s):')} <span class="itop-count-large">0</span> | ${t('integration_itop', 'Request(s):')} <span class="itop-count-large">0</span>`;
                 }
             })
             .catch(error => {
@@ -148,71 +151,53 @@
         }
 
         function showResult(message, isError = false, userInfo = null) {
-            resultDiv.innerHTML = '';
-            resultDiv.className = isError ? 'error' : 'success';
-
             // Update status cards if we have user info
             if (userInfo) {
                 updateStatusCards(userInfo);
             }
 
-            // Create main message row
-            const mainRow = document.createElement('div');
-            mainRow.className = 'result-main';
+            // For errors, show in the resultDiv
+            if (isError) {
+                resultDiv.innerHTML = '';
+                resultDiv.className = 'error';
 
-            const icon = document.createElement('span');
-            icon.className = 'icon ' + (isError ? 'icon-error' : 'icon-checkmark');
+                // Create main message row
+                const mainRow = document.createElement('div');
+                mainRow.className = 'result-main';
 
-            const messageSpan = document.createElement('span');
-            messageSpan.className = 'message';
-            messageSpan.textContent = message;
+                const icon = document.createElement('span');
+                icon.className = 'icon icon-error';
 
-            mainRow.appendChild(icon);
-            mainRow.appendChild(messageSpan);
+                const messageSpan = document.createElement('span');
+                messageSpan.className = 'message';
+                messageSpan.textContent = message;
 
-            // Add close button
-            const closeButton = document.createElement('button');
-            closeButton.className = 'close-button';
-            closeButton.innerHTML = '×';
-            closeButton.title = 'Close';
-            closeButton.addEventListener('click', () => {
-                resultDiv.classList.add('hidden');
-            });
-            mainRow.appendChild(closeButton);
+                mainRow.appendChild(icon);
+                mainRow.appendChild(messageSpan);
 
-            resultDiv.appendChild(mainRow);
+                // Add close button
+                const closeButton = document.createElement('button');
+                closeButton.className = 'close-button';
+                closeButton.innerHTML = '×';
+                closeButton.title = 'Close';
+                closeButton.addEventListener('click', () => {
+                    resultDiv.classList.add('hidden');
+                });
+                mainRow.appendChild(closeButton);
 
-            // Show detailed info for successful connection
-            if (!isError && userInfo) {
-                const detailsHTML = `
-                    <div class="success-details">
-                        <p><strong>✅ Connected as:</strong> ${userInfo.name}</p>
-                        ${userInfo.email ? `<p><strong>📧 Email:</strong> ${userInfo.email}</p>` : ''}
-                        ${userInfo.organization ? `<p><strong>🏢 Organization:</strong> ${userInfo.organization}</p>` : ''}
-                        <p><strong>🆔 Person ID:</strong> ${userInfo.person_id}</p>
-                    </div>
-                `;
-
-                const detailsDiv = document.createElement('div');
-                detailsDiv.innerHTML = detailsHTML;
-                resultDiv.appendChild(detailsDiv);
-            }
-
-            resultDiv.classList.remove('hidden');
-
-            // Show Nextcloud notification for success
-            if (!isError) {
+                resultDiv.appendChild(mainRow);
+                resultDiv.classList.remove('hidden');
+            } else {
+                // For success, only show Nextcloud notification
                 if (OC.Notification && OC.Notification.showTemporary) {
                     OC.Notification.showTemporary(message + ' ✅');
                 }
 
                 // Clear token field after successful validation
                 personalTokenField.value = '';
-
-                // Auto-hide after 5 seconds
-                setTimeout(() => {
-                    resultDiv.classList.add('hidden');
-                }, 5000);
+                
+                // Hide any previous error messages
+                resultDiv.classList.add('hidden');
             }
         }
 
@@ -233,6 +218,19 @@
             // Send personal_token if provided (used for identity verification only)
             if (personalToken && personalToken.trim() !== '') {
                 params.personal_token = personalToken;
+            }
+            
+            // Collect user CI class preferences
+            const ciClassCheckboxes = document.querySelectorAll('input[name="user_ci_class"]');
+            if (ciClassCheckboxes.length > 0) {
+                const disabledClasses = [];
+                ciClassCheckboxes.forEach(function(checkbox) {
+                    if (!checkbox.checked) {
+                        disabledClasses.push(checkbox.value);
+                    }
+                });
+                // Send disabled classes to backend
+                params.disabled_ci_classes = disabledClasses;
             }
 
             const req = new XMLHttpRequest();

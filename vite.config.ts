@@ -23,10 +23,7 @@ export default createAppConfig({
 		},
 		plugins: [eslint()],
 		build: {
-			// WARNING: emptyOutDir: false doesn't work as expected with @nextcloud/vite-config
-			// It still deletes ALL files in js/ before building
-			// WORKAROUND: admin-settings.js and personal-settings.js are restored from git after build
-			// The generated .mjs files are in .gitignore
+			outDir: '.',
 			emptyOutDir: false,
 		},
 	},

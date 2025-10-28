@@ -603,15 +603,359 @@ class ItopAPIService {
 	}
 
 	/**
-	 * Make authenticated request to iTop REST API
+	 * Get CI preview data for a single CI
+	 *
+	 * Fetches only the fields needed for preview rendering (defined in docs/class-mapping.md).
+	 * Uses profile-aware filtering: Portal-only users get CIs from contacts_list,
+	 * power users get full CMDB access within ACL.
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param string $class iTop CI class (PC, Phone, Tablet, etc.)
+	 * @param int $id CI ID
+	 * @param bool $isPortalOnly Whether user has only Portal user profile
+	 * @return array CI data with preview fields or error
+	 * @throws Exception
+	 */
+	public function getCIPreview(string $userId, string $class, int $id, bool $isPortalOnly = false): array {
+		// Define preview fields per class (from docs/class-mapping.md)
+		$outputFields = $this->getCIPreviewFields($class);
+
+		// Build query with profile-aware filtering
+		if ($isPortalOnly) {
+			// Portal-only users: Only CIs where they are listed as contact
+			$personId = $this->getPersonId($userId);
+			if (!$personId) {
+				return ['error' => $this->l10n->t('User not configured')];
+			}
+
+			// Query via lnkContactToFunctionalCI to get allowed CIs
+			$query = "SELECT $class AS ci JOIN lnkContactToFunctionalCI AS lnk ON lnk.functionalci_id = ci.id WHERE lnk.contact_id = $personId AND ci.id = $id";
+			$params = [
+				'operation' => 'core/get',
+				'class' => $class,
+				'key' => $query,
+				'output_fields' => $outputFields
+			];
+		} else {
+			// Power users: Full CMDB access within ACL
+			// For core/get with simple ID lookup, just pass the ID directly
+			$params = [
+				'operation' => 'core/get',
+				'class' => $class,
+				'key' => $id,
+				'output_fields' => $outputFields
+			];
+		}
+
+		return $this->request($userId, $params);
+	}
+
+	/**
+	 * Search CIs with profile-aware filtering
+	 *
+	 * Portal-only users: Only CIs where they are listed as contact (contacts_list)
+	 * Power users: Full CMDB access within ACL
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param string $term Search term (searches name, serialnumber, asset_number)
+	 * @param array $classes CI classes to search (default: all supported classes)
+	 * @param bool $isPortalOnly Whether user has only Portal user profile
+	 * @param int $limit Maximum results per class
+	 * @return array Search results with preview data
+	 * @throws Exception
+	 */
+	public function searchCIs(string $userId, string $term, array $classes = [], bool $isPortalOnly = false, int $limit = 10): array {
+		// Default to effective enabled CI classes (admin-enabled minus user-disabled)
+			if (empty($classes)) {
+				$classes = Application::getEffectiveEnabledCIClasses($this->config, $userId);
+			}
+
+		$searchResults = [];
+		$itopUrl = $this->getItopUrl($userId);
+		$escapedTerm = str_replace("'", "\\'", $term);
+
+		// Get person ID for portal-only filtering
+		$personId = null;
+		if ($isPortalOnly) {
+			$personId = $this->getPersonId($userId);
+			if (!$personId) {
+				return ['error' => $this->l10n->t('User not configured')];
+			}
+		}
+
+		foreach ($classes as $class) {
+			// Skip Software search for Portal-only users
+			if ($class === 'Software' && $isPortalOnly) {
+				continue;
+			}
+
+			$outputFields = $this->getCIPreviewFields($class);
+
+			// Class-aware joins and term clause
+			$joins = '';
+			$termClause = '';
+				if (in_array($class, ['PCSoftware', 'OtherSoftware'], true)) {
+					// Software instances: match without joins using friendlyname fields
+					$termClause = "(ci.system_name LIKE '%$escapedTerm%' OR ci.software_id_friendlyname LIKE '%$escapedTerm%' OR ci.path LIKE '%$escapedTerm%' OR ci.friendlyname LIKE '%$escapedTerm%')";
+				} elseif ($class === 'WebApplication') {
+					// Web applications: match name and URL
+					$termClause = "(ci.name LIKE '%$escapedTerm%' OR ci.url LIKE '%$escapedTerm%')";
+				} elseif ($class === 'Software') {
+					// Software catalog entries: try exact-like on name/vendor first
+					$termClause = "(ci.name LIKE '$escapedTerm' OR ci.vendor_name LIKE '$escapedTerm')";
+				} else {
+					// Hardware-like CIs (FunctionalCI subclasses): include brand/model; add phone specifics
+					$termParts = [
+						"ci.name LIKE '%$escapedTerm%'",
+						"ci.serialnumber LIKE '%$escapedTerm%'",
+						"ci.asset_number LIKE '%$escapedTerm%'",
+						"ci.brand_id_friendlyname LIKE '%$escapedTerm%'",
+						"ci.model_id_friendlyname LIKE '%$escapedTerm%'",
+					];
+					if (in_array($class, ['Phone','IPPhone','MobilePhone'], true)) {
+						$termParts[] = "ci.phonenumber LIKE '%$escapedTerm%'";
+					}
+					if ($class === 'MobilePhone') {
+						$termParts[] = "ci.imei LIKE '%$escapedTerm%'";
+					}
+					$termClause = '(' . implode(' OR ', $termParts) . ')';
+				}
+
+				// Build OQL query with profile-aware filtering
+				if ($isPortalOnly) {
+					if ($class === 'Software') {
+						// Software is not a FunctionalCI; do not filter via lnkContactToFunctionalCI
+						$query = "SELECT $class AS ci WHERE $termClause";
+					} else {
+						// Portal-only: Only CIs where user is contact (FunctionalCI and subclasses)
+						$query = "SELECT $class AS ci JOIN lnkContactToFunctionalCI AS lnk ON lnk.functionalci_id = ci.id"
+							. $joins
+							. " WHERE lnk.contact_id = $personId AND $termClause";
+					}
+				} else {
+					// Power users: Full CMDB search within ACL
+					$query = "SELECT $class AS ci"
+						. $joins
+						. " WHERE $termClause";
+				}
+
+				$params = [
+					'operation' => 'core/get',
+					'class' => $class,
+					'key' => $query,
+					'output_fields' => $outputFields,
+					'limit' => $limit
+				];
+
+				// no debug logging
+
+				$result = $this->request($userId, $params, 'POST', $class !== 'Software');
+
+				// If Software exact-like returns empty, retry with wildcards
+				if ($class === 'Software') {
+					$empty = !isset($result['objects']) || empty($result['objects']);
+					if ($empty && $escapedTerm !== '') {
+					$termClauseWildcard = "(ci.name LIKE '%$escapedTerm%' OR ci.vendor_name LIKE '%$escapedTerm%')";
+						$queryWildcard = "SELECT $class AS ci WHERE $termClauseWildcard";
+						$result = $this->request($userId, [
+							'operation' => 'core/get',
+							'class' => $class,
+							'key' => $queryWildcard,
+							'output_fields' => $outputFields,
+							'limit' => $limit
+						], 'POST', false);
+					}
+
+				}
+
+				if ($class === 'Software') {
+					// no debug logging
+				}
+
+				// Fallback for Software: if empty, derive from SoftwareInstance matches
+				if (($class === 'Software') && (!isset($result['objects']) || empty($result['objects'])) && $escapedTerm !== '') {
+					$si = $this->request($userId, [
+						'operation' => 'core/get',
+						'class' => 'SoftwareInstance',
+						'key' => "SELECT SoftwareInstance AS si WHERE (si.system_name LIKE '%$escapedTerm%' OR si.software_id_friendlyname LIKE '%$escapedTerm%')",
+						'output_fields' => 'software_id',
+						'limit' => $limit * 2,
+					], 'POST', false);
+					$ids = [];
+					if (isset($si['objects'])) {
+						foreach ($si['objects'] as $obj) {
+							$ids[] = (int)($obj['fields']['software_id'] ?? 0);
+						}
+						$ids = array_values(array_unique(array_filter($ids)));
+					}
+					if (!empty($ids)) {
+						$idsCsv = implode(',', $ids);
+						$result = $this->request($userId, [
+							'operation' => 'core/get',
+							'class' => 'Software',
+							'key' => "SELECT Software WHERE id IN ($idsCsv)",
+							'output_fields' => $outputFields,
+							'limit' => $limit
+						]);
+					}
+				}
+
+				if (isset($result['objects'])) {
+				foreach ($result['objects'] as $key => $ci) {
+					$fields = $ci['fields'] ?? [];
+					// Robust title fallback across CI families
+					$name = $fields['name']
+						?? $fields['friendlyname']
+						?? $fields['system_name']
+						?? $fields['software_id_friendlyname']
+						?? '';
+					$entry = [
+						'class' => $class,
+						'id' => $fields['id'] ?? null,
+						'name' => $name,
+						'status' => $fields['status'] ?? '',
+						'business_criticity' => $fields['business_criticity'] ?? '',
+						'org_name' => $fields['org_id_friendlyname'] ?? '',
+						'location' => $fields['location_id_friendlyname'] ?? '',
+						'serialnumber' => $fields['serialnumber'] ?? '',
+						'asset_number' => $fields['asset_number'] ?? '',
+						'brand_model' => trim(($fields['brand_id_friendlyname'] ?? '') . ' ' . ($fields['model_id_friendlyname'] ?? '')),
+						'description' => strip_tags($fields['description'] ?? ''),
+						'url' => $itopUrl . '/pages/UI.php?operation=details&class=' . urlencode($class) . '&id=' . ($fields['id'] ?? '')
+					];
+					// Class-specific enrichments for subline rendering
+					if ($class === 'WebApplication') {
+						$entry['web_url'] = $fields['url'] ?? '';
+						$entry['webserver_name'] = $fields['webserver_id_friendlyname'] ?? '';
+					} elseif ($class === 'PCSoftware' || $class === 'OtherSoftware') {
+						$entry['system_name'] = $fields['system_name'] ?? '';
+						$entry['software'] = $fields['software_id_friendlyname'] ?? '';
+						$entry['license'] = $fields['softwarelicence_id_friendlyname'] ?? '';
+						$entry['path'] = $fields['path'] ?? '';
+					} elseif ($class === 'Software') {
+						$entry['vendor'] = $fields['vendor'] ?? '';
+						$entry['version'] = $fields['version'] ?? '';
+						$entry['counts'] = [
+							'documents' => $this->countFromLinkedSet($fields['documents_list'] ?? null),
+							'instances' => $this->countFromLinkedSet($fields['softwareinstance_list'] ?? null),
+							'patches' => $this->countFromLinkedSet($fields['softwarepatch_list'] ?? null),
+							'licenses' => $this->countFromLinkedSet($fields['softwarelicence_list'] ?? null),
+						];
+					}
+					$searchResults[] = $entry;
+				}
+			}
+		}
+
+		// Sort by name
+		usort($searchResults, function($a, $b) {
+			return strcasecmp($a['name'], $b['name']);
+		});
+
+		return $searchResults;
+}
+
+	/**
+	 * Helper to count linked objects for Software summaries from AttributeLinkedSet
+	 */
+	private function countFromLinkedSet($linkedSet): int {
+		if (!is_array($linkedSet)) {
+			return 0;
+		}
+		// iTop may return ['items' => [id => fields, ...]] or a plain array
+		if (isset($linkedSet['items']) && is_array($linkedSet['items'])) {
+			return count($linkedSet['items']);
+		}
+		return count($linkedSet);
+	}
+
+	/**
+	 * Get preview fields for a CI class
+	 *
+	 * Returns comma-separated field list for output_fields parameter.
+	 * Based on docs/class-mapping.md specifications.
+	 *
+	 * @param string $class iTop CI class name
+	 * @return string Comma-separated field list
+	 */
+	private function getCIPreviewFields(string $class): string {
+		// Use '*' to retrieve all fields from iTop
+		// This is simpler, more reliable, and future-proof:
+		// - Avoids field name validation issues (brand_name vs brand_id_friendlyname)
+		// - Automatically includes all fields defined in the iTop datamodel
+		// - Returns both external fields (brand_name, model_name) and friendly names (_friendlyname)
+		// - PreviewMapper handles both field formats gracefully
+		return '*';
+	}
+
+	/**
+	 * Build cache key from query parameters
+	 *
+	 * Cache key is based on the 'key' parameter (the unique OQL query or ID).
+	 * Hash is created to keep cache key length reasonable.
+	 * Two users requesting the same CI/query will reuse the same cache entry.
+	 *
+	 * @param array $params API parameters
+	 * @return string Cache key (hashed query key)
+	 */
+	private function buildQueryCacheKey(array $params): string {
+		// Hash only the 'key' parameter which contains the unique query
+		// Examples of 'key' values:
+		// - "32" (for direct ID lookup)
+		// - "SELECT PC WHERE name LIKE '%APC0001%'" (for OQL queries)
+		$key = $params['key'] ?? '';
+		$keyHash = md5($key);
+		return 'api:' . $keyHash;
+	}
+
+	/**
+	 * Make authenticated request to iTop REST API with query-based caching
+	 *
+	 * API responses are cached based on the 'key' parameter (OQL query or ID).
+	 * This means if User A and User B request the same CI or search result,
+	 * the cached response is shared (respecting iTop ACL on subsequent validations).
 	 *
 	 * @param string $userId Nextcloud user ID
 	 * @param array $params API parameters (operation, class, key, etc.)
 	 * @param string $method HTTP method (always POST for compatibility)
+	 * @param bool $useCache Whether to use cache for this request (default: true)
 	 * @return array
 	 * @throws Exception
 	 */
-	public function request(string $userId, array $params, string $method = 'POST'): array {
+	public function request(string $userId, array $params, string $method = 'POST', bool $useCache = true): array {
+		// Build cache key from 'key' parameter
+		$cacheKey = $this->buildQueryCacheKey($params);
+		
+		// Check cache first if enabled
+		if ($useCache) {
+			$cached = $this->cache->get($cacheKey);
+			if ($cached !== null) {
+				$cacheData = json_decode($cached, true);
+				// Validate timestamp and TTL are present
+				if (isset($cacheData['_cache_timestamp']) && isset($cacheData['_cache_ttl'])) {
+					$age = time() - $cacheData['_cache_timestamp'];
+					if ($age < $cacheData['_cache_ttl']) {
+						// Cache is still valid, return the result (remove metadata)
+						$result = $cacheData;
+						unset($result['_cache_timestamp'], $result['_cache_ttl']);
+						$this->logger->debug('API query cache HIT', [
+							'app' => Application::APP_ID,
+							'cacheKey' => $cacheKey,
+							'age' => $age,
+							'ttl' => $cacheData['_cache_ttl'],
+							'class' => $params['class'] ?? ''
+						]);
+						return $result;
+					}
+				}
+			}
+			$this->logger->debug('API query cache MISS', [
+				'app' => Application::APP_ID,
+				'cacheKey' => $cacheKey,
+				'class' => $params['class'] ?? ''
+			]);
+		}
+		
 		$itopUrl = $this->getItopUrl($userId);
 		if (!$itopUrl) {
 			return ['error' => $this->l10n->t('iTop URL not configured')];
@@ -658,6 +1002,27 @@ class ItopAPIService {
 
 			if ($result === null) {
 				return ['error' => $this->l10n->t('Invalid JSON response from iTop')];
+			}
+
+			// Cache successful responses with configurable TTL
+			if ($useCache && !isset($result['error'])) {
+				// Get TTL from config or use default (60 seconds)
+				$defaultTTL = 60;
+				$ttl = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_api_query', $defaultTTL);
+				if ($ttl > 0) {
+					// Add timestamp and TTL metadata to cache data for explicit validation
+					$cacheData = array_merge($result, [
+						'_cache_timestamp' => time(),
+						'_cache_ttl' => $ttl
+					]);
+					$this->cache->set($cacheKey, json_encode($cacheData), $ttl);
+					$this->logger->debug('API query CACHED', [
+						'app' => Application::APP_ID,
+						'cacheKey' => $cacheKey,
+						'ttl' => $ttl,
+						'class' => $params['class'] ?? ''
+					]);
+				}
 			}
 
 			return $result;
