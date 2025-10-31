@@ -36,6 +36,26 @@ A comprehensive Nextcloud integration that brings iTop IT Service Management and
 
 ## 🚀 Key Features
 
+### 📊 Interactive Dashboard Widget
+Get a comprehensive overview of your ticket queue directly on your Nextcloud dashboard.
+
+![Dashboard Widget](docs/images/dashboard1.png)
+
+**At-a-Glance Ticket Management:**
+- **Compact Status Overview**: See total tickets with badge breakdown (open, escalated, pending, resolved)
+- **Recent Ticket Feed**: Display 4 most recent tickets sorted by last update
+- **Visual Status Indicators**: State-specific SVG icons (new, escalated, deadline, closed) for both Incidents and UserRequests
+- **Inline Metadata**: Status emoji (🆕👥⏳⚠️✅☑️❌), priority emoji (🔴🟠🟡🟢), and relative timestamps with tooltips
+- **Rich Hover Details**: Comprehensive ticket information on hover including reference, dates, and sanitized description
+- **One-Click Access**: Click any ticket to open directly in iTop
+- **Quick Actions**: Refresh dashboard and create new tickets without leaving Nextcloud
+- **Responsive Design**: Mobile-optimized layout adapts to all screen sizes
+
+**Perfect for:**
+- Managers tracking team workload at a glance
+- End users checking their open requests
+- Anyone who needs quick access to ticket status without switching contexts
+
 ### 🔗 Dynamic Reference Provider
 Transform iTop links into rich, interactive previews across Nextcloud apps (Talk, Deck, Text, Collectives).
 
