@@ -165,7 +165,7 @@ public function getDashboardData(): DataResponse {
 
 ## Implementation Phases
 
-### Phase 1: Backend Fixes ✅ TODO
+### Phase 1: Backend Fixes ✅ DONE
 **Priority**: Critical - Widget currently non-functional
 
 **Tasks**:
@@ -173,15 +173,15 @@ public function getDashboardData(): DataResponse {
    - `getUserCreatedTickets()` exists ✅
    - `getUserCreatedTicketsCount()` exists ✅
    - No need for `getAssignedTickets()` - method doesn't exist
-2. [ ] Update `ItopWidget.php` authentication check
+2. [x] Update `ItopWidget.php` authentication check
    - Replace `token` with `person_id` check
    - Update `load()` method to use person_id
    - Update `getItems()` to use person_id
-3. [ ] Fix `getItems()` method
+3. [x] Fix `getItems()` method
    - Replace `getAssignedTickets()` with `getUserCreatedTickets()`
    - Add error handling for missing person_id
    - Update ticket formatting for both UserRequest and Incident
-4. [ ] Add dashboard data endpoint
+4. [x] Add dashboard data endpoint
    - Create `getDashboardData()` in ItopAPIController
    - Return ticket counts and status breakdown
 5. [ ] Test with real iTop instance
@@ -194,39 +194,57 @@ public function getDashboardData(): DataResponse {
 - `appinfo/routes.php` - Register new routes
 
 **Expected Outcome**: Dashboard widget displays user's created tickets correctly
+**Status Update (2025-10-29)**: Implemented person_id-based checks and switched to `getUserCreatedTickets()`; added `/dashboard` endpoint and route returning counts and by-status breakdown.
 
-### Phase 2: Enhanced Ticket Display 🔄 TODO
+### Phase 2: Enhanced Ticket Display ✅ COMPLETED
 **Priority**: High - Improve user experience
 
 **Tasks**:
-1. [ ] Implement status-based grouping
+1. [x] Implement status-based grouping
    - Add `getUserTicketsByStatus()` method in ItopAPIService
    - Group tickets: open, escalated, pending, resolved, closed
    - Add ticket type distinction (UserRequest vs Incident)
-2. [ ] Create dashboard JavaScript bundle
+2. [x] Create dashboard JavaScript bundle
    - Setup Vite config for dashboard entry point
    - Fetch data from new API endpoint
-   - Implement interactive ticket list
-   - Add status filter toggles
-3. [ ] Design dashboard UI
-   - Status cards with counts and color coding
-   - Priority distribution chart
-   - Quick action buttons
-   - Responsive layout
-4. [ ] Add dashboard styles
-   - Create `css/dashboard.css`
-   - Status badge colors matching iTop
-   - Priority indicators (red/yellow/green)
-   - Mobile-responsive grid
+   - [x] Implement interactive ticket list (top 4 recent tickets)
+   - [x] Add status filter toggles (My Open, class filters, recently updated)
+3. [x] Design dashboard UI
+   - [x] Status cards with counts (compact badges)
+   - [x] Color coding and badges
+   - [x] SVG icons per ticket state (new, escalated, deadline, closed)
+   - [x] Quick action buttons (Refresh, New Ticket)
+   - [x] Responsive layout (breakpoints for cards and statuses)
+4. [x] Add dashboard styles
+   - [x] Create inline dashboard styles in DashboardWidget.vue
+   - [x] Status badge colors matching iTop
+   - [x] Priority emoji indicators (🔴🟠🟡🟢)
+   - [x] Status emoji indicators (🆕👥⏳⚠️✅☑️❌)
+   - [x] Mobile-responsive grid
+5. [x] Enhanced UX features
+   - [x] Tooltips on status emoji (shows status label)
+   - [x] Tooltips on priority emoji (shows priority level)
+   - [x] Tooltips on ticket title (shows full ticket details with sanitized description)
+   - [x] Tooltips on relative time (shows full timestamp with "Last updated:" prefix)
+   - [x] Click-to-open ticket functionality (removed hover effects)
+   - [x] Inline metadata display (status • priority • time)
 
-**Files to Create/Modify**:
-- `lib/Service/ItopAPIService.php` - Add getUserTicketsByStatus()
-- `src/dashboard.js` - Main dashboard Vue app
-- `src/views/DashboardWidget.vue` - Dashboard component
-- `css/dashboard.css` - Dashboard styles
-- `vite.config.ts` - Add dashboard build entry
+**Files Created/Modified**:
+- `src/dashboard.js` - Main dashboard Vue app [created]
+- `src/views/DashboardWidget.vue` - Dashboard component with full feature set [created]
+- `vite.config.ts` - Add dashboard build entry [updated]
+- `lib/Controller/ItopAPIController.php` - Dashboard data endpoint [updated]
 
 **Expected Outcome**: Rich, interactive dashboard with status-based ticket organization
+**Status Update (2025-10-31)**: Completed comprehensive dashboard implementation with:
+- Compact header showing total tickets with status badge breakdown
+- 4 most recent tickets displayed with SVG icons based on type/status
+- Inline emoji indicators for status and priority with hover tooltips
+- Detailed ticket tooltips showing ref, dates, title, and sanitized description
+- Click-to-open functionality without hover effects
+- Relative time display with full timestamp tooltip
+- Responsive design with mobile breakpoints
+- Refresh and New Ticket action buttons
 
 ### Phase 3: CI Integration 🔄 TODO
 **Priority**: Medium - Leverage existing CI preview infrastructure
@@ -369,17 +387,17 @@ public function getDashboardData(): DataResponse {
 ## UI Mockup
 
 ```
-┌─────────────────────────────────────────────────────┐
-│ iTop Dashboard                           [Refresh]  │
-├─────────────────────────────────────────────────────┤
-│                                                      │
-│  Your Tickets                                        │
-│  ┌──────────┬──────────┬──────────┬──────────┐    │
-│  │ Open (5) │Escalated │Pending(3)│Resolved  │    │
+┌────────────────────────────────────────────────────┐
+│ <Logo> <Display Name>                              │
+├────────────────────────────────────────────────────┤
+│                                                    │
+│  Your Tickets                                      │
+│  ┌──────────┬──────────┬──────────┬──────────┐     │
+│  │ Open (5) │Escalated │Pending(3)│Resolved  │     │
 │  │   🔴     │   (2)    │   ⏸️     │  (10)    │    │
-│  └──────────┴──────────┴──────────┴──────────┘    │
-│                                                      │
-│  Recent Tickets                                      │
+│  └──────────┴──────────┴──────────┴──────────┘     │
+│                                                    │
+│  Recent Tickets                                    │
 │  ┌───────────────────────────────────────────┐     │
 │  │ 🎫 R-000123: Cannot access email         │     │
 │  │    Status: New • Priority: High           │     │
@@ -389,15 +407,15 @@ public function getDashboardData(): DataResponse {
 │  │    Status: Escalated • Priority: Critical │     │
 │  │    Created: 1 day ago                     │     │
 │  └───────────────────────────────────────────┘     │
-│                                                      │
-│  Recently Viewed CIs                                 │
-│  ┌─────────┬─────────┬─────────┬─────────┐        │
-│  │ 💻      │ 🖨️      │ 📱      │ 🌐      │        │
-│  │ PC-001  │ PRN-034 │ MOB-012 │ APP-005 │        │
-│  └─────────┴─────────┴─────────┴─────────┘        │
-│                                                      │
-│  [Create New Ticket] [View All in iTop]            │
-└─────────────────────────────────────────────────────┘
+│                                                    │
+│  Recently Viewed CIs                               │
+│  ┌─────────┬─────────┬─────────┬─────────┐         │
+│  │ 💻      │ 🖨️      │ 📱      │ 🌐     │         │
+│  │ PC-001  │ PRN-034 │ MOB-012 │ APP-005 │         │
+│  └─────────┴─────────┴─────────┴─────────┘         │
+│                                                    │
+│  [ Refresh ] [ New Search ]                        │
+└────────────────────────────────────────────────────┘
 ```
 
 ## Configuration

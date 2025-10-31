@@ -60,7 +60,7 @@ class ItopAPIService {
 		$this->cache = $cacheFactory->createDistributed(Application::APP_ID . '_global_info');
 	}
 
-	private function getItopUrl(string $userId): string {
+	public function getItopUrl(string $userId): string {
 		$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url');
 		return $this->config->getUserValue($userId, Application::APP_ID, 'url') ?: $adminItopUrl;
 	}
@@ -191,63 +191,167 @@ class ItopAPIService {
 		
 		$allTickets = [];
 		
-		// Query UserRequest tickets
+		$itopUrl = $this->getItopUrl($userId);
+
+	// Get person_id for more precise queries
+	$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+	
+	// Query UserRequest tickets where user is caller OR contact
+	// Note: ORDER BY in complex queries with subqueries may not work, so we sort in PHP
+	if ($personId) {
+		$userRequestQuery = "SELECT UserRequest WHERE (caller_id = '$personId' OR id IN (SELECT UserRequest JOIN lnkContactToTicket ON lnkContactToTicket.ticket_id = UserRequest.id WHERE lnkContactToTicket.contact_id = '$personId')) AND status != 'closed'";
+	} else {
+		// Fallback to name-based query if no person_id
 		$userRequestQuery = "SELECT UserRequest WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
-		$userRequestParams = [
-			'operation' => 'core/get',
-			'class' => 'UserRequest',
-			'key' => $userRequestQuery,
-			'output_fields' => 'id,title,description,status,priority,agent_id_friendlyname'
-		];
+	}
+	$userRequestParams = [
+		'operation' => 'core/get',
+		'class' => 'UserRequest',
+		'key' => $userRequestQuery,
+		'output_fields' => '*'
+	];
 
 		if ($limit) {
 			$userRequestParams['limit'] = $limit;
 		}
 
 		$userRequestResult = $this->request($userId, $userRequestParams);
-		if (isset($userRequestResult['objects'])) {
-			foreach ($userRequestResult['objects'] as $key => $ticket) {
-				$allTickets[] = [
-					'type' => 'UserRequest',
-					'id' => $ticket['fields']['id'],
-					'title' => $ticket['fields']['title'],
-					'description' => $ticket['fields']['description'] ?? '',
-					'status' => $ticket['fields']['status'],
-					'priority' => $ticket['fields']['priority'] ?? '',
-					'agent' => $ticket['fields']['agent_id_friendlyname'] ?? ''
-				];
-			}
+		// Debug: log raw API response structure
+		if (isset($userRequestResult['objects']) && count($userRequestResult['objects']) > 0) {
+			$firstTicket = array_values($userRequestResult['objects'])[0];
+			\OC::$server->get(\Psr\Log\LoggerInterface::class)->debug(
+				'First UserRequest full structure: ' . json_encode($firstTicket),
+				['app' => Application::APP_ID]
+			);
 		}
+	if (isset($userRequestResult['objects'])) {
+		foreach ($userRequestResult['objects'] as $objectKey => $ticket) {
+			// The ticket ID is in the 'key' field of the ticket object
+			$ticketId = $ticket['key'] ?? null;
+			if (!$ticketId) {
+				// Fallback: extract from object key like "UserRequest::2"
+				$ticketId = strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey;
+			}
+			$allTickets[] = [
+				'type' => 'UserRequest',
+				'id' => $ticketId,
+				'ref' => $ticket['fields']['ref'] ?? '',
+				'title' => $ticket['fields']['title'] ?? '',
+				'description' => $ticket['fields']['description'] ?? '',
+				'status' => $ticket['fields']['status'] ?? 'unknown',
+				'operational_status' => $ticket['fields']['operational_status'] ?? '',
+				'priority' => $ticket['fields']['priority'] ?? '',
+				'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
+				'start_date' => $ticket['fields']['start_date'] ?? '',
+				'last_update' => $ticket['fields']['last_update'] ?? '',
+				'close_date' => $ticket['fields']['close_date'] ?? '',
+				'url' => $itopUrl . '/pages/UI.php?operation=details&class=UserRequest&id=' . $ticketId
+			];
+		}
+	}
 		
-		// Query Incident tickets
+	// Query Incident tickets where user is caller OR contact
+	if ($personId) {
+		$incidentQuery = "SELECT Incident WHERE (caller_id = '$personId' OR id IN (SELECT Incident JOIN lnkContactToTicket ON lnkContactToTicket.ticket_id = Incident.id WHERE lnkContactToTicket.contact_id = '$personId')) AND status != 'closed'";
+	} else {
+		// Fallback to name-based query if no person_id
 		$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
-		$incidentParams = [
-			'operation' => 'core/get',
-			'class' => 'Incident',
-			'key' => $incidentQuery,
-			'output_fields' => 'id,title,description,status,priority,agent_id_friendlyname'
-		];
+	}
+	$incidentParams = [
+		'operation' => 'core/get',
+		'class' => 'Incident',
+		'key' => $incidentQuery,
+		'output_fields' => '*'
+	];
 
 		if ($limit) {
 			$incidentParams['limit'] = $limit;
 		}
 
-		$incidentResult = $this->request($userId, $incidentParams);
-		if (isset($incidentResult['objects'])) {
-			foreach ($incidentResult['objects'] as $key => $ticket) {
-				$allTickets[] = [
-					'type' => 'Incident',
-					'id' => $ticket['fields']['id'],
-					'title' => $ticket['fields']['title'],
-					'description' => $ticket['fields']['description'] ?? '',
-					'status' => $ticket['fields']['status'],
-					'priority' => $ticket['fields']['priority'] ?? '',
-					'agent' => $ticket['fields']['agent_id_friendlyname'] ?? ''
-				];
+	$incidentResult = $this->request($userId, $incidentParams);
+	if (isset($incidentResult['objects'])) {
+		foreach ($incidentResult['objects'] as $objectKey => $ticket) {
+			// The ticket ID is in the 'key' field of the ticket object
+			$ticketId = $ticket['key'] ?? null;
+			if (!$ticketId) {
+				// Fallback: extract from object key like "Incident::4"
+				$ticketId = strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey;
 			}
+			$allTickets[] = [
+				'type' => 'Incident',
+				'id' => $ticketId,
+				'ref' => $ticket['fields']['ref'] ?? '',
+				'title' => $ticket['fields']['title'] ?? '',
+				'description' => $ticket['fields']['description'] ?? '',
+				'status' => $ticket['fields']['status'] ?? 'unknown',
+				'operational_status' => $ticket['fields']['operational_status'] ?? '',
+				'priority' => $ticket['fields']['priority'] ?? '',
+				'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
+				'start_date' => $ticket['fields']['start_date'] ?? '',
+				'last_update' => $ticket['fields']['last_update'] ?? '',
+				'close_date' => $ticket['fields']['close_date'] ?? '',
+				'url' => $itopUrl . '/pages/UI.php?operation=details&class=Incident&id=' . $ticketId
+			];
 		}
+	}
 		
 		return $allTickets;
+	}
+
+	/**
+	 * Get tickets created by the current user grouped by status with counts
+	 *
+	 * @param string $userId
+	 * @return array { by_status: {status=>count}, tickets: {status=>tickets[]} }
+	 */
+	public function getUserTicketsByStatus(string $userId): array {
+		$tickets = $this->getUserCreatedTickets($userId, null, 100);
+		$groups = [
+			'open' => [],
+			'escalated' => [],
+			'pending' => [],
+			'resolved' => [],
+			'closed' => [],
+			'unknown' => [],
+		];
+
+		$rawStatuses = []; // Debug: collect all raw statuses
+		foreach (is_array($tickets) ? $tickets : [] as $ticket) {
+			$statusRaw = strtolower($ticket['status'] ?? '');
+			$rawStatuses[] = $statusRaw; // Debug
+			// Map iTop statuses to dashboard categories
+			$status = match (true) {
+				// Open statuses
+				$statusRaw === 'new' || $statusRaw === 'assigned' || $statusRaw === 'dispatched' || $statusRaw === 'open' => 'open',
+				// Escalated statuses
+				$statusRaw === 'escalated_tto' || $statusRaw === 'escalated_ttr' || str_contains($statusRaw, 'escalated') => 'escalated',
+				// Pending statuses
+				$statusRaw === 'pending' || $statusRaw === 'waiting_for_approval' || $statusRaw === 'paused' => 'pending',
+				// Resolved statuses
+				$statusRaw === 'resolved' || $statusRaw === 'solution_approved' => 'resolved',
+				// Closed statuses
+				$statusRaw === 'closed' => 'closed',
+				// Default: treat as open if not recognized
+				default => 'open',
+			};
+			$groups[$status][] = $ticket;
+		}
+
+		$counts = [];
+		foreach ($groups as $key => $list) {
+			$counts[$key] = count($list);
+		}
+
+		// Debug: log raw statuses
+		\OC::$server->get(\Psr\Log\LoggerInterface::class)->debug(
+			'getUserTicketsByStatus: Raw statuses found: ' . json_encode($rawStatuses),
+			['app' => Application::APP_ID]
+		);
+
+		return [
+			'by_status' => $counts,
+			'tickets' => $groups,
+		];
 	}
 	
 	/**

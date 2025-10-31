@@ -32,6 +32,7 @@ class ItopWidget implements IWidget {
 		private LoggerInterface $logger,
 		private ?string $userId
 	) {
+		$this->logger->info('ItopWidget constructed for user: ' . ($userId ?? 'null'), ['app' => Application::APP_ID]);
 	}
 
 	/**
@@ -45,7 +46,9 @@ class ItopWidget implements IWidget {
 	 * @inheritDoc
 	 */
 	public function getTitle(): string {
-		return $this->l10n->t('iTop tickets');
+		// Use admin-configured display name (e.g., "ServicePoint") instead of hardcoded "iTop"
+		$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+		return $displayName;
 	}
 
 	/**
@@ -77,11 +80,20 @@ class ItopWidget implements IWidget {
 	 * @inheritDoc
 	 */
 	public function load(): void {
+		$this->logger->debug('ItopWidget::load() called for user: ' . ($this->userId ?? 'null'), ['app' => Application::APP_ID]);
+		
 		if ($this->userId !== null) {
-			$token = $this->config->getUserValue($this->userId, Application::APP_ID, 'token', '');
-			if ($token !== '') {
+			$personId = $this->config->getUserValue($this->userId, Application::APP_ID, 'person_id', '');
+			$this->logger->debug('Person ID for user ' . $this->userId . ': ' . ($personId !== '' ? $personId : 'empty'), ['app' => Application::APP_ID]);
+			
+			if ($personId !== '') {
+				$this->logger->info('Loading iTop dashboard script for user: ' . $this->userId, ['app' => Application::APP_ID]);
 				Util::addScript(Application::APP_ID, 'integration_itop-dashboard');
+			} else {
+				$this->logger->warning('iTop dashboard not loaded: person_id not set for user ' . $this->userId, ['app' => Application::APP_ID]);
 			}
+		} else {
+			$this->logger->warning('iTop dashboard not loaded: userId is null', ['app' => Application::APP_ID]);
 		}
 	}
 
@@ -89,38 +101,9 @@ class ItopWidget implements IWidget {
 	 * @inheritDoc
 	 */
 	public function getItems(string $userId): array {
-		if ($this->config->getUserValue($userId, Application::APP_ID, 'token', '') === '') {
-			return [];
-		}
-
-		try {
-			$tickets = $this->itopAPIService->getAssignedTickets($userId, null, 7);
-			if (isset($tickets['error'])) {
-				$this->logger->error('Error getting iTop tickets for dashboard: ' . $tickets['error'], ['app' => Application::APP_ID]);
-				return [];
-			}
-
-			$result = [];
-			$itopUrl = $this->config->getUserValue($userId, Application::APP_ID, 'url', '') 
-				?: $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
-
-			foreach ($tickets as $ticket) {
-				$result[] = [
-					'id' => $ticket['id'],
-					'targetUrl' => $itopUrl . '/pages/UI.php?operation=details&class=UserRequest&id=' . $ticket['id'],
-					'avatarUrl' => $this->urlGenerator->getAbsoluteURL($this->urlGenerator->imagePath(Application::APP_ID, 'ticket.svg')),
-					'avatarUsername' => '',
-					'overlayIconUrl' => $this->getPriorityIcon($ticket['priority'] ?? ''),
-					'mainText' => $ticket['title'] ?? '',
-					'subText' => $this->formatSubText($ticket),
-				];
-			}
-
-			return $result;
-		} catch (\Exception $e) {
-			$this->logger->error('Error getting iTop tickets for dashboard: ' . $e->getMessage(), ['app' => Application::APP_ID]);
-			return [];
-		}
+		// Return empty array - we're using custom Vue widget instead
+		// The Vue widget is loaded via load() method and handles all rendering
+		return [];
 	}
 
 	private function formatSubText(array $ticket): string {
@@ -130,13 +113,8 @@ class ItopWidget implements IWidget {
 			$parts[] = $this->l10n->t('Status: %s', [$ticket['status']]);
 		}
 		
-		if (!empty($ticket['caller'])) {
-			$parts[] = $this->l10n->t('Caller: %s', [$ticket['caller']]);
-		}
-		
-		if (!empty($ticket['creation_date'])) {
-			$date = new \DateTime($ticket['creation_date']);
-			$parts[] = $this->l10n->t('Created: %s', [$date->format('Y-m-d')]);
+		if (!empty($ticket['agent'])) {
+			$parts[] = $this->l10n->t('Agent: %s', [$ticket['agent']]);
 		}
 		
 		return implode(' • ', $parts);

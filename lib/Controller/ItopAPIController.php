@@ -17,6 +17,7 @@ use OCA\Itop\Service\ItopAPIService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IRequest;
 
@@ -28,6 +29,7 @@ class ItopAPIController extends Controller {
 		string $appName,
 		IRequest $request,
 		private ItopAPIService $itopAPIService,
+		private IConfig $config,
 		private IL10N $l10n,
 		private LoggerInterface $logger,
 		private ?string $userId
@@ -161,5 +163,60 @@ class ItopAPIController extends Controller {
 		// Placeholder - iTop doesn't have user avatars like Zammad
 		// This could be extended to return organization logos or CI images
 		return new DataResponse(['message' => 'Avatar functionality not implemented for iTop'], Http::STATUS_NOT_IMPLEMENTED);
+	}
+
+	/**
+	 * Get dashboard data for current user
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function getDashboardData(): DataResponse {
+		$this->logger->info('getDashboardData called for user: ' . ($this->userId ?? 'null'), ['app' => Application::APP_ID]);
+		
+		if ($this->userId === null) {
+			$this->logger->warning('getDashboardData: No user ID', ['app' => Application::APP_ID]);
+			return new DataResponse(['error' => 'Unauthorized'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
+			$this->logger->debug('Fetching ticket counts...', ['app' => Application::APP_ID]);
+			// Ticket counts (UserRequest + Incident)
+			$counts = $this->itopAPIService->getUserCreatedTicketsCount($this->userId);
+			$this->logger->debug('Counts: ' . json_encode($counts), ['app' => Application::APP_ID]);
+
+			$this->logger->debug('Fetching tickets by status...', ['app' => Application::APP_ID]);
+			// Status breakdown and grouped tickets
+			$byStatus = $this->itopAPIService->getUserTicketsByStatus($this->userId);
+			$this->logger->debug('ByStatus: ' . json_encode($byStatus), ['app' => Application::APP_ID]);
+
+			// Get iTop URL for "View All" button
+			$itopUrl = $this->itopAPIService->getItopUrl($this->userId);
+			$this->logger->debug('iTop URL: ' . $itopUrl, ['app' => Application::APP_ID]);
+
+			// Get admin-configured display name (e.g., "ServicePoint" instead of "iTop")
+			$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+
+			$response = [
+				'counts' => $counts,
+				'stats' => [
+					'by_status' => $byStatus['by_status'] ?? [],
+				],
+				'tickets' => $byStatus['tickets'] ?? [],
+				'recent_cis' => [],
+				'itop_url' => $itopUrl,
+				'display_name' => $displayName
+			];
+			
+			$this->logger->info('getDashboardData success, returning data', ['app' => Application::APP_ID]);
+			return new DataResponse($response);
+		} catch (\Exception $e) {
+			$this->logger->error('Error getting iTop dashboard data: ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+				'exception' => $e->getTraceAsString()
+			]);
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
 	}
 }
