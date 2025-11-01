@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2025-11-01
+
+### ✨ Major New Feature: Dual Dashboard System
+
+Version 1.2.0 introduces specialized dashboard widgets that adapt to user profiles, providing both end-user ticket tracking and comprehensive agent operational dashboards.
+
+### Added
+
+#### Dual Dashboard Widgets
+- **Portal Widget ("iTop")**: Personal ticket tracking for all users
+  - Compact status overview with badge breakdown (open, escalated, pending, resolved)
+  - Recent ticket feed showing 4 most recent tickets sorted by last update
+  - Visual status indicators: State-specific SVG icons for new, escalated, deadline, and closed tickets
+  - Inline metadata: Status emoji (🆕👥⏳⚠️✅☑️❌), priority emoji (🔴🟠🟡🟢), relative timestamps
+  - Rich hover details: Comprehensive ticket information including reference, dates, sanitized description
+  - One-click access to tickets in iTop
+  - Quick actions: Refresh and create new tickets
+  - Mobile-optimized responsive design
+
+- **Agent Widget ("iTop - Agent Dashboard")**: Operational metrics for agents
+  - **My Work Section**: Count of assigned incidents and requests
+  - **Team Queue Section**: Team-wide ticket counts for incidents and requests
+  - **SLA Tracking**: Warnings (TTO/TTR approaching) and breaches (TTO/TTR exceeded)
+  - **Change Management**: Upcoming changes with time windows (emergency/normal/routine)
+  - Quick navigation links to filtered iTop views
+  - Real-time ticket counts with visual indicators (info/warning/error)
+  - Responsive 2x2 metrics grid layout
+
+#### Widget Visibility Control
+- **Profile-Based Display**: Portal users see only Portal Widget; agents see both widgets
+- **Automatic Detection**: Widget availability controlled by `is_portal_only` flag from iTop profiles
+- **Seamless User Experience**: No manual configuration required
+
+#### Dashboard Backend
+- **ItopWidget.php**: Main widget class with profile-aware widget loading
+- **ItopAgentWidget.php**: Dedicated agent dashboard widget class
+- **Dashboard API**: New endpoints for SLA tracking, change management, and team metrics
+- **Efficient Queries**: Optimized OQL queries for dashboard data with minimal API calls
+
+### Changed
+
+#### Dashboard Improvements
+- **Enhanced Ticket Display**: Improved visual hierarchy with better status differentiation
+- **Better Error Handling**: Graceful fallback when API unavailable or user not configured
+- **Performance**: Dashboard data cached separately from search results
+- **Responsive Layout**: Mobile-first design with adaptive layouts for all screen sizes
+
+#### API Enhancements
+- **New ItopAPIService Methods**:
+  - `getAgentDashboardMetrics()`: Fetch agent-specific operational data
+  - `getSLAWarnings()`: Retrieve tickets approaching SLA thresholds
+  - `getUpcomingChanges()`: Get planned changes with time windows
+  - `getTeamQueue()`: Team-wide ticket statistics
+- **Person ID Filtering**: All dashboard queries filtered by user's Person ID for data isolation
+
+### Fixed
+- **Ticket Timestamp Display**: Corrected timezone handling in dashboard relative timestamps
+- **SVG Icon Rendering**: Fixed state icon display in dashboard ticket list
+- **Dashboard Refresh**: Resolved cache invalidation issue causing stale data after updates
+- **Mobile Layout**: Fixed overflow issues on small screens in dashboard widgets
+
+### Technical Details
+
+#### New Configuration Keys
+- `dashboard_cache_ttl`: Dashboard data cache TTL (default: 120s / 2min)
+- `agent_dashboard_enabled`: Global toggle for agent dashboard (default: true)
+
+#### New Dashboard Files
+- `lib/Dashboard/ItopWidget.php`: Portal widget (enhanced)
+- `lib/Dashboard/ItopAgentWidget.php`: Agent dashboard widget (new)
+- `lib/Service/DashboardService.php`: Dashboard data aggregation service (new)
+
+#### Translation Updates
+- Added 45 new translatable strings for dashboard widgets
+- Updated en.json, de.json, de_DE.json, fr.json with dashboard translations
+
+#### Migration Notes
+- **No user action required**: Existing users see Portal Widget immediately
+- **Automatic agent detection**: Agents automatically gain access to Agent Widget
+- **Cache warmup**: First dashboard load may be slower as metrics cache populates
+
+---
+
 ## [1.1.0] - 2025-10-28
 
 ### ✨ Major New Feature: Configuration Item (CI) Browsing

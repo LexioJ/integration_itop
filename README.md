@@ -2,7 +2,7 @@
 
 🎟️ **Complete iTop ITSM & CMDB Integration** - Seamlessly access tickets, incidents, and Configuration Items from your Nextcloud environment
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/lexioj/integration_itop/releases)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/lexioj/integration_itop/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 [![Nextcloud](https://img.shields.io/badge/Nextcloud-30+-blue)](https://nextcloud.com)
 
@@ -383,36 +383,33 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
 
 ---
 
-## 📋 What's New in v1.1.0
+## 📋 What's New in v1.2.0
 
-**Major New Feature: Configuration Item (CI) Browsing** 🎉
+**Major New Feature: Dual Dashboard System** 🎉
 
 ### Added
-- **CI Support in Search**: Search 11 CI classes from unified search bar
-- **CI Support in Smart Picker**: Insert CI references in Talk, Text, and comments
-- **CI Rich Previews**: Paste CI URLs for detailed hardware/software previews
-- **Profile Service**: Automatic Portal vs Power user detection with 30min caching
-- **Preview Mapper**: Dedicated service for efficient CI data transformation
-- **Cache Service**: Distributed caching layer with configurable TTLs
-- **Admin CI Configuration**: Enable/disable CI classes with 3-state control
-- **Cache Management**: Admin UI with configurable TTLs and clear cache button
-- **11 CI Icons**: Class-specific icons (PC, Phone, Tablet, Printer, Software, etc.)
-- **French Translation**: Complete fr.json with all 280 strings (formal vous-form)
-- **German Translations**: Informal (du.json) and formal (de_DE.json) variants
+- **Portal Widget**: Personal ticket tracking for all users with status overview, recent ticket feed, and quick actions
+- **Agent Widget**: Comprehensive operational dashboard for IT agents with workload metrics, SLA tracking, and change management
+- **Profile-Based Display**: Automatic widget selection based on iTop user profiles (Portal vs Agent)
+- **Enhanced Ticket Display**: State-specific SVG icons, status/priority emojis, and rich hover details
+- **Dashboard Backend**: New API endpoints for SLA warnings, team queue, and change management
+- **Mobile Optimization**: Responsive design with adaptive layouts for all screen sizes
+- **Dashboard Caching**: Separate cache layer for dashboard data (default: 2min TTL)
 
 ### Changed
-- **Admin Settings**: Refactored to PHP-rendered HTML for better translation support
-- **Search Provider**: Enhanced with CI class ranking and profile-aware filtering
-- **Reference Provider**: Extended to detect and preview CI URLs
-- **API Service**: New methods for CI queries with Person ID filtering
-- **Performance**: Reduced API calls by 60-80% with multi-layer caching
+- **Dashboard Performance**: Optimized OQL queries for faster dashboard loading
+- **Visual Hierarchy**: Improved status differentiation and metric indicators
+- **Error Handling**: Graceful fallback when API unavailable
+- **Translation Coverage**: Added 45 new strings for dashboard widgets in all supported languages
 
-### Technical Improvements
-- ProfileService with configurable cache (10s-1h, default 30min)
-- CacheService with 5 configurable TTL types
-- PreviewMapper with PhysicalDevice field alignment
-- CI class state management (disabled/forced/user_choice)
-- Improved mobile responsiveness for CI previews
+### Previous Release: v1.1.0 - Configuration Item (CI) Browsing
+
+**Highlights:**
+- CI Support in Search, Smart Picker, and Rich Previews (11 CI classes)
+- Profile Service with automatic Portal vs Power user detection
+- Admin CI Configuration with 3-state control
+- Multi-language support: French, German (Du/Sie)
+- 60-80% reduction in API calls with multi-layer caching
 
 See [CHANGELOG.md](CHANGELOG.md) for complete details.
 
@@ -471,10 +468,14 @@ curl -X POST https://itop.company.com/webservices/rest.php \
 
 ## 🗺️ Roadmap
 
-### v1.2.0 (Next Release)
-- [ ] Enhanced Dashboard Widget with charts and filters
-- [ ] Ticket activity timeline in previews
+### v1.2.0 (Released 2025-11-01) ✅
+- [x] Enhanced Dashboard Widget with charts and filters
+- [x] Dual dashboard system (Portal + Agent widgets)
+- [x] SLA tracking and team metrics
+
+### v1.3.0 (Next Release)
 - [ ] Advanced search filters (date ranges, custom fields)
+- [ ] Notification system
 
 ### Future
 - [ ] Ticket creation from Nextcloud

@@ -15,6 +15,19 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 
 ### ✨ Key Features
 
+#### 📊 Dual Dashboard Widgets
+- **Portal Widget**: Personal ticket queue for all users with status breakdown (Open, Pending, Resolved)
+  - View 4 most recent tickets (Incidents + User Requests)
+  - Visual status indicators and priority badges
+  - Quick actions: Refresh and Create New Ticket
+  - Responsive design for mobile/desktop
+- **Agent Widget**: Comprehensive operational dashboard for IT agents only
+  - **My Work**: Assigned incidents and requests with real-time counts
+  - **Team Queue**: Team-wide ticket distribution and workload overview
+  - **SLA Tracking**: TTO/TTR warnings and breaches for proactive management
+  - **Change Management**: Upcoming changes with time windows and types
+  - Automatic visibility control based on user profile (agents vs portal users)
+
 #### 🔗 Dynamic Reference Provider
 - **Rich Link Previews**: Paste iTop ticket links in Talk, Deck, or Collectives for instant rich previews
 - **Detailed Information**: View ticket status, priority, assignee, and description at a glance  
@@ -67,8 +80,8 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 
 #### Start streamlining your ITSM workflow - Connect iTop with Nextcloud and experience unified IT service management!]]></description>
 
-	<version>1.1.0</version>
-	<licence>agpl</licence>
+	<version>1.2.0</version>
+	<licence>AGPL-3.0-or-later</licence>
 
 	<author>iTop Integration Team</author>
 
@@ -83,7 +96,8 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 	<bugs>https://github.com/lexioj/integration_itop/issues</bugs>
 	<repository>https://github.com/lexioj/integration_itop.git</repository>
 
-	<screenshot small-thumbnail="https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/dynamic-reference-provider-thumb.png">https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/dynamic-reference-provider.png</screenshot>
+   <screenshot small-thumbnail="https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/dashboard1.png">https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/dashboard1.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/dynamic-reference-provider.png</screenshot>
    <screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/unified-search.png</screenshot>
 	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/smart-picker.png</screenshot>
 	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/personal-settings.png</screenshot>
