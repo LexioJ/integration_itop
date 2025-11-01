@@ -362,21 +362,35 @@ Due to space constraints in the dashboard widget (limited to 4 tickets + action 
 ### Phase 6: Testing & Documentation 📝 TODO
 
 **Tasks**:
-1. [ ] Write PHPUnit tests
-   - Test `getUserTicketsByStatus()` method
-   - Test `getUserRecentCIs()` method
-   - Test dashboard data endpoint
-   - Mock iTop API responses
-2. [ ] Manual testing
-   - Test with portal-only user
-   - Test with power user
-   - Test with no tickets/CIs
-   - Test error scenarios (no person_id, API errors)
-3. [~] Update documentation - IN PROGRESS
+1. [x] Write PHPUnit tests - ✅ COMPLETED
+   - [x] Created `tests/Unit/Service/ItopAPIServiceDashboardTest.php` (13 tests)
+     - Test `getUserCreatedTicketsCount()` method
+     - Test `getUserTicketsByStatus()` method
+     - Test `getMyAssignedTickets()` method
+     - Test `getTeamAssignedTickets()` method
+     - Test `getUpcomingChanges()` method
+     - Test `getSLAWarningCounts()` method
+     - Test `getSLABreachCounts()` method
+     - Test `getUserTeams()` method
+     - Test error handling scenarios
+   - [x] Created `tests/Unit/Controller/ItopAPIControllerDashboardTest.php` (11 tests)
+     - Test `/dashboard` endpoint success/error cases
+     - Test `/agent-dashboard` endpoint success/error cases
+     - Test authentication failures
+     - Test empty queues and tickets
+     - Test mixed ticket types (Incident/UserRequest)
+     - Test data structure consistency
+   - Note: Tests require Nextcloud test environment to execute
+2. [x] Manual testing - ✅ COMPLETED
+   - [x] Test with portal-only user (verified widget visibility)
+   - [x] Test with power user/agent (verified both widgets)
+   - [x] Test with no tickets/empty queues
+   - [x] Test error scenarios (API failures handled gracefully)
+3. [x] Update documentation - ✅ COMPLETED
    - [x] Add dashboard section to README (dual-widget architecture fully documented)
    - [x] Document dashboard API endpoints (API_DASHBOARD.md created)
    - [x] Update PLAN_CI_BROWSING.md with dashboard status
-   - [ ] Add dashboard screenshots to docs/ (optional - requires real iTop instance)
+   - [x] Add dashboard screenshots to docs/images/ (dashboard1.png created)
 4. [x] Update translations - ✅ COMPLETED
    - [x] Add dashboard strings to l10n/en.json (35+ strings added)
    - [x] Translate to German (de.json, de_DE.json)
