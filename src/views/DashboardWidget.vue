@@ -60,11 +60,11 @@
 								{{ ticket.title || t('integration_itop', 'Untitled ticket') }}
 							</div>
 							<div class="ticket-meta">
-								<span class="ticket-status">{{ ticket.operational_status || ticket.status }}</span>
+								<span class="ticket-status">{{ getStatusLabel(ticket.operational_status || ticket.status) }}</span>
 								<span class="ticket-meta-separator">•</span>
 								<span class="ticket-priority-emoji" :title="getPriorityLabel(ticket.priority)">{{ getPriorityEmoji(ticket.priority) }}</span>
 								<span v-if="ticket.last_update" class="ticket-meta-separator">•</span>
-								<span v-if="ticket.last_update" class="ticket-time" :title="'Last updated: ' + ticket.last_update">
+								<span v-if="ticket.last_update" class="ticket-time" :title="t('integration_itop', 'Last updated: ') + ticket.last_update">
 									🕐 {{ formatRelativeTime(ticket.last_update) }}
 								</span>
 							</div>
@@ -104,7 +104,6 @@
 </template>
 
 <script>
-import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
 
@@ -157,8 +156,6 @@ export default {
 			})
 
 			const tickets = allTickets.slice(0, 4)
-			// eslint-disable-next-line no-console
-			console.log('[DashboardWidget] recentTickets:', tickets)
 			return tickets
 		},
 		viewAllUrl() {
@@ -177,7 +174,6 @@ export default {
 		this.refresh()
 	},
 	methods: {
-		t,
 		iconPath(filename) {
 			// Use direct path like ReferenceItopWidget to avoid routing issues
 			return window.location.origin + '/apps/integration_itop/img/' + filename
@@ -276,35 +272,36 @@ export default {
 		},
 		getStatusLabel(status) {
 			const s = (status || '').toLowerCase()
-			if (s === 'new') return 'New'
-			if (s === 'assigned') return 'Assigned'
-			if (s === 'pending') return 'Pending'
-			if (s === 'escalated_tto') return 'Escalated TTO'
-			if (s === 'escalated_ttr') return 'Escalated TTR'
-			if (s === 'resolved') return 'Resolved'
-			if (s === 'closed') return 'Closed'
-			if (s === 'waiting_for_approval') return 'Waiting for approval'
-			if (s === 'approved') return 'Approved'
-			if (s === 'rejected') return 'Rejected'
-			return status || 'Unknown'
+			if (s === 'new') return this.t('integration_itop', 'New')
+			if (s === 'assigned') return this.t('integration_itop', 'Assigned')
+			if (s === 'ongoing') return this.t('integration_itop', 'Ongoing')
+			if (s === 'pending') return this.t('integration_itop', 'Pending')
+			if (s === 'escalated_tto') return this.t('integration_itop', 'Escalated TTO')
+			if (s === 'escalated_ttr') return this.t('integration_itop', 'Escalated TTR')
+			if (s === 'resolved') return this.t('integration_itop', 'Resolved')
+			if (s === 'closed') return this.t('integration_itop', 'Closed')
+			if (s === 'waiting_for_approval') return this.t('integration_itop', 'Waiting for approval')
+			if (s === 'approved') return this.t('integration_itop', 'Approved')
+			if (s === 'rejected') return this.t('integration_itop', 'Rejected')
+			return status || this.t('integration_itop', 'Unknown')
 		},
 		getPriorityLabel(priority) {
-			if (!priority) return 'Unknown priority'
+			if (!priority) return this.t('integration_itop', 'Unknown priority')
 			const p = String(priority).toLowerCase()
-			if (p.includes('1') || p.includes('critical')) return 'Priority 1 - Critical'
-			if (p.includes('2') || p.includes('high')) return 'Priority 2 - High'
-			if (p.includes('3') || p.includes('medium')) return 'Priority 3 - Medium'
-			if (p.includes('4') || p.includes('low')) return 'Priority 4 - Low'
-			return `Priority ${priority}`
+			if (p.includes('1') || p.includes('critical')) return this.t('integration_itop', 'Priority 1 - Critical')
+			if (p.includes('2') || p.includes('high')) return this.t('integration_itop', 'Priority 2 - High')
+			if (p.includes('3') || p.includes('medium')) return this.t('integration_itop', 'Priority 3 - Medium')
+			if (p.includes('4') || p.includes('low')) return this.t('integration_itop', 'Priority 4 - Low')
+			return this.t('integration_itop', 'Priority') + ' ' + priority
 		},
 		getTicketTooltip(ticket) {
-			const ref = ticket.ref || 'N/A'
-			const created = ticket.start_date || 'N/A'
-			const updated = ticket.last_update || 'N/A'
-			const title = ticket.title || 'Untitled ticket'
+			const ref = ticket.ref || this.t('integration_itop', 'N/A')
+			const created = ticket.start_date || this.t('integration_itop', 'N/A')
+			const updated = ticket.last_update || this.t('integration_itop', 'N/A')
+			const title = ticket.title || this.t('integration_itop', 'Untitled ticket')
 
 			// Sanitize description: remove HTML tags and convert <br> and <p> to newlines
-			let description = ticket.description || 'No description'
+			let description = ticket.description || this.t('integration_itop', 'No description')
 			description = description
 				.replace(/<br\s*\/?>/gi, '\n')
 				.replace(/<\/p>/gi, '\n')
@@ -312,7 +309,7 @@ export default {
 				.replace(/<[^>]+>/g, '')
 				.trim()
 
-			return `Ticket: ${ref}\nCreated: ${created}\nUpdated: ${updated}\n-------------------\nTitle: ${title}\nDescription:\n${description}`
+			return `${this.t('integration_itop', 'Ticket:')} ${ref}\n${this.t('integration_itop', 'Created:')} ${created}\n${this.t('integration_itop', 'Updated:')} ${updated}\n-------------------\n${this.t('integration_itop', 'Title:')} ${title}\n${this.t('integration_itop', 'Description:')}\n${description}`
 		},
 		formatRelativeTime(dateString) {
 			if (!dateString) return ''
@@ -327,15 +324,15 @@ export default {
 				const diffDays = Math.floor(diffHours / 24)
 				const diffWeeks = Math.floor(diffDays / 7)
 
-				if (diffSecs < 60) return 'just now'
-				if (diffMins === 1) return '1 min ago'
-				if (diffMins < 60) return `${diffMins} min ago`
-				if (diffHours === 1) return '1 hour ago'
-				if (diffHours < 24) return `${diffHours} hours ago`
-				if (diffDays === 1) return '1 day ago'
-				if (diffDays < 7) return `${diffDays} days ago`
-				if (diffWeeks === 1) return '1 week ago'
-				if (diffWeeks < 4) return `${diffWeeks} weeks ago`
+				if (diffSecs < 60) return this.t('integration_itop', 'just now')
+				if (diffMins === 1) return this.t('integration_itop', '1 min ago')
+				if (diffMins < 60) return `${diffMins} ${this.t('integration_itop', 'min ago')}`
+				if (diffHours === 1) return this.t('integration_itop', '1 hour ago')
+				if (diffHours < 24) return `${diffHours} ${this.t('integration_itop', 'hours ago')}`
+				if (diffDays === 1) return this.t('integration_itop', '1 day ago')
+				if (diffDays < 7) return `${diffDays} ${this.t('integration_itop', 'days ago')}`
+				if (diffWeeks === 1) return this.t('integration_itop', '1 week ago')
+				if (diffWeeks < 4) return `${diffWeeks} ${this.t('integration_itop', 'weeks ago')}`
 
 				// For older dates, show actual date
 				return date.toLocaleDateString()

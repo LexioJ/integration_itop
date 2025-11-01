@@ -180,6 +180,29 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		// Register dashboard widgets with proper IL10N from app container
+		$context->registerService(ItopWidget::class, function ($c) {
+			return new ItopWidget(
+				$c->get(IL10N::class),
+				$c->get(IConfig::class),
+				$c->get(IURLGenerator::class),
+				$c->get(\OCA\Itop\Service\ItopAPIService::class),
+				$c->get(\Psr\Log\LoggerInterface::class),
+				$c->get('userId')
+			);
+		});
+		$context->registerService(ItopAgentWidget::class, function ($c) {
+			return new ItopAgentWidget(
+				$c->get(IL10N::class),
+				$c->get(IConfig::class),
+				$c->get(IURLGenerator::class),
+				$c->get(\OCA\Itop\Service\ItopAPIService::class),
+				$c->get(\OCA\Itop\Service\ProfileService::class),
+				$c->get(\Psr\Log\LoggerInterface::class),
+				$c->get('userId')
+			);
+		});
+		
 		$context->registerDashboardWidget(ItopWidget::class);
 		$context->registerDashboardWidget(ItopAgentWidget::class);
 		$context->registerSearchProvider(ItopSearchProvider::class);

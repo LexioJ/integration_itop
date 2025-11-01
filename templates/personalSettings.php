@@ -3,7 +3,7 @@
  * @var array $_ Template parameters
  */
 style('integration_itop', 'personal-settings');
-script('integration_itop', 'personal-settings');
+script('integration_itop', 'integration_itop-personal-settings');
 
 // CI class label mapping
 $ciClassLabels = [

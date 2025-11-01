@@ -3,7 +3,7 @@
  * @var array $_ Template parameters
  */
 $appId = OCA\Itop\AppInfo\Application::APP_ID;
-script($appId, 'admin-settings');
+script($appId, $appId . '-admin-settings');
 style($appId, 'admin-settings');
 
 // CI class label mapping

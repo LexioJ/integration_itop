@@ -322,8 +322,22 @@ Due to space constraints in the dashboard widget (limited to 4 tickets + action 
 8. [x] Register both widgets in `Application.php`
 9. [x] Test conditional visibility (portal vs agent users)
 10. [x] Test agent-specific data fetching
-11. [ ] Add translations for agent widget strings
+11. [~] Add translations for agent widget strings - IN PROGRESS (strings added, Vue integration issue blocking)
 12. [ ] Update README with dual-widget documentation
+
+**Translation Status (Task 11 - Blocked)**:
+- ✅ Added 35+ translation strings to all 4 language files (en, de, de_DE, fr)
+- ✅ Fixed all hardcoded strings in DashboardWidget.vue (status labels, priorities, tooltips, relative time)
+- ✅ Fixed all hardcoded strings in AgentDashboardWidget.vue (change status labels, template text)
+- ✅ Fixed template to use getStatusLabel() for dynamic status display
+- ✅ Added Vue.prototype.t/n/OC in dashboard.js and agentDashboard.js
+- ✅ Built successfully with npm run build
+- ❌ **BLOCKED**: Translations not appearing in browser despite multiple approaches tried
+  - Tried: Vue mixin with methods
+  - Tried: Vue.prototype assignment
+  - Reference: Followed patterns from Deck and Zammad integrations
+  - **Issue**: t() function calls in templates return English strings even with German locale selected
+  - **Next Steps**: Further investigation needed - ReferenceItopWidget.vue works correctly, but dashboard widgets don't
 
 **Files to Create**:
 - `lib/Dashboard/ItopPortalWidget.php` (rename from ItopWidget.php)
@@ -363,10 +377,13 @@ Due to space constraints in the dashboard widget (limited to 4 tickets + action 
    - Document dashboard API endpoints
    - Update PLAN_CI_BROWSING.md with dashboard status
    - Add dashboard screenshots to docs/
-4. [ ] Update translations
-   - Add dashboard strings to l10n/en.json
-   - Translate to German (de.json, de_DE.json)
-   - Translate to French (fr.json)
+4. [~] Update translations - IN PROGRESS (BLOCKED - See Phase 5 Task 11)
+   - [x] Add dashboard strings to l10n/en.json (35+ strings added)
+   - [x] Translate to German (de.json, de_DE.json)
+   - [x] Translate to French (fr.json)
+   - [x] Refactor all hardcoded strings to use t() function
+   - [x] Add Vue.prototype.t/n/OC to dashboard entry points
+   - [ ] **BLOCKED**: Fix Vue i18n integration - translations not appearing in browser
 
 **Files to Create/Modify**:
 - `tests/unit/Service/ItopAPIServiceDashboardTest.php` - New test file
@@ -584,9 +601,10 @@ Due to space constraints in the dashboard widget (limited to 4 tickets + action 
 
 **Current Status (2025-11-01)**:
 - ✅ Core dashboard functionality complete and working
-- ✅ Dual widget architecture live
-- 🔄 Ready for testing phase
-- 📝 Documentation updates pending
+- ✅ Dual widget architecture live (Portal + Agent widgets)
+- 🔄 Translation integration in progress (blocking issue with Vue i18n)
+- 🔄 Ready for testing phase once translations resolved
+- 📝 Documentation updates pending (README dual-widget section)
 
 ## Future Enhancements
 

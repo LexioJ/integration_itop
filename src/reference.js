@@ -40,8 +40,7 @@ const registerItopWidget = (widgetType) => {
 			return widget
 		}, () => {}, { hasInteractiveView: false })
 	} catch (error) {
-		// Widget already registered, this is fine - just ignore the error
-		console.debug(`iTop ${widgetType} widget already registered, skipping`)
+		// Widget already registered, this is fine - just ignore the error silently
 	}
 }
 

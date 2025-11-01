@@ -1,5 +1,6 @@
-{
-  "translations": {
+OC.L10N.register(
+    "integration_itop",
+    {
     " for ": " for ",
     "\"REST API\"": "\"REST API\"",
     "\"REST Services User\"": "\"REST Services User\"",
@@ -383,6 +384,5 @@
     "💡 Next Steps": "💡 Next Steps",
     "📊 Current Status": "📊 Current Status",
     "📡 Connection Configuration": "📡 Connection Configuration"
-  },
-  "pluralForm": "nplurals=2; plural=(n != 1);"
-}
+},
+    "nplurals=2; plural=(n != 1);");

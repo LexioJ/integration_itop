@@ -12,6 +12,8 @@ export default createAppConfig({
 	reference: 'src/reference.js',
 	dashboard: 'src/dashboard.js',
 	agentDashboard: 'src/agentDashboard.js',
+	'admin-settings': 'src/admin-settings.js',
+	'personal-settings': 'src/personal-settings.js',
 }, {
 	config: {
 		css: {

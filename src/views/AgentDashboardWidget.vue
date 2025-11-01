@@ -30,11 +30,11 @@
 					<div class="metric-body">
 						<div class="metric-line metric-line-clickable" @click="openItopPage('Incident:MyIncidents')">
 							<span class="metric-number" :class="{ 'has-count': counts.my_incidents > 0, 'metric-info': counts.my_incidents > 0 }">{{ counts.my_incidents || 0 }}</span>
-							<span class="metric-text">{{ counts.my_incidents === 1 ? t('integration_itop', 'Incident') : t('integration_itop', 'Incidents') }}</span>
+							<span class="metric-text">{{ t('integration_itop', 'Incidents') }}</span>
 						</div>
 						<div class="metric-line metric-line-clickable" @click="openItopPage('UserRequest:MyRequests')">
 							<span class="metric-number" :class="{ 'has-count': counts.my_requests > 0, 'metric-info': counts.my_requests > 0 }">{{ counts.my_requests || 0 }}</span>
-							<span class="metric-text">{{ counts.my_requests === 1 ? t('integration_itop', 'Request') : t('integration_itop', 'Requests') }}</span>
+							<span class="metric-text">{{ t('integration_itop', 'Requests') }}</span>
 						</div>
 					</div>
 				</div>
@@ -48,11 +48,11 @@
 					<div class="metric-body">
 						<div class="metric-line metric-line-clickable" @click="openItopPage('Incident:OpenIncidents')">
 							<span class="metric-number" :class="{ 'has-count': counts.team_incidents > 0, 'metric-info': counts.team_incidents > 0 }">{{ counts.team_incidents || 0 }}</span>
-							<span class="metric-text">{{ counts.team_incidents === 1 ? t('integration_itop', 'Incident') : t('integration_itop', 'Incidents') }}</span>
+							<span class="metric-text">{{ t('integration_itop', 'Incidents') }}</span>
 						</div>
 						<div class="metric-line metric-line-clickable" @click="openItopPage('UserRequest:OpenRequests')">
 							<span class="metric-number" :class="{ 'has-count': counts.team_requests > 0, 'metric-info': counts.team_requests > 0 }">{{ counts.team_requests || 0 }}</span>
-							<span class="metric-text">{{ counts.team_requests === 1 ? t('integration_itop', 'Request') : t('integration_itop', 'Requests') }}</span>
+							<span class="metric-text">{{ t('integration_itop', 'Requests') }}</span>
 						</div>
 					</div>
 				</div>
@@ -99,9 +99,9 @@
 				<h4 class="section-title section-title-clickable" @click="openItopPage('Changes')">
 					<span>{{ changeCounts.total }} {{ t('integration_itop', 'Changes') }}</span>
 					<div class="section-badges">
-						<span v-if="changeCounts.current > 0" class="status-badge status-open">{{ changeCounts.current }} Now</span>
-						<span v-if="changeCounts.planned > 0" class="status-badge status-pending">{{ changeCounts.planned }} Plan</span>
-						<span v-if="changeCounts.resolved > 0" class="status-badge status-resolved">{{ changeCounts.resolved }} Resolved</span>
+						<span v-if="changeCounts.current > 0" class="status-badge status-open">{{ changeCounts.current }} {{ t('integration_itop', 'Now') }}</span>
+						<span v-if="changeCounts.planned > 0" class="status-badge status-pending">{{ changeCounts.planned }} {{ t('integration_itop', 'Planned') }}</span>
+						<span v-if="changeCounts.resolved > 0" class="status-badge status-resolved">{{ changeCounts.resolved }} {{ t('integration_itop', 'Resolved') }}</span>
 					</div>
 				</h4>
 				<div v-if="upcomingChanges && upcomingChanges.length > 0" class="change-list">
@@ -117,7 +117,7 @@
 							</div>
 							<div class="change-meta">
 								<span v-if="isCurrentChange(change)" class="change-current-details">
-									started: {{ formatCompactDateTime(change.start_date) }} ends at {{ formatCompactDateTime(change.end_date) }}
+									{{ t('integration_itop', 'started:') }} {{ formatCompactDateTime(change.start_date) }} {{ t('integration_itop', 'ends at') }} {{ formatCompactDateTime(change.end_date) }}
 								</span>
 								<span v-else class="change-future-details">
 									{{ getChangeStatusLabel(change.status) }}
@@ -164,7 +164,6 @@
 import { generateUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
 import { showError } from '@nextcloud/dialogs'
-import { translate as t } from '@nextcloud/l10n'
 
 export default {
 	name: 'AgentDashboardWidget',
@@ -211,8 +210,10 @@ export default {
 				const startDate = change.start_date ? new Date(change.start_date) : null
 				const endDate = change.end_date ? new Date(change.end_date) : null
 
-				// Check if resolved based on operational_status
-				const isResolved = change.operational_status === 'closed' || change.operational_status === 'resolved'
+				// Check if resolved based on status (implemented/monitored/closed)
+				const isResolved = change.status === 'closed'
+					|| change.status === 'implemented'
+					|| change.status === 'monitored'
 
 				if (isResolved) {
 					resolved++
@@ -239,8 +240,6 @@ export default {
 	},
 
 	methods: {
-		t,
-
 		async loadData() {
 			this.loading = true
 			this.error = null
@@ -382,16 +381,16 @@ export default {
 
 			// Map status codes to user-friendly labels
 			const statusMap = {
-				new: 'New',
-				validated: 'Validated',
-				rejected: 'Rejected',
-				assigned: 'Assigned',
-				plannedscheduled: 'Planned and scheduled',
-				approved: 'Approved',
-				notapproved: 'Not approved',
-				implemented: 'Implemented',
-				monitored: 'Monitored',
-				closed: 'Closed',
+				new: this.t('integration_itop', 'New'),
+				validated: this.t('integration_itop', 'Validated'),
+				rejected: this.t('integration_itop', 'Rejected'),
+				assigned: this.t('integration_itop', 'Assigned'),
+				plannedscheduled: this.t('integration_itop', 'Planned and scheduled'),
+				approved: this.t('integration_itop', 'Approved'),
+				notapproved: this.t('integration_itop', 'Not approved'),
+				implemented: this.t('integration_itop', 'Implemented'),
+				monitored: this.t('integration_itop', 'Monitored'),
+				closed: this.t('integration_itop', 'Closed'),
 			}
 
 			return statusMap[status.toLowerCase()] || status

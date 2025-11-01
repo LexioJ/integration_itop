@@ -16,7 +16,7 @@ A comprehensive Nextcloud integration that brings iTop IT Service Management and
 - 🔍 **Instant Search** - Find tickets and CIs from Nextcloud's search bar
 - 🔗 **Rich Previews** - Paste iTop links anywhere for interactive previews
 - 💬 **Smart Suggestions** - Get CI/ticket recommendations while typing in Talk or Text
-- 📊 **Dashboard Widget** - See your ticket queue at a glance
+- 📊 **Dashboard Widgets** - Portal widget for personal tickets + Agent widget for operational metrics
 - 🔔 **Notifications** - Get alerted when tickets are assigned to you
 
 ### **For IT Teams**
@@ -36,12 +36,16 @@ A comprehensive Nextcloud integration that brings iTop IT Service Management and
 
 ## 🚀 Key Features
 
-### 📊 Interactive Dashboard Widget
-Get a comprehensive overview of your ticket queue directly on your Nextcloud dashboard.
+### 📊 Interactive Dashboard Widgets
+
+Get comprehensive overviews of your ticket queue directly on your Nextcloud dashboard. The integration provides **two specialized widgets** that adapt to your user profile:
 
 ![Dashboard Widget](docs/images/dashboard1.png)
 
-**At-a-Glance Ticket Management:**
+#### 🎫 Portal Widget - "iTop"
+**For All Users** - Track your personal tickets at a glance
+
+**Features:**
 - **Compact Status Overview**: See total tickets with badge breakdown (open, escalated, pending, resolved)
 - **Recent Ticket Feed**: Display 4 most recent tickets sorted by last update
 - **Visual Status Indicators**: State-specific SVG icons (new, escalated, deadline, closed) for both Incidents and UserRequests
@@ -51,10 +55,32 @@ Get a comprehensive overview of your ticket queue directly on your Nextcloud das
 - **Quick Actions**: Refresh dashboard and create new tickets without leaving Nextcloud
 - **Responsive Design**: Mobile-optimized layout adapts to all screen sizes
 
+#### 👨‍💼 Agent Widget - "iTop - Agent Dashboard"
+**For Agent Users Only** - Comprehensive operational dashboard
+
+**Features:**
+- **My Work**: Count of assigned incidents and requests
+- **Team Queue**: Team-wide ticket counts (incidents and requests)
+- **SLA Tracking**:
+  - SLA Warnings (TTO/TTR approaching)
+  - SLA Breaches (TTO/TTR exceeded)
+- **Change Management**:
+  - Upcoming changes with time windows
+  - Emergency/Normal/Routine change types
+  - Current and planned change status
+- **Quick Navigation**: Click metrics to jump to filtered iTop views
+- **Real-Time Counts**: Live ticket counts with visual indicators (info, warning, error)
+- **Responsive Grid**: 2x2 metrics layout adapting to screen size
+
+**Widget Visibility:**
+- **Portal Users** (is_portal_only = true): See only Portal Widget
+- **Agent Users** (is_portal_only = false): See both Portal Widget and Agent Widget
+- Automatically controlled by iTop user profiles
+
 **Perfect for:**
-- Managers tracking team workload at a glance
-- End users checking their open requests
-- Anyone who needs quick access to ticket status without switching contexts
+- **Portal Widget**: End users tracking their personal requests
+- **Agent Widget**: IT agents managing workload, SLA compliance, and team coordination
+- **Both**: Managers needing both personal and operational views
 
 ### 🔗 Dynamic Reference Provider
 Transform iTop links into rich, interactive previews across Nextcloud apps (Talk, Deck, Text, Collectives).

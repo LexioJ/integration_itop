@@ -201,7 +201,8 @@ body[data-theme-dark] .itop-personal-status-card {
 /* Ticket count styling */
 .itop-ticket-counts {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 4px;
 }
 
