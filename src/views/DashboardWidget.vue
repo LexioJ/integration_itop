@@ -413,6 +413,61 @@ export default {
 	text-align: right;
 }
 
+/* Compact Header with Status Badges */
+.itop-header-compact {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 12px;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.itop-header-compact__title {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 0;
+	color: var(--color-main-text);
+}
+
+.itop-status-badges {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.status-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 3px 8px;
+	border-radius: 10px;
+	font-size: 10px;
+	font-weight: 600;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.status-badge.status-open {
+	background: #ffebe6;
+	color: #de350b;
+}
+
+.status-badge.status-escalated {
+	background: #fff4e6;
+	color: #ff8b00;
+}
+
+.status-badge.status-pending {
+	background: #e6f2ff;
+	color: #0065ff;
+}
+
+.status-badge.status-resolved {
+	background: #e3fcef;
+	color: #00875a;
+}
+
 .itop-btn-refresh {
 	padding: 8px 5px;
 	background: var(--color-primary-element);
@@ -705,7 +760,26 @@ export default {
 @media (max-width: 480px) {
 	.itop-dashboard {
 		padding: 8px;
-		}
+	}
+
+	.itop-header-compact {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+	}
+
+	.itop-header-compact__title {
+		font-size: 14px;
+	}
+
+	.itop-status-badges {
+		width: 100%;
+	}
+
+	.status-badge {
+		padding: 2px 6px;
+		font-size: 9px;
+	}
 
 	.itop-ticket-item {
 		gap: 8px;
@@ -728,10 +802,20 @@ export default {
 	.itop-btn-new-ticket {
 		width: 100%;
 		justify-content: center;
+		padding: 8px 12px;
+		font-size: 12px;
 	}
 }
 
 @media (min-width: 481px) and (max-width: 768px) {
+	.itop-header-compact {
+		gap: 8px;
+	}
+
+	.status-badge {
+		font-size: 10px;
+	}
+
 	.itop-actions {
 		flex-wrap: wrap;
 		gap: 8px;

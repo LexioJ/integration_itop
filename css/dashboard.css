@@ -73,63 +73,6 @@
 }
 
 /* ========================================
-   Compact Header with Status Badges
-   ======================================== */
-.itop-header-compact {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--itop-space-md);
-  gap: var(--itop-space-xs);
-  flex-wrap: wrap;
-}
-
-.itop-header-compact__title {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0;
-  color: var(--color-main-text);
-}
-
-.itop-status-badges {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 10px;
-  font-size: 10px;
-  font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.status-badge.status-open {
-  background: var(--itop-status-open-bg);
-  color: var(--itop-status-open);
-}
-
-.status-badge.status-escalated {
-  background: var(--itop-status-escalated-bg);
-  color: var(--itop-status-escalated);
-}
-
-.status-badge.status-pending {
-  background: var(--itop-status-pending-bg);
-  color: var(--itop-status-pending);
-}
-
-.status-badge.status-resolved {
-  background: var(--itop-status-resolved-bg);
-  color: var(--itop-status-resolved);
-}
-
-/* ========================================
    Loading States
    ======================================== */
 .itop-dashboard__loading {
@@ -1125,25 +1068,6 @@
     padding: var(--itop-space-xs);
   }
 
-  .itop-header-compact {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--itop-space-sm);
-  }
-
-  .itop-header-compact__title {
-    font-size: 14px;
-  }
-
-  .itop-status-badges {
-    width: 100%;
-  }
-
-  .status-badge {
-    padding: 2px 6px;
-    font-size: 9px;
-  }
-
   .itop-ticket-item {
     padding: var(--itop-space-xs) var(--itop-space-sm);
     gap: var(--itop-space-xs);
@@ -1181,14 +1105,6 @@
 }
 
 @media (min-width: 481px) and (max-width: 640px) {
-  .itop-header-compact {
-    gap: var(--itop-space-sm);
-  }
-
-  .status-badge {
-    font-size: 10px;
-  }
-
   .itop-ticket-item {
     padding: var(--itop-space-sm);
   }

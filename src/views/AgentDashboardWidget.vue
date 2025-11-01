@@ -581,6 +581,33 @@ export default {
 	align-items: center;
 }
 
+// Status badge styles
+.status-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 3px 8px;
+	border-radius: 10px;
+	font-size: 10px;
+	font-weight: 600;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.status-badge.status-open {
+	background: #ffebe6;
+	color: #de350b;
+}
+
+.status-badge.status-pending {
+	background: #e6f2ff;
+	color: #0065ff;
+}
+
+.status-badge.status-resolved {
+	background: #e3fcef;
+	color: #00875a;
+}
+
 .change-list {
 	display: flex;
 	flex-direction: column;
