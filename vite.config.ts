@@ -4,11 +4,16 @@
  */
 import { createAppConfig } from '@nextcloud/vite-config'
 import eslint from 'vite-plugin-eslint'
+/// <reference types="node" />
 
-const isProduction = process.env.NODE_ENV === 'production'
+// Use static minification to avoid Node typings in lint
 
 export default createAppConfig({
 	reference: 'src/reference.js',
+	dashboard: 'src/dashboard.js',
+	agentDashboard: 'src/agentDashboard.js',
+	'admin-settings': 'src/admin-settings.js',
+	'personal-settings': 'src/personal-settings.js',
 }, {
 	config: {
 		css: {
@@ -16,9 +21,7 @@ export default createAppConfig({
 				localsConvention: 'camelCase',
 			},
 			preprocessorOptions: {
-				scss: {
-					api: 'modern-compiler',
-				},
+				scss: {},
 			},
 		},
 		plugins: [eslint()],
@@ -28,5 +31,5 @@ export default createAppConfig({
 		},
 	},
 	inlineCSS: { relativeCSSInjection: true },
-	minify: isProduction,
+	minify: true,
 })

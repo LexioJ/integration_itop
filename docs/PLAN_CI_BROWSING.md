@@ -376,6 +376,49 @@ All Phase 7 objectives achieved with comprehensive localization coverage:
 - [ ] Version bump in info.xml
 - [ ] Release preparation (manual approval required)
 
+## Related Features
+
+### Dashboard Widgets ✅ COMPLETED
+
+**Implementation Plan**: See [PLAN_DASHBOARD.md](./PLAN_DASHBOARD.md)
+**Status**: Fully implemented with dual-widget architecture
+
+The dashboard feature complements CI browsing by providing real-time ticket management:
+
+**Portal Widget** - "iTop" (for all users):
+- Personal ticket queue with status breakdown
+- 4 most recent tickets (Incidents + UserRequests)
+- Visual status indicators and priorities
+- Quick actions: Refresh and Create New Ticket
+- Responsive design for mobile/desktop
+
+**Agent Widget** - "iTop - Agent Dashboard" (for agents only):
+- **My Work**: Assigned incidents and requests
+- **Team Queue**: Team-wide ticket counts
+- **SLA Tracking**: TTO/TTR warnings and breaches
+- **Change Management**: Upcoming changes with time windows
+- Real-time counts with clickable metrics
+- Conditional visibility (hidden for portal-only users)
+
+**Key Integration Points**:
+- Both widgets use the same `ItopAPIService` as CI browsing
+- Shared authentication (admin application token + user context)
+- Consistent security model (filtered by Person ID)
+- Common caching strategy (profile cache, real-time ticket data)
+- Unified translation system (35+ strings in 4 languages)
+
+**Dashboard API Endpoints**:
+- `GET /apps/integration_itop/dashboard` - Portal widget data
+- `GET /apps/integration_itop/agent-dashboard` - Agent widget data
+
+See [API_DASHBOARD.md](./API_DASHBOARD.md) for complete endpoint documentation.
+
+**Future CI Integration**:
+Phase 3 of PLAN_DASHBOARD originally proposed adding recent CIs to the dashboard widget, but was deferred due to space constraints. The `recent_cis` field in the portal dashboard API is reserved for potential future integration:
+- Could display 2-3 recently viewed CIs
+- Alternative: Create dedicated "iTop CIs" dashboard widget
+- CIs are currently accessible via Unified Search and Smart Picker
+
 ## Key Features
 
 ### 1. Unified Search Integration
