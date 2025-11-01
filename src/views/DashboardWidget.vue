@@ -22,7 +22,8 @@
 			<!-- Dashboard Content -->
 			<template v-if="totalTickets > 0">
 				<!-- Compact Header with Status Badges -->
-				<div class="itop-header-compact">
+				<div class="itop-header-compact itop-header-compact-clickable"
+					@click="openPortalTickets">
 					<h3 class="itop-header-compact__title">
 						{{ totalTickets }} {{ t('integration_itop', totalTickets === 1 ? 'Ticket' : 'Tickets') }}
 					</h3>
@@ -360,6 +361,12 @@ export default {
 				window.open(url, '_blank', 'noopener,noreferrer')
 			}
 		},
+		openPortalTickets() {
+			if (this.itopUrl) {
+				const url = `${this.itopUrl}/pages/exec.php/manage/ongoing-tickets-for-portal-user?exec_module=itop-portal-base&exec_page=index.php&portal_id=itop-portal`
+				window.open(url, '_blank', 'noopener,noreferrer')
+			}
+		},
 	},
 }
 </script>
@@ -566,6 +573,17 @@ export default {
 	box-sizing: border-box;
 	overflow: hidden;
 	cursor: pointer;
+	transition: all 0.2s ease;
+	outline: none;
+}
+
+.itop-ticket-item:hover {
+	background: var(--color-primary-light);
+	transform: translateY(-1px);
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	outline: none;
+	border-bottom-color: transparent !important;
+	border-color: transparent !important;
 }
 
 .itop-ticket-item:last-child {
@@ -717,6 +735,21 @@ export default {
 	.ticket-meta {
 		gap: 8px;
 	}
+}
+
+/* Clickable Header */
+.itop-header-compact-clickable {
+	cursor: pointer;
+	border-radius: 4px;
+	transition: background 0.2s ease;
+	padding: 4px;
+	padding-bottom: 5px;
+	margin: 0px;
+}
+
+.itop-header-compact-clickable:hover {
+	background: var(--color-primary-light);
+	color: var(--color-primary-element);
 }
 
 </style>

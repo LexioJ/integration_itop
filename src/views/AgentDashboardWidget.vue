@@ -650,10 +650,12 @@ export default {
 	border-radius: 6px;
 	padding: 10px;
 	cursor: pointer;
-	transition: background 0.2s ease;
+	transition: all 0.2s ease;
 
 	&:hover {
 		background: var(--color-primary-light);
+		transform: translateY(-1px);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	}
 }
 
