@@ -374,9 +374,9 @@ Due to space constraints in the dashboard widget (limited to 4 tickets + action 
    - Test error scenarios (no person_id, API errors)
 3. [~] Update documentation - IN PROGRESS
    - [x] Add dashboard section to README (dual-widget architecture fully documented)
-   - [ ] Document dashboard API endpoints
-   - [ ] Update PLAN_CI_BROWSING.md with dashboard status
-   - [ ] Add dashboard screenshots to docs/
+   - [x] Document dashboard API endpoints (API_DASHBOARD.md created)
+   - [x] Update PLAN_CI_BROWSING.md with dashboard status
+   - [ ] Add dashboard screenshots to docs/ (optional - requires real iTop instance)
 4. [x] Update translations - ✅ COMPLETED
    - [x] Add dashboard strings to l10n/en.json (35+ strings added)
    - [x] Translate to German (de.json, de_DE.json)
