@@ -728,7 +728,7 @@ export default {
 	font-size: 15px;
 	font-weight: 500;
 	cursor: pointer;
-	transition: background 0.2s;
+	transition: all 0.2s ease;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -737,6 +737,8 @@ export default {
 
 	&:hover {
 		background: var(--color-primary-element-hover);
+		transform: translateY(-1px);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	}
 }
 

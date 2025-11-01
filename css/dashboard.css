@@ -983,38 +983,8 @@
 /* ========================================
    Ticket List (Compact)
    ======================================== */
-.itop-ticket-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--itop-space-sm);
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.itop-ticket-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: var(--itop-space-sm) var(--itop-space-md);
-  background: var(--color-main-background);
-  border: 1px solid var(--color-border);
-  border-radius: var(--itop-radius-sm);
-  transition: var(--itop-transition);
-  text-decoration: none;
-  color: inherit;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.itop-ticket-item:hover {
-  background: var(--color-background-hover);
-  border-color: var(--color-primary-element);
-  transform: translateX(4px);
-  box-shadow: var(--itop-shadow-sm);
-}
+/* Ticket item styles moved to Vue component scoped styles */
+/* to avoid conflicts and improve component encapsulation */
 
 .ticket-svg {
   width: 28px;
@@ -1036,76 +1006,6 @@
   line-height: 1;
   display: inline-block;
   vertical-align: middle;
-}
-
-.ticket-content {
-  flex: 1;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
-
-.ticket-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-main-text);
-  margin-bottom: 4px;
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ticket-ref {
-  color: var(--color-text-maxcontrast);
-  font-weight: 600;
-  margin-right: 4px;
-}
-
-.ticket-meta {
-  font-size: 11px;
-  color: var(--color-text-maxcontrast);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  overflow: hidden;
-}
-
-.ticket-status {
-  font-weight: 500;
-  text-transform: capitalize;
-}
-
-.ticket-meta-separator {
-  opacity: 0.5;
-}
-
-.ticket-priority {
-  font-weight: 500;
-}
-
-.priority-critical {
-  color: var(--itop-priority-critical);
-}
-
-.priority-high {
-  color: var(--itop-priority-high);
-}
-
-.priority-medium {
-  color: var(--itop-priority-medium);
-}
-
-.priority-low {
-  color: var(--itop-priority-low);
-}
-
-.itop-empty {
-  text-align: center;
-  padding: var(--itop-space-xl);
-  color: var(--color-text-maxcontrast);
-  font-style: italic;
 }
 
 /* ========================================
