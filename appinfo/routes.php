@@ -23,7 +23,8 @@ return [
 		['name' => 'itopAPI#getAvatar', 'url' => '/avatar', 'verb' => 'GET'],
 		['name' => 'itopAPI#getCIs', 'url' => '/cis', 'verb' => 'GET'],
 		['name' => 'itopAPI#getDashboardData', 'url' => '/dashboard', 'verb' => 'GET'],
-		
+		['name' => 'itopAPI#getAgentDashboardData', 'url' => '/agent-dashboard', 'verb' => 'GET'],
+
 		// Search routes
 		['name' => 'itopAPI#search', 'url' => '/search', 'verb' => 'GET'],
 	]

@@ -12,6 +12,7 @@ namespace OCA\Itop\AppInfo;
 
 use Closure;
 use OCA\Itop\Dashboard\ItopWidget;
+use OCA\Itop\Dashboard\ItopAgentWidget;
 use OCA\Itop\Listener\ItopReferenceListener;
 use OCA\Itop\Notification\Notifier;
 use OCA\Itop\Reference\ItopReferenceProvider;
@@ -180,6 +181,7 @@ class Application extends App implements IBootstrap {
 
 	public function register(IRegistrationContext $context): void {
 		$context->registerDashboardWidget(ItopWidget::class);
+		$context->registerDashboardWidget(ItopAgentWidget::class);
 		$context->registerSearchProvider(ItopSearchProvider::class);
 
 		$context->registerReferenceProvider(ItopReferenceProvider::class);

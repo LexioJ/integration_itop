@@ -11,6 +11,7 @@ import eslint from 'vite-plugin-eslint'
 export default createAppConfig({
 	reference: 'src/reference.js',
 	dashboard: 'src/dashboard.js',
+	agentDashboard: 'src/agentDashboard.js',
 }, {
 	config: {
 		css: {

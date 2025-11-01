@@ -1148,4 +1148,567 @@ class ItopAPIService {
 		}
 	}
 
+	/**
+	 * ==========================================
+	 * AGENT DASHBOARD METHODS
+	 * ==========================================
+	 * Methods specific to agent workflows for the Agent Dashboard widget
+	 */
+
+	/**
+	 * Get teams/groups that a user belongs to
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @return array List of teams with id and friendlyname
+	 */
+	public function getUserTeams(string $userId): array {
+		$personId = $this->getPersonId($userId);
+
+		if (!$personId) {
+			$this->logger->warning('getUserTeams: No person_id found', [
+				'app' => Application::APP_ID,
+				'userId' => $userId
+			]);
+			return [];
+		}
+
+		$params = [
+			'operation' => 'core/get',
+			'class' => 'Team',
+			'key' => "SELECT Team AS t JOIN lnkPersonToTeam AS l ON l.team_id = t.id WHERE l.person_id = $personId",
+			'output_fields' => 'id,name,friendlyname'
+		];
+
+		$result = $this->request($userId, $params);
+
+		if (isset($result['error'])) {
+			$this->logger->error('getUserTeams: API error: ' . $result['error'], [
+				'app' => Application::APP_ID,
+				'userId' => $userId
+			]);
+			return [];
+		}
+
+		$teams = [];
+		if (isset($result['objects'])) {
+			foreach ($result['objects'] as $team) {
+				$teams[] = [
+					'id' => $team['fields']['id'] ?? $team['key'] ?? '',
+					'name' => $team['fields']['name'] ?? '',
+					'friendlyname' => $team['fields']['friendlyname'] ?? $team['fields']['name'] ?? ''
+				];
+			}
+		}
+
+		return $teams;
+	}
+
+	/**
+	 * Get tickets assigned to the current user (agent_id = person_id)
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param int $limit Maximum number of tickets to return
+	 * @return array List of tickets assigned to this agent
+	 */
+	public function getMyAssignedTickets(string $userId, int $limit = 20): array {
+		$personId = $this->getPersonId($userId);
+
+		if (!$personId) {
+			return [];
+		}
+
+		$itopUrl = $this->getItopUrl($userId);
+		$allTickets = [];
+
+		// Query UserRequest tickets assigned to this agent
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => "SELECT UserRequest WHERE agent_id = $personId AND status != 'closed'",
+			'output_fields' => 'id,ref,title,description,status,operational_status,priority,caller_id_friendlyname,team_id_friendlyname,start_date,last_update',
+			'limit' => $limit
+		];
+
+		$userRequestResult = $this->request($userId, $userRequestParams);
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $objectKey => $ticket) {
+				$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
+				$allTickets[] = [
+					'type' => 'UserRequest',
+					'id' => $ticketId,
+					'ref' => $ticket['fields']['ref'] ?? '',
+					'title' => $ticket['fields']['title'] ?? '',
+					'description' => $ticket['fields']['description'] ?? '',
+					'status' => $ticket['fields']['status'] ?? 'unknown',
+					'operational_status' => $ticket['fields']['operational_status'] ?? '',
+					'priority' => $ticket['fields']['priority'] ?? '',
+					'caller' => $ticket['fields']['caller_id_friendlyname'] ?? '',
+					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
+					'start_date' => $ticket['fields']['start_date'] ?? '',
+					'last_update' => $ticket['fields']['last_update'] ?? '',
+					'url' => $itopUrl . '/pages/UI.php?operation=details&class=UserRequest&id=' . $ticketId
+				];
+			}
+		}
+
+		// Query Incident tickets assigned to this agent
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => "SELECT Incident WHERE agent_id = $personId AND status != 'closed'",
+			'output_fields' => 'id,ref,title,description,status,operational_status,priority,caller_id_friendlyname,team_id_friendlyname,start_date,last_update',
+			'limit' => $limit
+		];
+
+		$incidentResult = $this->request($userId, $incidentParams);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $objectKey => $ticket) {
+				$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
+				$allTickets[] = [
+					'type' => 'Incident',
+					'id' => $ticketId,
+					'ref' => $ticket['fields']['ref'] ?? '',
+					'title' => $ticket['fields']['title'] ?? '',
+					'description' => $ticket['fields']['description'] ?? '',
+					'status' => $ticket['fields']['status'] ?? 'unknown',
+					'operational_status' => $ticket['fields']['operational_status'] ?? '',
+					'priority' => $ticket['fields']['priority'] ?? '',
+					'caller' => $ticket['fields']['caller_id_friendlyname'] ?? '',
+					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
+					'start_date' => $ticket['fields']['start_date'] ?? '',
+					'last_update' => $ticket['fields']['last_update'] ?? '',
+					'url' => $itopUrl . '/pages/UI.php?operation=details&class=Incident&id=' . $ticketId
+				];
+			}
+		}
+
+		// Sort by last_update descending (most recent first)
+		usort($allTickets, function($a, $b) {
+			return strcmp($b['last_update'] ?? '', $a['last_update'] ?? '');
+		});
+
+		return array_slice($allTickets, 0, $limit);
+	}
+
+	/**
+	 * Get tickets assigned to teams the user belongs to (unassigned or assigned to others)
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param int $limit Maximum number of tickets to return
+	 * @return array List of team queue tickets
+	 */
+	public function getTeamAssignedTickets(string $userId, int $limit = 20): array {
+		$teams = $this->getUserTeams($userId);
+
+		if (empty($teams)) {
+			return [];
+		}
+
+		$teamIds = array_map(fn($t) => $t['id'], $teams);
+		$teamIdList = implode(',', $teamIds);
+
+		$itopUrl = $this->getItopUrl($userId);
+		$allTickets = [];
+
+		// Query UserRequest tickets assigned to these teams (open tickets only)
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => "SELECT UserRequest WHERE team_id IN ($teamIdList) AND status != 'closed' AND status != 'resolved'",
+			'output_fields' => 'id,ref,title,description,status,operational_status,priority,agent_id_friendlyname,team_id_friendlyname,start_date,last_update',
+			'limit' => $limit
+		];
+
+		$userRequestResult = $this->request($userId, $userRequestParams);
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $objectKey => $ticket) {
+				$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
+				$allTickets[] = [
+					'type' => 'UserRequest',
+					'id' => $ticketId,
+					'ref' => $ticket['fields']['ref'] ?? '',
+					'title' => $ticket['fields']['title'] ?? '',
+					'description' => $ticket['fields']['description'] ?? '',
+					'status' => $ticket['fields']['status'] ?? 'unknown',
+					'operational_status' => $ticket['fields']['operational_status'] ?? '',
+					'priority' => $ticket['fields']['priority'] ?? '',
+					'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
+					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
+					'start_date' => $ticket['fields']['start_date'] ?? '',
+					'last_update' => $ticket['fields']['last_update'] ?? '',
+					'url' => $itopUrl . '/pages/UI.php?operation=details&class=UserRequest&id=' . $ticketId
+				];
+			}
+		}
+
+		// Query Incident tickets assigned to these teams
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => "SELECT Incident WHERE team_id IN ($teamIdList) AND status != 'closed' AND status != 'resolved'",
+			'output_fields' => 'id,ref,title,description,status,operational_status,priority,agent_id_friendlyname,team_id_friendlyname,start_date,last_update',
+			'limit' => $limit
+		];
+
+		$incidentResult = $this->request($userId, $incidentParams);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $objectKey => $ticket) {
+				$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
+				$allTickets[] = [
+					'type' => 'Incident',
+					'id' => $ticketId,
+					'ref' => $ticket['fields']['ref'] ?? '',
+					'title' => $ticket['fields']['title'] ?? '',
+					'description' => $ticket['fields']['description'] ?? '',
+					'status' => $ticket['fields']['status'] ?? 'unknown',
+					'operational_status' => $ticket['fields']['operational_status'] ?? '',
+					'priority' => $ticket['fields']['priority'] ?? '',
+					'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
+					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
+					'start_date' => $ticket['fields']['start_date'] ?? '',
+					'last_update' => $ticket['fields']['last_update'] ?? '',
+					'url' => $itopUrl . '/pages/UI.php?operation=details&class=Incident&id=' . $ticketId
+				];
+			}
+		}
+
+		// Sort by priority (critical first) then by last_update
+		usort($allTickets, function($a, $b) {
+			$priorityOrder = ['1' => 3, '2' => 2, '3' => 1]; // low, medium, high
+			$aPriority = $priorityOrder[$a['priority'] ?? ''] ?? 0;
+			$bPriority = $priorityOrder[$b['priority'] ?? ''] ?? 0;
+
+			if ($bPriority !== $aPriority) {
+				return $bPriority - $aPriority;
+			}
+
+			return strcmp($b['last_update'] ?? '', $a['last_update'] ?? '');
+		});
+
+		return array_slice($allTickets, 0, $limit);
+	}
+
+	/**
+	 * Get escalated tickets in teams the user belongs to
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param int $limit Maximum number of tickets to return
+	 * @return array List of escalated tickets
+	 */
+	public function getEscalatedTicketsForMyTeams(string $userId, int $limit = 20): array {
+		$teams = $this->getUserTeams($userId);
+
+		if (empty($teams)) {
+			return [];
+		}
+
+		$teamIds = array_map(fn($t) => $t['id'], $teams);
+		$teamIdList = implode(',', $teamIds);
+
+		$itopUrl = $this->getItopUrl($userId);
+		$allTickets = [];
+
+		// Query UserRequest tickets that are escalated
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => "SELECT UserRequest WHERE team_id IN ($teamIdList) AND (status LIKE '%escalated%' OR operational_status = 'escalated')",
+			'output_fields' => 'id,ref,title,description,status,operational_status,priority,agent_id_friendlyname,team_id_friendlyname,start_date,last_update',
+			'limit' => $limit
+		];
+
+		$userRequestResult = $this->request($userId, $userRequestParams);
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $objectKey => $ticket) {
+				$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
+				$allTickets[] = [
+					'type' => 'UserRequest',
+					'id' => $ticketId,
+					'ref' => $ticket['fields']['ref'] ?? '',
+					'title' => $ticket['fields']['title'] ?? '',
+					'description' => $ticket['fields']['description'] ?? '',
+					'status' => $ticket['fields']['status'] ?? 'unknown',
+					'operational_status' => $ticket['fields']['operational_status'] ?? '',
+					'priority' => $ticket['fields']['priority'] ?? '',
+					'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
+					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
+					'start_date' => $ticket['fields']['start_date'] ?? '',
+					'last_update' => $ticket['fields']['last_update'] ?? '',
+					'url' => $itopUrl . '/pages/UI.php?operation=details&class=UserRequest&id=' . $ticketId
+				];
+			}
+		}
+
+		// Query Incident tickets that are escalated
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => "SELECT Incident WHERE team_id IN ($teamIdList) AND (status LIKE '%escalated%' OR operational_status = 'escalated')",
+			'output_fields' => 'id,ref,title,description,status,operational_status,priority,agent_id_friendlyname,team_id_friendlyname,start_date,last_update',
+			'limit' => $limit
+		];
+
+		$incidentResult = $this->request($userId, $incidentParams);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $objectKey => $ticket) {
+				$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
+				$allTickets[] = [
+					'type' => 'Incident',
+					'id' => $ticketId,
+					'ref' => $ticket['fields']['ref'] ?? '',
+					'title' => $ticket['fields']['title'] ?? '',
+					'description' => $ticket['fields']['description'] ?? '',
+					'status' => $ticket['fields']['status'] ?? 'unknown',
+					'operational_status' => $ticket['fields']['operational_status'] ?? '',
+					'priority' => $ticket['fields']['priority'] ?? '',
+					'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
+					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
+					'start_date' => $ticket['fields']['start_date'] ?? '',
+					'last_update' => $ticket['fields']['last_update'] ?? '',
+					'url' => $itopUrl . '/pages/UI.php?operation=details&class=Incident&id=' . $ticketId
+				];
+			}
+		}
+
+		// Sort by last_update descending (most recent escalations first)
+		usort($allTickets, function($a, $b) {
+			return strcmp($b['last_update'] ?? '', $a['last_update'] ?? '');
+		});
+
+		return array_slice($allTickets, 0, $limit);
+	}
+
+	/**
+	 * Get upcoming changes (approved/planned changes with near-future start dates)
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param int $limit Maximum number of changes to return
+	 * @return array List of upcoming changes
+	 */
+	public function getUpcomingChanges(string $userId, int $limit = 10): array {
+		$itopUrl = $this->getItopUrl($userId);
+		$allChanges = [];
+
+		// Query all relevant Change tickets: current (ongoing) and planned (upcoming within 30 days)
+		// Current: start_date <= NOW() AND end_date >= NOW()
+		// Planned: start_date > NOW() AND start_date < DATE_ADD(NOW(), INTERVAL 30 DAY)
+		// Exclude closed changes: status != 'closed'
+		$params = [
+			'operation' => 'core/get',
+			'class' => 'Change',
+			'key' => "SELECT Change WHERE ((start_date <= NOW() AND end_date >= NOW()) OR (start_date > NOW() AND start_date < DATE_ADD(NOW(), INTERVAL 30 DAY))) AND status != 'closed'",
+			'output_fields' => 'id,ref,title,description,status,start_date,end_date,impact,last_update,operational_status,finalclass',
+			'limit' => $limit * 2  // Fetch more to account for both current and planned
+		];
+
+		$this->logger->info('getUpcomingChanges query params', ['app' => Application::APP_ID, 'params' => json_encode($params)]);
+		$result = $this->request($userId, $params, 'POST', false); // DISABLE CACHE FOR TESTING
+		$this->logger->info('getUpcomingChanges FULL RESULT', ['app' => Application::APP_ID, 'result' => json_encode($result)]);
+		if (isset($result['objects'])) {
+			foreach ($result['objects'] as $objectKey => $change) {
+				$changeId = $change['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
+				$finalclass = $change['fields']['finalclass'] ?? 'Change';
+				$allChanges[] = [
+					'type' => 'Change',
+					'id' => $changeId,
+					'ref' => $change['fields']['ref'] ?? '',
+					'title' => $change['fields']['title'] ?? '',
+					'description' => $change['fields']['description'] ?? '',
+					'status' => $change['fields']['status'] ?? 'unknown',
+					'impact' => $change['fields']['impact'] ?? '',
+					'start_date' => $change['fields']['start_date'] ?? '',
+					'end_date' => $change['fields']['end_date'] ?? '',
+					'last_update' => $change['fields']['last_update'] ?? '',
+					'operational_status' => $change['fields']['operational_status'] ?? '',
+					'finalclass' => $finalclass,
+					'url' => $itopUrl . '/pages/UI.php?operation=details&class=' . $finalclass . '&id=' . $changeId
+				];
+			}
+		}
+
+		// Sort by priority: current (ongoing) first, then planned (soonest first)
+		usort($allChanges, function($a, $b) {
+			$now = time();
+			$aStart = strtotime($a['start_date'] ?? '');
+			$aEnd = strtotime($a['end_date'] ?? '');
+			$bStart = strtotime($b['start_date'] ?? '');
+			$bEnd = strtotime($b['end_date'] ?? '');
+
+			// Check if current (ongoing)
+			$aIsCurrent = $aStart <= $now && $aEnd >= $now;
+			$bIsCurrent = $bStart <= $now && $bEnd >= $now;
+
+			// Prioritize current changes
+			if ($aIsCurrent && !$bIsCurrent) return -1;
+			if (!$aIsCurrent && $bIsCurrent) return 1;
+
+			// Both current or both planned - sort by start_date
+			return strcmp($a['start_date'] ?? '', $b['start_date'] ?? '');
+		});
+
+		return $allChanges;
+	}
+
+	/**
+	 * Get SLA Warning tickets (approaching deadline within 24h)
+	 * Returns separate counts for TTO and TTR warnings
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @return array ['tto' => count, 'ttr' => count]
+	 */
+	public function getSLAWarningCounts(string $userId): array {
+		$teams = $this->getUserTeams($userId);
+		if (empty($teams)) {
+			return ['tto' => 0, 'ttr' => 0];
+		}
+
+		$teamIds = array_column($teams, 'id');
+		$teamFilter = implode(',', $teamIds);
+
+		$ttoCount = 0;
+		$ttrCount = 0;
+
+		// Fetch all tickets in team with SLA deadline fields (filter in PHP)
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => "SELECT Incident WHERE team_id IN ($teamFilter)",
+			'output_fields' => 'id,tto_escalation_deadline,ttr_escalation_deadline,sla_tto_passed,sla_ttr_passed'
+		];
+
+		$requestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => "SELECT UserRequest WHERE team_id IN ($teamFilter)",
+			'output_fields' => 'id,tto_escalation_deadline,ttr_escalation_deadline,sla_tto_passed,sla_ttr_passed'
+		];
+
+		$now = time();
+		// Weekend-aware warning window: Friday=72h, Saturday=48h, other days=24h
+		$dayOfWeek = (int)date('N', $now); // 1 (Monday) to 7 (Sunday)
+		if ($dayOfWeek === 5) {
+			// Friday: 72h to catch Mon/Tue breaches
+			$warningWindow = 72 * 60 * 60;
+		} elseif ($dayOfWeek === 6) {
+			// Saturday: 48h to catch Sun/Mon breaches
+			$warningWindow = 48 * 60 * 60;
+		} else {
+			// Other days: standard 24h window
+			$warningWindow = 24 * 60 * 60;
+		}
+
+		// Count Incident warnings by filtering in PHP
+		$incidentResult = $this->request($userId, $incidentParams);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $incident) {
+				$fields = $incident['fields'];
+
+				// TTO warning: deadline within warning window and not yet passed
+				if (!empty($fields['tto_escalation_deadline']) && ($fields['sla_tto_passed'] ?? 'no') !== 'yes') {
+					$deadline = strtotime($fields['tto_escalation_deadline']);
+					if ($deadline > $now && $deadline <= ($now + $warningWindow)) {
+						$ttoCount++;
+					}
+				}
+
+				// TTR warning: deadline within warning window and not yet passed
+				if (!empty($fields['ttr_escalation_deadline']) && ($fields['sla_ttr_passed'] ?? 'no') !== 'yes') {
+					$deadline = strtotime($fields['ttr_escalation_deadline']);
+					if ($deadline > $now && $deadline <= ($now + $warningWindow)) {
+						$ttrCount++;
+					}
+				}
+			}
+		}
+
+		// Count UserRequest warnings by filtering in PHP
+		$requestResult = $this->request($userId, $requestParams);
+		if (isset($requestResult['objects'])) {
+			foreach ($requestResult['objects'] as $request) {
+				$fields = $request['fields'];
+
+				// TTO warning: deadline within warning window and not yet passed
+				if (!empty($fields['tto_escalation_deadline']) && ($fields['sla_tto_passed'] ?? 'no') !== 'yes') {
+					$deadline = strtotime($fields['tto_escalation_deadline']);
+					if ($deadline > $now && $deadline <= ($now + $warningWindow)) {
+						$ttoCount++;
+					}
+				}
+
+				// TTR warning: deadline within warning window and not yet passed
+				if (!empty($fields['ttr_escalation_deadline']) && ($fields['sla_ttr_passed'] ?? 'no') !== 'yes') {
+					$deadline = strtotime($fields['ttr_escalation_deadline']);
+					if ($deadline > $now && $deadline <= ($now + $warningWindow)) {
+						$ttrCount++;
+					}
+				}
+			}
+		}
+
+		return ['tto' => $ttoCount, 'ttr' => $ttrCount];
+	}
+
+	/**
+	 * Get SLA Breach counts (already escalated tickets)
+	 * Returns separate counts for TTO and TTR breaches
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @return array ['tto' => count, 'ttr' => count]
+	 */
+	public function getSLABreachCounts(string $userId): array {
+		$teams = $this->getUserTeams($userId);
+		if (empty($teams)) {
+			return ['tto' => 0, 'ttr' => 0];
+		}
+
+		$teamIds = array_column($teams, 'id');
+		$teamFilter = implode(',', $teamIds);
+
+		$ttoCount = 0;
+		$ttrCount = 0;
+
+		// Fetch all Incidents in team with SLA fields (OQL string filtering doesn't work reliably)
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => "SELECT Incident WHERE team_id IN ($teamFilter)",
+			'output_fields' => 'id,sla_tto_passed,sla_ttr_passed'
+		];
+
+		$requestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => "SELECT UserRequest WHERE team_id IN ($teamFilter)",
+			'output_fields' => 'id,sla_tto_passed,sla_ttr_passed'
+		];
+
+		// Count Incident breaches by filtering in PHP
+		$incidentResult = $this->request($userId, $incidentParams);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $incident) {
+				if (($incident['fields']['sla_tto_passed'] ?? 'no') === 'yes') {
+					$ttoCount++;
+				}
+				if (($incident['fields']['sla_ttr_passed'] ?? 'no') === 'yes') {
+					$ttrCount++;
+				}
+			}
+		}
+
+		// Count UserRequest breaches by filtering in PHP
+		$requestResult = $this->request($userId, $requestParams);
+		if (isset($requestResult['objects'])) {
+			foreach ($requestResult['objects'] as $request) {
+				if (($request['fields']['sla_tto_passed'] ?? 'no') === 'yes') {
+					$ttoCount++;
+				}
+				if (($request['fields']['sla_ttr_passed'] ?? 'no') === 'yes') {
+					$ttrCount++;
+				}
+			}
+		}
+
+		return ['tto' => $ttoCount, 'ttr' => $ttrCount];
+	}
+
 }

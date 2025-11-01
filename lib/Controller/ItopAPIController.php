@@ -219,4 +219,85 @@ class ItopAPIController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
+
+	/**
+	 * Get agent dashboard data (agent-specific metrics and queues)
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function getAgentDashboardData(): DataResponse {
+		$this->logger->info('getAgentDashboardData called for user: ' . ($this->userId ?? 'null'), ['app' => Application::APP_ID]);
+
+		if ($this->userId === null) {
+			$this->logger->warning('getAgentDashboardData: No user ID', ['app' => Application::APP_ID]);
+			return new DataResponse(['error' => 'Unauthorized'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
+			$this->logger->debug('Fetching my assigned tickets...', ['app' => Application::APP_ID]);
+			// Get tickets assigned to me
+			$myTickets = $this->itopAPIService->getMyAssignedTickets($this->userId, 20);
+
+			$this->logger->debug('Fetching team tickets...', ['app' => Application::APP_ID]);
+			// Get tickets assigned to my teams
+			$teamTickets = $this->itopAPIService->getTeamAssignedTickets($this->userId, 20);
+
+			$this->logger->debug('Fetching upcoming changes...', ['app' => Application::APP_ID]);
+			// Get upcoming changes
+			$upcomingChanges = $this->itopAPIService->getUpcomingChanges($this->userId, 10);
+
+			$this->logger->debug('Fetching SLA warning counts...', ['app' => Application::APP_ID]);
+			// Get SLA warning counts (approaching deadline within 24h)
+			$slaWarningCounts = $this->itopAPIService->getSLAWarningCounts($this->userId);
+
+			$this->logger->debug('Fetching SLA breach counts...', ['app' => Application::APP_ID]);
+			// Get SLA breach counts (already escalated)
+			$slaBreachCounts = $this->itopAPIService->getSLABreachCounts($this->userId);
+
+			// Get iTop URL for links
+			$itopUrl = $this->itopAPIService->getItopUrl($this->userId);
+
+			// Get admin-configured display name
+			$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+
+			// Calculate type-specific counts for detailed breakdown
+			$myIncidents = count(array_filter($myTickets, fn($t) => $t['type'] === 'Incident'));
+			$myRequests = count(array_filter($myTickets, fn($t) => $t['type'] === 'UserRequest'));
+
+			$teamIncidents = count(array_filter($teamTickets, fn($t) => $t['type'] === 'Incident'));
+			$teamRequests = count(array_filter($teamTickets, fn($t) => $t['type'] === 'UserRequest'));
+
+			$response = [
+				'myTickets' => $myTickets,
+				'teamTickets' => $teamTickets,
+				'upcomingChanges' => $upcomingChanges,
+				'counts' => [
+					'my_tickets' => count($myTickets),
+					'my_incidents' => $myIncidents,
+					'my_requests' => $myRequests,
+					'team_tickets' => count($teamTickets),
+					'team_incidents' => $teamIncidents,
+					'team_requests' => $teamRequests,
+					'sla_warning_tto' => $slaWarningCounts['tto'],
+					'sla_warning_ttr' => $slaWarningCounts['ttr'],
+					'sla_breaches_tto' => $slaBreachCounts['tto'],
+					'sla_breaches_ttr' => $slaBreachCounts['ttr'],
+					'upcoming_changes' => count($upcomingChanges)
+				],
+				'itop_url' => $itopUrl,
+				'display_name' => $displayName
+			];
+
+			$this->logger->info('getAgentDashboardData success, returning data', ['app' => Application::APP_ID]);
+			return new DataResponse($response);
+		} catch (\Exception $e) {
+			$this->logger->error('Error getting iTop agent dashboard data: ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+				'exception' => $e->getTraceAsString()
+			]);
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+	}
 }

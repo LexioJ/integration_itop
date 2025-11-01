@@ -236,43 +236,43 @@ public function getDashboardData(): DataResponse {
 - `lib/Controller/ItopAPIController.php` - Dashboard data endpoint [updated]
 
 **Expected Outcome**: Rich, interactive dashboard with status-based ticket organization
-**Status Update (2025-10-31)**: Completed comprehensive dashboard implementation with:
-- Compact header showing total tickets with status badge breakdown
-- 4 most recent tickets displayed with SVG icons based on type/status
-- Inline emoji indicators for status and priority with hover tooltips
-- Detailed ticket tooltips showing ref, dates, title, and sanitized description
-- Click-to-open functionality without hover effects
-- Relative time display with full timestamp tooltip
-- Responsive design with mobile breakpoints
-- Refresh and New Ticket action buttons
+**Status Update (2025-11-01)**: ✅ FULLY IMPLEMENTED AND WORKING
 
-### Phase 3: CI Integration 🔄 TODO
-**Priority**: Medium - Leverage existing CI preview infrastructure
+- ✅ Dual-widget design
+- ✅ Compact status badges showing ticket counts
+- ✅ most recent tickets displayed with type icons and status indicators
+- ✅ Agent widget: My Work, Team Queue, SLA tracking
+- ✅ Change management section
+- ✅ One Change displayed with time window
+- ✅ Refresh and action buttons
+- ✅ Priority indicators (red/orange/green) on tickets
+- ✅ Status badges (Ongoing, Resolved) with relative timestamps
+- ✅ Responsive layout
 
-**Tasks**:
-1. [ ] Implement recent CI tracking
-   - Add `getUserRecentCIs()` method
-   - Track CI access in session/cache
-   - Return CIs with preview data
-2. [ ] Create CI dashboard cards
-   - Compact version of rich preview
-   - Show CI icon, name, status
-   - Link to full preview on click
-3. [ ] Add CI section to dashboard
-   - "Recently Viewed CIs" section
-   - Display up to 5 CIs
-   - Empty state when no CIs accessed
-4. [ ] Test CI display
-   - Verify preview data loads correctly
-   - Test with different CI classes
-   - Ensure portal-only filtering applies
+**Key Implementation Highlights**:
+- Agent widget displays comprehensive metrics: My Work, Team Queue, SLA Warnings/Breaches
+- Change widget integration showing emergency change with start/end times
+- Clean, professional UI
 
-**Files to Modify**:
-- `lib/Service/ItopAPIService.php` - Add getUserRecentCIs()
-- `src/views/DashboardWidget.vue` - Add CI section
-- `css/dashboard.css` - CI card styles
+### Phase 3: CI Integration ⏭️ SKIPPED
+**Priority**: ~~Medium~~ Deferred - Widget space constraints
+**Status**: SKIPPED - No space available in current widget layout
 
-**Expected Outcome**: Dashboard shows relevant CIs alongside tickets
+**Reason for Skipping**:
+Due to space constraints in the dashboard widget (limited to 4 tickets + action buttons), there is insufficient room to add CI integration while maintaining a clean, usable interface. The widget is optimized for ticket viewing, and adding CI cards would create information overload.
+
+**Alternative Solutions**:
+1. **Agent Widget**: CI browsing could be added to the proposed Agent Dashboard widget (Phase 5)
+2. **Dedicated CI Widget**: Create a separate "iTop Configuration Items" dashboard widget
+3. **Smart Picker Integration**: CIs are already accessible via the existing Smart Picker feature
+
+**Original Tasks** (deferred):
+- [ ] Implement recent CI tracking via `getUserRecentCIs()` method
+- [ ] Create CI dashboard cards (compact version of rich preview)
+- [ ] Add "Recently Viewed CIs" section to dashboard
+- [ ] Test CI display with different CI classes
+
+**Status Update (2025-10-31)**: Skipped to maintain clean, focused dashboard UI
 
 ### Phase 4: Performance & Polish 🔄 TODO
 **Priority**: Low - Optimization and refinement
@@ -307,7 +307,45 @@ public function getDashboardData(): DataResponse {
 
 **Expected Outcome**: Fast, accessible, configurable dashboard experience
 
-### Phase 5: Testing & Documentation 📝 TODO
+### Phase 5: Dual Widget Architecture ✅ COMPLETED
+**Priority**: Medium - Enhanced agent experience
+**Status**: ✅ FULLY IMPLEMENTED
+
+**Completed Tasks**:
+1. [x] Fully read and understand ## PROPOSED: Dual Dashboard Widgets (Portal + Agent)
+2. [x] Create `ItopAgentWidget.php` implementing `IConditionalWidget`
+3. [x] Add team membership query methods to `ItopAPIService`
+4. [x] Add agent-specific ticket query methods
+5. [x] Create `/agent-dashboard` API endpoint
+6. [x] Create `AgentDashboardWidget.vue` component
+7. [x] Add agent dashboard build entry to vite.config
+8. [x] Register both widgets in `Application.php`
+9. [x] Test conditional visibility (portal vs agent users)
+10. [x] Test agent-specific data fetching
+11. [ ] Add translations for agent widget strings
+12. [ ] Update README with dual-widget documentation
+
+**Files to Create**:
+- `lib/Dashboard/ItopPortalWidget.php` (rename from ItopWidget.php)
+- `lib/Dashboard/ItopAgentWidget.php` (new)
+- `src/views/AgentDashboardWidget.vue` (new)
+- `src/agentDashboard.js` (new)
+
+**Files to Modify**:
+- `lib/Service/ItopAPIService.php` - Add agent query methods
+- `lib/Controller/ItopAPIController.php` - Add getAgentDashboardData()
+- `appinfo/routes.php` - Add /agent-dashboard route
+- `lib/AppInfo/Application.php` - Register both widgets
+- `vite.config.ts` - Add agent dashboard build entry
+- `l10n/en.json` - Add agent widget strings
+
+**Expected Outcome**:
+- Portal users see "iTop - My Tickets" widget only
+- Agent users see both "iTop - My Tickets" and "iTop - Agent Dashboard" widgets
+- Agent widget shows assigned tickets, team queue, escalations, and upcoming changes
+- Conditional visibility works correctly based on user profile
+
+### Phase 6: Testing & Documentation 📝 TODO
 
 **Tasks**:
 1. [ ] Write PHPUnit tests
@@ -384,39 +422,47 @@ public function getDashboardData(): DataResponse {
 }
 ```
 
-## UI Mockup
+## UI Mockup (Actual Implementation - Phase 2)
 
 ```
-┌────────────────────────────────────────────────────┐
-│ <Logo> <Display Name>                              │
-├────────────────────────────────────────────────────┤
-│                                                    │
-│  Your Tickets                                      │
-│  ┌──────────┬──────────┬──────────┬──────────┐     │
-│  │ Open (5) │Escalated │Pending(3)│Resolved  │     │
-│  │   🔴     │   (2)    │   ⏸️     │  (10)    │    │
-│  └──────────┴──────────┴──────────┴──────────┘     │
-│                                                    │
-│  Recent Tickets                                    │
-│  ┌───────────────────────────────────────────┐     │
-│  │ 🎫 R-000123: Cannot access email         │     │
-│  │    Status: New • Priority: High           │     │
-│  │    Created: 2 hours ago                   │     │
-│  ├───────────────────────────────────────────┤     │
-│  │ 🎫 I-000045: Network outage               │     │
-│  │    Status: Escalated • Priority: Critical │     │
-│  │    Created: 1 day ago                     │     │
-│  └───────────────────────────────────────────┘     │
-│                                                    │
-│  Recently Viewed CIs                               │
-│  ┌─────────┬─────────┬─────────┬─────────┐         │
-│  │ 💻      │ 🖨️      │ 📱      │ 🌐     │         │
-│  │ PC-001  │ PRN-034 │ MOB-012 │ APP-005 │         │
-│  └─────────┴─────────┴─────────┴─────────┘         │
-│                                                    │
-│  [ Refresh ] [ New Search ]                        │
-└────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  🗂️  <DisplayName>                                        │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  5 Tickets  ( 3 Open )  ( 1 Pending )  ( 1 Resolved )   │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│  💬  R-000007:  Test Request                            │
+│      Ongoing  •  🟢  •  🕐 11 hours ago                  │
+├──────────────────────────────────────────────────────────┤
+│  🔴  I-000004:  Incident by Bo...                  [NEW] │
+│      Ongoing  •  🔴  •  🕐 3 days ago                    │
+├──────────────────────────────────────────────────────────┤
+│  ⚠️  I-000003:  Incident opene...                       │
+│      Ongoing  •  🟠  •  🕐 2 weeks ago                   │
+├──────────────────────────────────────────────────────────┤
+│  ✅  R-000002:  Test Request...                         │
+│      Resolved  •  🟢  •  🕐 2 weeks ago                  │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  [ 🔄 Refresh ]          [ ➕ New Ticket ]               │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
 ```
+
+**Key Features Implemented:**
+- **Compact Header**: Shows total ticket count with status badge breakdown
+- **Status Badges**: Pill-style badges for Open, Pending, Resolved counts
+- **Ticket Cards**: 4 most recent tickets with:
+  - Type-specific icons (💬 UserRequest, 🔴/⚠️ Incident)
+  - Reference and truncated title
+  - Status emoji indicators (🆕👥⏳⚠️✅)
+  - Priority emoji indicators (🔴🟠🟡🟢)
+  - Relative timestamps with tooltips
+  - "NEW" badge for recently created tickets
+- **Action Buttons**: Refresh and New Ticket at the bottom
+- **Responsive Design**: Mobile-friendly layout with proper breakpoints
+- **No CI Section**: Space constraints prevent CI integration in this widget
 
 ## Configuration
 
@@ -529,11 +575,18 @@ public function getDashboardData(): DataResponse {
 
 ## Rollout Plan
 
-1. **Phase 1**: Deploy backend fixes to production (fixes broken widget)
-2. **Phase 2**: Beta test enhanced ticket display with small group
-3. **Phase 3**: Roll out CI integration to all users
-4. **Phase 4**: Gather feedback and iterate on polish items
-5. **Phase 5**: Document and announce complete dashboard feature
+1. **Phase 1**: ✅ COMPLETED - Backend fixes deployed (fixes broken widget)
+2. **Phase 2**: ✅ COMPLETED - Enhanced ticket display fully implemented
+3. **Phase 3**: ⏭️ SKIPPED - CI integration deferred due to space constraints
+4. **Phase 4**: 🔄 IN PROGRESS - Performance optimization, caching, accessibility improvements
+5. **Phase 5**: 🔄 IN PROGRESS - Dual widget architecture implemented (Portal + Agent widgets working)
+6. **Phase 6**: 🔄 NEXT - Testing, optimization, and documentation
+
+**Current Status (2025-11-01)**:
+- ✅ Core dashboard functionality complete and working
+- ✅ Dual widget architecture live
+- 🔄 Ready for testing phase
+- 📝 Documentation updates pending
 
 ## Future Enhancements
 
@@ -549,7 +602,444 @@ public function getDashboardData(): DataResponse {
 
 ---
 
+## PROPOSED: Dual Dashboard Widgets (Portal + Agent)
+
+### Overview
+Based on investigation, it is **fully feasible** to deliver two separate dashboard widgets following the pattern used by the Nextcloud Deck app.
+
+### Architecture Findings
+
+#### Multiple Widgets Are Supported
+Nextcloud allows multiple dashboard widgets from a single app. The Deck app demonstrates this pattern:
+- [DeckWidgetUpcoming.php](/Users/lexioj/github/deck/lib/Dashboard/DeckWidgetUpcoming.php)
+- [DeckWidgetToday.php](/Users/lexioj/github/deck/lib/Dashboard/DeckWidgetToday.php)
+- [DeckWidgetTomorrow.php](/Users/lexioj/github/deck/lib/Dashboard/DeckWidgetTomorrow.php)
+
+Each widget is registered separately in [Application.php:130-132](/Users/lexioj/github/deck/lib/AppInfo/Application.php#L130-L132):
+```php
+$context->registerDashboardWidget(DeckWidgetUpcoming::class);
+$context->registerDashboardWidget(DeckWidgetToday::class);
+$context->registerDashboardWidget(DeckWidgetTomorrow::class);
+```
+
+#### Conditional Visibility Is Supported
+The `IConditionalWidget` interface allows widgets to control their visibility per-user via an `isEnabled()` method. This is perfect for showing the Agent widget only to non-portal users.
+
+```php
+interface IConditionalWidget extends IWidget {
+    public function isEnabled(): bool;
+}
+```
+
+### Proposed Widget Design
+
+#### Widget 1: iTop Portal Widget (General - already exists)
+**Target Audience**: All users (portal-only and agents)
+**Widget ID**: `integration_itop_portal`
+**Title**: `{DisplayName}`
+
+**Features**:
+- User's created tickets (UserRequest + Incident)
+- Status breakdown (Open, Pending, Escalated, Resolved)
+- Recent 4 tickets with quick links
+- Recently viewed CIs (optional)
+- "Create New Ticket" button
+- Matches current Phase 2 implementation
+
+**Visibility**: Always enabled for users with `person_id` configured
+
+#### Widget 2: iTop Agent Widget (Power Users)
+**Target Audience**: iTop Agents only (users with `is_portal_only = false`)
+**Widget ID**: `integration_itop_agent`
+**Title**: `{DisplayName} - Agent`
+
+**Features**:
+1. **My Open Tickets**
+   - Tickets assigned to me (`agent_id = person_id`)
+   - Count and list view
+   - Priority breakdown
+
+2. **Team Tickets**
+   - Open tickets assigned to groups/teams I belong to
+   - Requires querying `Team` memberships via iTop API
+   - Group-level assignment tracking
+
+3. **Escalated Tickets**
+   - Escalated tickets in my teams
+   - Filter by `status = escalated` within team scope
+   - Priority indicators
+
+4. **Upcoming Changes**
+   - Change tickets with upcoming implementation dates
+   - Query `Change` class where `start_date` is near-future
+   - Filter by team membership or CI ownership
+
+5. **Additional Suggestions**:
+   - **Recently Closed by Me**: Tickets I recently resolved (last 7 days)
+   - **Pending Customer Response**: Tickets waiting on caller reply
+   - **SLA Breaches**: Tickets approaching or exceeding SLA deadlines
+   - **Recently Viewed CIs**: CIs I've accessed (reuse from portal widget)
+
+**Visibility**: Only enabled if `ProfileService->isPortalOnly($userId) === false`
+
+### 📊 Visibility Logic Summary
+
+How widgets appear for different user types:
+
+| User Type | person_id | is_portal_only | iTop Widget | iTop - Agent Widget |
+|-----------|-----------|----------------|-------------|---------------------|
+| Unconfigured | ❌ No | N/A | ❌ Hidden | ❌ Hidden |
+| Portal User | ✅ Yes | ✅ true | ✅ Visible | ❌ Hidden |
+| Agent User | ✅ Yes | ❌ false | ✅ Visible | ✅ Visible |
+
+**Logic Details**:
+- **ItopWidget** (portal widget):
+  - Checks `person_id` via `isEnabled()` method
+  - Hidden if user hasn't configured iTop connection
+  - Visible once `person_id` is set (regardless of portal/agent status)
+
+- **ItopAgentWidget** (agent widget):
+  - Checks both `person_id` AND `ProfileService->isPortalOnly()` via `isEnabled()` method
+  - Hidden if no `person_id` configured
+  - Hidden if user is portal-only (`is_portal_only = true`)
+  - Visible only for agents (`is_portal_only = false`)
+
+**Implementation**:
+Both widgets implement `IConditionalWidget` interface with `isEnabled(): bool` method that controls visibility automatically.
+
+### Implementation Requirements
+
+#### New Backend Components
+
+##### 1. New Widget Classes
+```
+lib/Dashboard/
+├── ItopWidget.php              (existing, implements IConditionalWidget look for person_id)
+└── ItopAgentWidget.php         (agent-only widget, implements IConditionalWidget)
+```
+
+##### 2. New ItopAPIService Methods
+```php
+// Agent-specific ticket queries
+public function getMyAssignedTickets(string $userId): array
+public function getTeamAssignedTickets(string $userId): array
+public function getEscalatedTicketsForMyTeams(string $userId): array
+public function getUpcomingChanges(string $userId): array
+
+// Team membership queries
+public function getUserTeams(string $userId): array
+public function getTeamTickets(string $userId, array $teamIds, string $status = ''): array
+
+// SLA and metrics
+public function getTicketsNearingSLA(string $userId, array $teamIds): array
+public function getPendingCustomerTickets(string $userId): array
+```
+
+##### 3. New API Controller Endpoints
+```php
+// lib/Controller/ItopAPIController.php
+public function getAgentDashboardData(): DataResponse {
+    // Returns:
+    // - myTickets: assigned to me
+    // - teamTickets: assigned to my teams
+    // - escalated: escalated in my teams
+    // - upcomingChanges: relevant changes
+    // - counts: ticket counts by category
+}
+```
+
+##### 4. New Routes
+```php
+// appinfo/routes.php
+['name' => 'ItopAPI#getAgentDashboardData', 'url' => '/agent-dashboard', 'verb' => 'GET'],
+```
+
+#### Frontend Components
+
+##### 1. New Vue Components
+```
+src/views/
+├── DashboardWidget.vue         (existing - portal widget)
+├── AgentDashboardWidget.vue    (new - agent widget)
+```
+
+##### 2. New Build Entries
+```typescript
+// vite.config.ts
+build: {
+  rollupOptions: {
+    input: {
+      dashboard: './src/dashboard.js',           // existing
+      agentDashboard: './src/agentDashboard.js', // new
+    }
+  }
+}
+```
+
+##### 3. New JavaScript Entry Points
+```
+src/
+├── dashboard.js           (existing - portal widget)
+└── agentDashboard.js      (new - agent widget)
+```
+
+#### Registration Changes
+
+##### Application.php Updates
+```php
+// lib/AppInfo/Application.php
+public function register(IRegistrationContext $context): void {
+    // Register both widgets
+    $context->registerDashboardWidget(ItopPortalWidget::class);
+    $context->registerDashboardWidget(ItopAgentWidget::class);
+
+    // ... existing registrations
+}
+```
+
+##### ItopAgentWidget.php Implementation
+```php
+namespace OCA\Itop\Dashboard;
+
+use OCA\Itop\Service\ProfileService;
+use OCP\Dashboard\IConditionalWidget;
+use OCP\Dashboard\IWidget;
+
+class ItopAgentWidget implements IWidget, IConditionalWidget {
+
+    public function __construct(
+        private ProfileService $profileService,
+        private ?string $userId,
+        // ... other dependencies
+    ) {}
+
+    public function getId(): string {
+        return 'integration_itop_agent';
+    }
+
+    public function getTitle(): string {
+        return $this->l10n->t('%s - Agent Dashboard', [$displayName]);
+    }
+
+    public function isEnabled(): bool {
+        if ($this->userId === null) {
+            return false;
+        }
+
+        // Only show to non-portal users (agents)
+        try {
+            return !$this->profileService->isPortalOnly($this->userId);
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    public function load(): void {
+        if ($this->userId !== null && $this->isEnabled()) {
+            Util::addScript(Application::APP_ID, 'integration_itop-agent-dashboard');
+        }
+    }
+}
+```
+
+### iTop API Considerations
+
+#### Team Membership Query
+To get teams a user belongs to:
+```php
+$params = [
+    'operation' => 'core/get',
+    'class' => 'Team',
+    'key' => "SELECT Team AS t JOIN lnkPersonToTeam AS l ON l.team_id = t.id WHERE l.person_id = {$personId}"
+];
+```
+
+#### Team Ticket Query
+To get tickets assigned to specific teams:
+```php
+// For UserRequest
+$params = [
+    'operation' => 'core/get',
+    'class' => 'UserRequest',
+    'key' => "SELECT UserRequest WHERE team_id IN (" . implode(',', $teamIds) . ") AND status != 'closed'"
+];
+
+// For Incident
+$params = [
+    'operation' => 'core/get',
+    'class' => 'Incident',
+    'key' => "SELECT Incident WHERE team_id IN (" . implode(',', $teamIds) . ") AND status != 'closed'"
+];
+```
+
+#### Upcoming Changes Query
+```php
+$params = [
+    'operation' => 'core/get',
+    'class' => 'Change',
+    'key' => "SELECT Change WHERE start_date > NOW() AND start_date < DATE_ADD(NOW(), INTERVAL 7 DAY) AND status IN ('approved', 'planned')",
+    'output_fields' => 'id,ref,title,description,start_date,status,impact,priority'
+];
+```
+
+### UX Design Considerations
+
+#### Agent Widget (New)
+```
+┌────────────────────────────────────────────────┐
+│ <DisplayName> - Agent                          │
+├────────────────────────────────────────────────┤
+│ My Work      Team Queue    Escalated           │
+│ 👤 8 tickets 👥 16 tickets ⚠️ 1 tickets         │
+│                                                │
+│  👤 My Work                 👥  Team Queue.     │
+│ ┌──────────────────────┐  ┌──────────────────┐ │
+│ │ 5 Incidents          │  │  12 Incidents    │ │
+│ │ 3 User Request       │  │  4 User Request  │ │
+│ └──────────────────────┘  └──────────────────┘ │
+│  ⚠️ Escalated              🚨 SLA Breaches      │
+│ ┌──────────────────────┐  ┌──────────────────┐ │
+│ │ 1 Incidents          │  │  2 Incidents     │ │
+│ │ 0 User Request       │  │  0 User Request  │ │
+│ └──────────────────────┘  └──────────────────┘ │
+│ Upcoming Changes (3)                           │
+│ ┌────────────────────────────────────────────┐ │
+│ │ C-000023: Firewall update                  │ │
+│ │ 📅 Tomorrow 2:00 AM                        │ │
+│ └────────────────────────────────────────────┘ │
+│                                                │
+│ [ Refresh ] [ View All Tickets ]               │
+└────────────────────────────────────────────────┘
+```
+
+### Translation Strings
+
+#### New Strings for l10n/en.json
+```json
+{
+  "Agent Dashboard": "Agent Dashboard",
+  "%s - Agent Dashboard": "%s - Agent Dashboard",
+  "My Assigned Tickets": "My Assigned Tickets",
+  "Team Queue": "Team Queue",
+  "Escalated Tickets": "Escalated Tickets",
+  "Upcoming Changes": "Upcoming Changes",
+  "My Work": "My Work",
+  "Recently Closed by Me": "Recently Closed by Me",
+  "Pending Customer Response": "Pending Customer Response",
+  "SLA Breaches": "SLA Breaches",
+  "unassigned": "unassigned",
+  "assigned %s ago": "assigned %s ago",
+  "Team %s": "Team %s",
+  "No assigned tickets": "No assigned tickets",
+  "No team tickets": "No team tickets",
+  "No upcoming changes": "No upcoming changes",
+  "View All Tickets": "View All Tickets"
+}
+```
+
+### Implementation Phases
+
+#### Phase 6: Dual Widget Architecture 🔄 TODO
+**Priority**: Medium - Enhanced agent experience
+**Depends on**: Phase 1-2 completion
+
+**Tasks**:
+1. [ ] Rename existing `ItopWidget.php` to `ItopPortalWidget.php`
+2. [ ] Create `ItopAgentWidget.php` implementing `IConditionalWidget`
+3. [ ] Add team membership query methods to `ItopAPIService`
+4. [ ] Add agent-specific ticket query methods
+5. [ ] Create `/agent-dashboard` API endpoint
+6. [ ] Create `AgentDashboardWidget.vue` component
+7. [ ] Add agent dashboard build entry to vite.config
+8. [ ] Register both widgets in `Application.php`
+9. [ ] Test conditional visibility (portal vs agent users)
+10. [ ] Test agent-specific data fetching
+11. [ ] Add translations for agent widget strings
+12. [ ] Update README with dual-widget documentation
+
+**Files to Create**:
+- `lib/Dashboard/ItopPortalWidget.php` (rename from ItopWidget.php)
+- `lib/Dashboard/ItopAgentWidget.php` (new)
+- `src/views/AgentDashboardWidget.vue` (new)
+- `src/agentDashboard.js` (new)
+
+**Files to Modify**:
+- `lib/Service/ItopAPIService.php` - Add agent query methods
+- `lib/Controller/ItopAPIController.php` - Add getAgentDashboardData()
+- `appinfo/routes.php` - Add /agent-dashboard route
+- `lib/AppInfo/Application.php` - Register both widgets
+- `vite.config.ts` - Add agent dashboard build entry
+- `l10n/en.json` - Add agent widget strings
+
+**Expected Outcome**:
+- Portal users see "iTop - My Tickets" widget only
+- Agent users see both "iTop - My Tickets" and "iTop - Agent Dashboard" widgets
+- Agent widget shows assigned tickets, team queue, escalations, and upcoming changes
+- Conditional visibility works correctly based on user profile
+
+### Benefits of Dual Widget Approach
+
+1. **Clear Separation of Concerns**
+   - Portal widget: End-user ticket tracking
+   - Agent widget: Operational agent workflows
+
+2. **User Choice**
+   - Users can enable/disable widgets independently
+   - Agents can choose to show one or both widgets
+   - Follows Nextcloud's user-centric design philosophy
+
+3. **Performance**
+   - Agent widget only loads when needed
+   - Portal users don't pay performance cost for unused agent features
+   - Separate API endpoints prevent over-fetching
+
+4. **Maintainability**
+   - Clear code separation
+   - Easier to extend agent features without affecting portal widget
+   - Independent testing and debugging
+
+5. **Scalability**
+   - Can add more specialized widgets in future (e.g., "iTop - Manager Dashboard")
+   - Each widget can have its own update cadence
+   - Widget-specific caching strategies
+
+### Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|------|---------|------------|
+| Performance degradation with team queries | Medium | Implement aggressive caching for team memberships (1hr TTL), use query optimization |
+| iTop API doesn't support team membership queries | High | Validate API capabilities before implementation; fallback to agent_id only if needed |
+| Complex permission logic | Medium | Reuse existing ProfileService; add comprehensive unit tests |
+| User confusion with two widgets | Low | Clear naming and descriptions; documentation with screenshots |
+
+### Testing Requirements
+
+#### Unit Tests
+- [ ] `ProfileService::isPortalOnly()` validation
+- [ ] `ItopAPIService::getMyAssignedTickets()`
+- [ ] `ItopAPIService::getTeamAssignedTickets()`
+- [ ] `ItopAPIService::getUserTeams()`
+- [ ] `ItopAgentWidget::isEnabled()` conditional logic
+
+#### Integration Tests
+- [ ] Portal user sees only portal widget
+- [ ] Agent sees both widgets
+- [ ] Agent widget disabled when ProfileService indicates portal-only
+- [ ] Team ticket queries return correct results
+- [ ] Upcoming changes query works
+
+#### Manual Testing
+- [ ] Test with real iTop instance (portal user)
+- [ ] Test with real iTop instance (agent user)
+- [ ] Test with user having multiple teams
+- [ ] Test with user having no teams (fallback to agent_id only)
+- [ ] Test widget visibility toggling in dashboard settings
+
+---
+
 **Status**: Planning phase complete, ready for implementation
 **Next Step**: Begin Phase 1 backend fixes
 **Owner**: To be assigned
 **Target Completion**: TBD based on priority
+
+**Dual Widget Status**: Feasibility confirmed, awaiting Phase 1-2 completion before implementation
