@@ -66,6 +66,32 @@ class ItopAPIService {
 	}
 
 	/**
+	 * Build ticket URL based on user's portal access level
+	 *
+	 * Portal-only users get portal URLs (/pages/exec.php/object/edit/...)
+	 * Power users (agents/admins) get admin UI URLs (/pages/UI.php?operation=details...)
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param string $class iTop class (UserRequest, Incident, etc.)
+	 * @param string $id Ticket ID
+	 * @return string Full ticket URL
+	 */
+	private function buildTicketUrl(string $userId, string $class, string $id): string {
+		$itopUrl = $this->getItopUrl($userId);
+
+		// Check if user is portal-only (cached by ProfileService)
+		$isPortalOnly = $this->config->getUserValue($userId, Application::APP_ID, 'is_portal_only', '0') === '1';
+
+		if ($isPortalOnly) {
+			// Portal user - use portal URL format
+			return $itopUrl . '/pages/exec.php/object/edit/' . $class . '/' . $id . '?exec_module=itop-portal-base&exec_page=index.php&portal_id=itop-portal';
+		} else {
+			// Power user - use admin UI URL format
+			return $itopUrl . '/pages/UI.php?operation=details&class=' . $class . '&id=' . $id;
+		}
+	}
+
+	/**
 	 * Get application token for API requests
 	 *
 	 * @return string|null Decrypted application token or null if not configured
@@ -245,7 +271,7 @@ class ItopAPIService {
 				'start_date' => $ticket['fields']['start_date'] ?? '',
 				'last_update' => $ticket['fields']['last_update'] ?? '',
 				'close_date' => $ticket['fields']['close_date'] ?? '',
-				'url' => $itopUrl . '/pages/UI.php?operation=details&class=UserRequest&id=' . $ticketId
+				'url' => $this->buildTicketUrl($userId, 'UserRequest', $ticketId)
 			];
 		}
 	}
@@ -290,7 +316,7 @@ class ItopAPIService {
 				'start_date' => $ticket['fields']['start_date'] ?? '',
 				'last_update' => $ticket['fields']['last_update'] ?? '',
 				'close_date' => $ticket['fields']['close_date'] ?? '',
-				'url' => $itopUrl . '/pages/UI.php?operation=details&class=Incident&id=' . $ticketId
+				'url' => $this->buildTicketUrl($userId, 'Incident', $ticketId)
 			];
 		}
 	}
@@ -562,7 +588,7 @@ class ItopAPIService {
 					'start_date' => $ticket['fields']['start_date'] ?? '',
 					'last_update' => $ticket['fields']['last_update'] ?? '',
 					'close_date' => $ticket['fields']['close_date'] ?? '',
-					'url' => $itopUrl . '/pages/UI.php?operation=details&class=UserRequest&id=' . $ticket['fields']['id']
+					'url' => $this->buildTicketUrl($userId, 'UserRequest', $ticket['fields']['id'])
 				];
 			}
 		}
@@ -601,7 +627,7 @@ class ItopAPIService {
 					'start_date' => $ticket['fields']['start_date'] ?? '',
 					'last_update' => $ticket['fields']['last_update'] ?? '',
 					'close_date' => $ticket['fields']['close_date'] ?? '',
-					'url' => $itopUrl . '/pages/UI.php?operation=details&class=Incident&id=' . $ticket['fields']['id']
+					'url' => $this->buildTicketUrl($userId, 'Incident', $ticket['fields']['id'])
 				];
 			}
 		}
@@ -658,7 +684,7 @@ class ItopAPIService {
 										'start_date' => $ticket['fields']['start_date'] ?? '',
 										'last_update' => $ticket['fields']['last_update'] ?? '',
 										'close_date' => $ticket['fields']['close_date'] ?? '',
-										'url' => $itopUrl . '/pages/UI.php?operation=details&class=' . $ticketClass . '&id=' . $ticket['fields']['id']
+										'url' => $this->buildTicketUrl($userId, $ticketClass, $ticket['fields']['id'])
 									];
 								}
 							}
@@ -1246,7 +1272,7 @@ class ItopAPIService {
 					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
 					'start_date' => $ticket['fields']['start_date'] ?? '',
 					'last_update' => $ticket['fields']['last_update'] ?? '',
-					'url' => $itopUrl . '/pages/UI.php?operation=details&class=UserRequest&id=' . $ticketId
+					'url' => $this->buildTicketUrl($userId, 'UserRequest', $ticketId)
 				];
 			}
 		}
@@ -1277,7 +1303,7 @@ class ItopAPIService {
 					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
 					'start_date' => $ticket['fields']['start_date'] ?? '',
 					'last_update' => $ticket['fields']['last_update'] ?? '',
-					'url' => $itopUrl . '/pages/UI.php?operation=details&class=Incident&id=' . $ticketId
+					'url' => $this->buildTicketUrl($userId, 'Incident', $ticketId)
 				];
 			}
 		}
@@ -1336,7 +1362,7 @@ class ItopAPIService {
 					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
 					'start_date' => $ticket['fields']['start_date'] ?? '',
 					'last_update' => $ticket['fields']['last_update'] ?? '',
-					'url' => $itopUrl . '/pages/UI.php?operation=details&class=UserRequest&id=' . $ticketId
+					'url' => $this->buildTicketUrl($userId, 'UserRequest', $ticketId)
 				];
 			}
 		}
@@ -1367,7 +1393,7 @@ class ItopAPIService {
 					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
 					'start_date' => $ticket['fields']['start_date'] ?? '',
 					'last_update' => $ticket['fields']['last_update'] ?? '',
-					'url' => $itopUrl . '/pages/UI.php?operation=details&class=Incident&id=' . $ticketId
+					'url' => $this->buildTicketUrl($userId, 'Incident', $ticketId)
 				];
 			}
 		}
@@ -1434,7 +1460,7 @@ class ItopAPIService {
 					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
 					'start_date' => $ticket['fields']['start_date'] ?? '',
 					'last_update' => $ticket['fields']['last_update'] ?? '',
-					'url' => $itopUrl . '/pages/UI.php?operation=details&class=UserRequest&id=' . $ticketId
+					'url' => $this->buildTicketUrl($userId, 'UserRequest', $ticketId)
 				];
 			}
 		}
@@ -1465,7 +1491,7 @@ class ItopAPIService {
 					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
 					'start_date' => $ticket['fields']['start_date'] ?? '',
 					'last_update' => $ticket['fields']['last_update'] ?? '',
-					'url' => $itopUrl . '/pages/UI.php?operation=details&class=Incident&id=' . $ticketId
+					'url' => $this->buildTicketUrl($userId, 'Incident', $ticketId)
 				];
 			}
 		}
@@ -1521,7 +1547,7 @@ class ItopAPIService {
 					'last_update' => $change['fields']['last_update'] ?? '',
 					'operational_status' => $change['fields']['operational_status'] ?? '',
 					'finalclass' => $finalclass,
-					'url' => $itopUrl . '/pages/UI.php?operation=details&class=' . $finalclass . '&id=' . $changeId
+					'url' => $this->buildTicketUrl($userId, $finalclass, $changeId)
 				];
 			}
 		}

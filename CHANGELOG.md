@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.2] - 2025-11-02
+
+### Changed
+- **Dynamic URL Routing**: Enhanced `buildTicketUrl()` method in ItopAPIService to route users to appropriate iTop interface:
+  - Portal-only users get portal URLs (`/pages/exec.php/object/edit/...`)
+  - Power users (agents/admins) get admin UI URLs (`/pages/UI.php?operation=details...`)
+
+---
+
 ## [1.2.1] - 2025-11-02
 
 ### Fixed
