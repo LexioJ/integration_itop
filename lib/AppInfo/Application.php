@@ -23,6 +23,7 @@ use OCP\AppFramework\Bootstrap\IBootstrap;
 
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\Collaboration\Reference\RenderReferenceEvent;
+use OCP\App\IAppManager;
 use OCP\IConfig;
 use OCP\IL10N;
 use OCP\INavigationManager;
@@ -34,7 +35,6 @@ use OCP\Notification\IManager as INotificationManager;
 class Application extends App implements IBootstrap {
 
 	public const APP_ID = 'integration_itop';
-	public const VERSION = '1.1.0';
 
 	/**
 	 * Supported CI classes for browsing, search, and preview
@@ -52,6 +52,16 @@ class Application extends App implements IBootstrap {
 	public const CI_CLASS_STATE_USER_CHOICE = 'user_choice'; // Enabled but users can opt-out
 
 	private IConfig $config;
+
+	/**
+	 * Get app version from info.xml
+	 *
+	 * @param IAppManager $appManager Nextcloud app manager
+	 * @return string App version
+	 */
+	public static function getVersion(IAppManager $appManager): string {
+		return $appManager->getAppVersion(self::APP_ID);
+	}
 
 	/**
 	 * Get CI class configuration from admin settings

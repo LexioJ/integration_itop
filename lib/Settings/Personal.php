@@ -13,6 +13,7 @@
 namespace OCA\Itop\Settings;
 
 use OCA\Itop\AppInfo\Application;
+use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
 use OCP\IL10N;
@@ -26,6 +27,7 @@ class Personal implements ISettings {
 		private IL10N $l10n,
 		private ICrypto $crypto,
 		private ?string $userId,
+		private IAppManager $appManager,
 	) {
 	}
 
@@ -76,7 +78,7 @@ class Personal implements ISettings {
 			'search_enabled' => $searchEnabled,
 			'user_choice_ci_classes' => $userChoiceCIClasses,
 			'user_disabled_ci_classes' => $userDisabledClasses,
-			'version' => Application::VERSION,
+			'version' => Application::getVersion($this->appManager),
 		];
 
 		return new TemplateResponse(Application::APP_ID, 'personalSettings', $parameters);

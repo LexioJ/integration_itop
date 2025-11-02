@@ -15,6 +15,7 @@ return [
 		['name' => 'config#saveEnabledCIClasses', 'url' => '/enabled-ci-classes', 'verb' => 'POST'],
 		['name' => 'config#getUserDisabledCIClasses', 'url' => '/user-disabled-ci-classes', 'verb' => 'GET'],
 		['name' => 'config#saveUserDisabledCIClasses', 'url' => '/user-disabled-ci-classes', 'verb' => 'POST'],
+		['name' => 'config#checkVersion', 'url' => '/version-check', 'verb' => 'GET'],
 
 		// API routes
 		['name' => 'itopAPI#getTickets', 'url' => '/tickets', 'verb' => 'GET'],

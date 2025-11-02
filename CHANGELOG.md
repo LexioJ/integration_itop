@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1] - 2025-11-02
+
+### Fixed
+- **Connected Users Count**: Fixed database query and handle different column name formats across database drivers
+- **Version Display**: Fixed constant by injecting `IAppManager` and using `Application::getVersion()` method
+- **Search Time Formatting**: Corrected translation string placeholders to use proper `l10n->t()` format
+- **Admin Settings**: Fixed version check endpoint
+
+### Added
+- **Version Check Endpoint**: New `/version-check` route that queries GitHub for latest releases
+- **Local Access Rules Notice**: Added informational notice in admin settings for private IP addresses with command and documentation link for Nextcloud 30+
+- **Time Format Translations**: Added German (informal/formal) and French translations for precise time formatting (`%dm ago`, `%dh ago`, `%1$dh %2$dm ago`, etc.)
+
+### Changed
+- **Admin Settings UI**: Enhanced Server URL field with helpful note about `allow_local_remote_servers` configuration for private networks
+- **Translation Coverage**: Updated all localization files (de.json, de_DE.json, fr.json) with new time formatting and notice strings
+
+---
+
 ## [1.2.0] - 2025-11-01
 
 ### ✨ Major New Feature: Dual Dashboard System

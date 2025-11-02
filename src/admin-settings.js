@@ -152,7 +152,7 @@
 	 *
 	 */
 	function loadConnectedUsersCount() {
-		fetch(OC.generateUrl('/apps/integration_itop/connected-users-count'), {
+		fetch(OC.generateUrl('/apps/integration_itop/admin-config'), {
 			method: 'GET',
 			headers: {
 				requesttoken: OC.requestToken,
@@ -161,8 +161,8 @@
 			.then(response => response.json())
 			.then(data => {
 				const countElement = document.getElementById('connected-users-count')
-				if (countElement && data.count !== undefined) {
-					countElement.textContent = data.count + ' ' + t('integration_itop', 'users')
+				if (countElement && data.connected_users !== undefined) {
+					countElement.textContent = data.connected_users + ' ' + t('integration_itop', 'users')
 				}
 			})
 			.catch(() => {

@@ -145,10 +145,14 @@ $ciClassLabels = [
 							data-text-testing="<?php p($l->t('Testing...')); ?>">
 							<span class="btn-icon">🔍</span>
 							<?php p($l->t('Test Connection')); ?>
-						</button>
+							</button>
+						</div>
+						<p class="form-hint"><?php p($l->t('The complete URL to your iTop system instance')); ?></p>
+						<div class="form-info-box info">
+							<strong><?php p($l->t('ℹ️ Note:')); ?></strong> <?php p($l->t('If using a private/local IP address (e.g., 192.168.x.x, 10.x.x.x), you must enable')); ?> <code>allow_local_remote_servers</code> <?php p($l->t('in Nextcloud config')); ?> (<a href="https://docs.nextcloud.com/server/32/admin_manual/configuration_server/config_sample_php_parameters.html#proxy-configurations" target="_blank"><?php p($l->t('See documentation →')); ?></a> <?php p($l->t('Nextcloud 30+')); ?>).<br>
+							<?php p($l->t('Run:')); ?> <code>occ config:system:set allow_local_remote_servers --value=true --type=boolean</code>
+						</div>
 					</div>
-					<p class="form-hint"><?php p($l->t('The complete URL to your iTop system instance')); ?></p>
-				</div>
 
 				<div class="form-group">
 					<label for="itop-application-token" class="form-label">
@@ -170,12 +174,11 @@ $ciClassLabels = [
 						</button>
 					</div>
 					<p class="form-hint">
-						<strong><?php p($l->t('Phase 2:')); ?></strong> <?php p($l->t('Required Administrator-level token for querying user data')); ?>.
+						<?php p($l->t('Required Administrator-level token for querying user data')); ?>.
 						<a href="https://github.com/LexioJ/integration_itop#admin-configuration-phase-2" target="_blank"><?php p($l->t('How to create →')); ?></a>
 					</p>
 					<div class="form-info-box">
-						<strong><?php p($l->t('⚠️ Important:')); ?></strong> <?php p($l->t('This token must have')); ?> <strong><?php p($l->t('Administrator')); ?></strong> + <strong><?php p($l->t('REST Services User')); ?></strong> <?php p($l->t('profiles')); ?>.
-						<?php p($l->t('It will be used securely to query user data (filtered by Person ID for security)')); ?>.
+						<strong><?php p($l->t('⚠️ Important:')); ?></strong> <?php p($l->t('This token must have')); ?> <strong><?php p($l->t('Administrator')); ?></strong> + <strong><?php p($l->t('REST Services User')); ?></strong> <?php p($l->t('profiles')); ?>. <?php p($l->t('It will be used securely to query user data (filtered by Person ID for security)')); ?>.
 					</div>
 				</div>
 

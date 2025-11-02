@@ -516,37 +516,37 @@ class ItopSearchProvider implements IProvider {
 			return $this->l10n->t('just now');
 		}
 
-		// Less than 1 hour - show minutes
-		if ($diff < 3600) {
-			$minutes = floor($diff / 60);
-			return str_replace('%d', $minutes, $this->l10n->t('min ago'));
-		}
+	// Less than 1 hour - show minutes
+	if ($diff < 3600) {
+		$minutes = floor($diff / 60);
+		return $this->l10n->t('%dm ago', [$minutes]);
+	}
 
-		// Less than 24 hours - show hours and minutes
-		if ($diff < 86400) {
-			$hours = floor($diff / 3600);
-			$minutes = floor(($diff % 3600) / 60);
-			if ($minutes > 0) {
-				return str_replace(['%d', '%d'], [$hours, $minutes], $this->l10n->t('h min ago'));
-			}
-			return str_replace('%d', $hours, $this->l10n->t('h ago'));
+	// Less than 24 hours - show hours and minutes
+	if ($diff < 86400) {
+		$hours = floor($diff / 3600);
+		$minutes = floor(($diff % 3600) / 60);
+		if ($minutes > 0) {
+			return $this->l10n->t('%1$dh %2$dm ago', [$hours, $minutes]);
 		}
+		return $this->l10n->t('%dh ago', [$hours]);
+	}
 
-		// Less than 7 days - show days and hours
-		if ($diff < 604800) {
-			$days = floor($diff / 86400);
-			$hours = floor(($diff % 86400) / 3600);
-			if ($hours > 0) {
-				return str_replace(['%d', '%d'], [$days, $hours], $this->l10n->t('d h ago'));
-			}
-			return str_replace('%d', $days, $this->l10n->t('d ago'));
+	// Less than 7 days - show days and hours
+	if ($diff < 604800) {
+		$days = floor($diff / 86400);
+		$hours = floor(($diff % 86400) / 3600);
+		if ($hours > 0) {
+			return $this->l10n->t('%1$dd %2$dh ago', [$days, $hours]);
 		}
+		return $this->l10n->t('%dd ago', [$days]);
+	}
 
-		// Less than 30 days - show days
-		if ($diff < 2592000) {
-			$days = floor($diff / 86400);
-			return str_replace('%d', $days, $this->l10n->t('days ago'));
-		}
+	// Less than 30 days - show days
+	if ($diff < 2592000) {
+		$days = floor($diff / 86400);
+		return $this->l10n->t('%d days ago', [$days]);
+	}
 
 		// More than 30 days - show the actual date
 		return $this->dateTimeFormatter->formatDate($dateTime, 'short');

@@ -13,6 +13,7 @@
 namespace OCA\Itop\Settings;
 
 use OCA\Itop\AppInfo\Application;
+use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
 use OCP\IL10N;
@@ -25,6 +26,7 @@ class Admin implements ISettings {
 		private IConfig $config,
 		private IL10N $l10n,
 		private LoggerInterface $logger,
+		private IAppManager $appManager,
 	) {
 		$this->logger->info('iTop Admin settings constructor called', ['app' => Application::APP_ID]);
 	}
@@ -55,7 +57,7 @@ class Admin implements ISettings {
 			'user_facing_name' => $userFacingName,
 			'has_application_token' => $hasApplicationToken,
 			'last_updated' => date('Y-m-d H:i:s'),
-			'version' => Application::VERSION,
+			'version' => Application::getVersion($this->appManager),
 			'cache_ttl_ci_preview' => $cacheTtlCiPreview,
 			'cache_ttl_ticket_info' => $cacheTtlTicketInfo,
 			'cache_ttl_search' => $cacheTtlSearch,

@@ -15,6 +15,7 @@ namespace OCA\Itop\Controller;
 use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\ItopAPIService;
 use OCA\Itop\Service\CacheService;
+use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -37,6 +38,7 @@ class ConfigController extends Controller {
 		private ItopAPIService $itopAPIService,
 		private CacheService $cacheService,
 		private LoggerInterface $logger,
+		private IAppManager $appManager,
 		private ?string $userId
 	) {
 		parent::__construct($appName, $request);
@@ -287,7 +289,7 @@ class ConfigController extends Controller {
 			'has_application_token' => $hasApplicationToken,
 			'connected_users' => $connectedUsers,
 			'last_updated' => date('Y-m-d H:i:s'),
-			'version' => Application::VERSION,
+			'version' => Application::getVersion($this->appManager),
 			'cache_ttl_ci_preview' => $cacheTtlCiPreview,
 			'cache_ttl_ticket_info' => $cacheTtlTicketInfo,
 			'cache_ttl_search' => $cacheTtlSearch,
@@ -915,6 +917,63 @@ class ConfigController extends Controller {
 	}
 
 	/**
+	 * Check for app version updates on GitHub
+	 *
+	 * @return DataResponse
+	 */
+	public function checkVersion(): DataResponse {
+		try {
+			$currentVersion = Application::getVersion($this->appManager);
+			$githubApiUrl = 'https://api.github.com/repos/LexioJ/integration_itop/releases/latest';
+
+			$ch = curl_init();
+			curl_setopt($ch, CURLOPT_URL, $githubApiUrl);
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+			curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+			curl_setopt($ch, CURLOPT_HTTPHEADER, [
+				'User-Agent: Nextcloud-iTop-Integration',
+				'Accept: application/vnd.github.v3+json'
+			]);
+
+			$result = curl_exec($ch);
+			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+			curl_close($ch);
+
+			if ($result === false || $httpCode !== 200) {
+				return new DataResponse([
+					'has_update' => false,
+					'error' => 'Failed to fetch version information'
+				]);
+			}
+
+			$releaseData = json_decode($result, true);
+			if (!isset($releaseData['tag_name'])) {
+				return new DataResponse([
+					'has_update' => false,
+					'error' => 'Invalid response from GitHub'
+				]);
+			}
+
+			$latestVersion = ltrim($releaseData['tag_name'], 'v');
+			$hasUpdate = version_compare($latestVersion, $currentVersion, '>');
+
+			return new DataResponse([
+				'has_update' => $hasUpdate,
+				'current_version' => $currentVersion,
+				'latest_version' => $latestVersion,
+				'release_url' => $releaseData['html_url'] ?? 'https://github.com/LexioJ/integration_itop/releases',
+				'release_date' => $releaseData['published_at'] ?? null
+			]);
+		} catch (\Exception $e) {
+			$this->logger->error('Failed to check version: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			return new DataResponse([
+				'has_update' => false,
+				'error' => 'Version check failed'
+			]);
+		}
+	}
+
+	/**
 	 * Count users who have configured iTop
 	 *
 	 * @return int
@@ -923,15 +982,17 @@ class ConfigController extends Controller {
 		try {
 			// Count users who have person_id configured (indicates completed setup)
 			$query = \OC::$server->getDatabaseConnection()->getQueryBuilder();
-			$result = $query->select($query->func()->count('*', 'user_count'))
+			$result = $query->select($query->func()->count('*', 'count'))
 				->from('preferences')
 				->where($query->expr()->eq('appid', $query->createNamedParameter(Application::APP_ID)))
 				->andWhere($query->expr()->eq('configkey', $query->createNamedParameter('person_id')))
 				->andWhere($query->expr()->neq('configvalue', $query->createNamedParameter('')))
-				->execute();
+				->executeQuery();
 
 			$row = $result->fetch();
-			return (int) ($row['user_count'] ?? 0);
+			$result->closeCursor();
+			// Database may return the count as 'count' or 'COUNT(*)' depending on driver
+			return (int) ($row['count'] ?? $row['COUNT(*)'] ?? 0);
 		} catch (\Exception $e) {
 			$this->logger->error('Error counting connected users: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return 0;
