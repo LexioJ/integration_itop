@@ -64,7 +64,7 @@ class ProfileService {
 		$profiles = $this->getUserProfiles($userId);
 
 		// Normalize for robust comparison
-		$normalized = array_map(static function($p) {
+		$normalized = array_map(static function ($p) {
 			return mb_strtolower(trim((string)$p));
 		}, $profiles);
 		$portalName = mb_strtolower(self::PORTAL_PROFILE_NAME);
@@ -206,7 +206,7 @@ class ProfileService {
 				}
 			}
 			// De-duplicate and remove empties
-			$names = array_values(array_unique(array_filter($names, static fn($n) => $n !== '')));
+			$names = array_values(array_unique(array_filter($names, static fn ($n) => $n !== '')));
 			return $names;
 		}
 

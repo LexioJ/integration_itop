@@ -31,7 +31,7 @@ class ItopWidget implements IWidget, IConditionalWidget {
 		private IURLGenerator $urlGenerator,
 		private ItopAPIService $itopAPIService,
 		private LoggerInterface $logger,
-		private ?string $userId
+		private ?string $userId,
 	) {
 		$this->logger->info('ItopWidget constructed for user: ' . ($userId ?? 'null'), ['app' => Application::APP_ID]);
 	}
@@ -73,7 +73,7 @@ class ItopWidget implements IWidget, IConditionalWidget {
 		if ($this->userId === null) {
 			return null;
 		}
-		
+
 		return $this->urlGenerator->linkToRouteAbsolute('settings.PersonalSettings.index', ['section' => 'connected-accounts']);
 	}
 
@@ -133,15 +133,15 @@ class ItopWidget implements IWidget, IConditionalWidget {
 
 	private function formatSubText(array $ticket): string {
 		$parts = [];
-		
+
 		if (!empty($ticket['status'])) {
 			$parts[] = $this->l10n->t('Status: %s', [$ticket['status']]);
 		}
-		
+
 		if (!empty($ticket['agent'])) {
 			$parts[] = $this->l10n->t('Agent: %s', [$ticket['agent']]);
 		}
-		
+
 		return implode(' • ', $parts);
 	}
 

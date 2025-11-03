@@ -17,8 +17,8 @@ use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
 use OCP\IL10N;
-use OCP\Settings\ISettings;
 use OCP\Security\ICrypto;
+use OCP\Settings\ISettings;
 
 class Personal implements ISettings {
 
@@ -53,10 +53,10 @@ class Personal implements ISettings {
 
 		// Check if admin has configured application token
 		$hasApplicationToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '') !== '';
-		
+
 		// Get CI classes that users can configure (user_choice state)
 		$userChoiceCIClasses = Application::getUserChoiceCIClasses($this->config);
-		
+
 		// Get user's disabled CI classes
 		$userDisabledJson = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
 		$userDisabledClasses = [];

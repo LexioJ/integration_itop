@@ -75,12 +75,12 @@ class PreviewMapper {
 	 */
 	private function getTitle(array $fields): string {
 		$name = $fields['name'] ?? $fields['friendlyname'] ?? 'Unknown CI';
-		
+
 		// For Software class, append version if available
 		if (!empty($fields['version']) && !empty($fields['vendor'])) {
 			return trim($name . ' ' . $fields['version']);
 		}
-		
+
 		return $name;
 	}
 
@@ -330,7 +330,7 @@ class PreviewMapper {
 				// Software catalog: Show counts line (Documents, Instances, Patches, Licenses)
 				// Counts may come pre-computed from searchCIs, or we compute from linked sets here
 				$counts = $fields['counts'] ?? null;
-				
+
 				if ($counts === null) {
 					// If counts not pre-computed, compute from linked sets
 					$counts = [
@@ -340,7 +340,7 @@ class PreviewMapper {
 						'licenses' => $this->countFromLinkedSet($fields['softwarelicence_list'] ?? null),
 					];
 				}
-				
+
 				if (!empty($counts)) {
 					$countParts = [];
 					if (isset($counts['documents'])) {
@@ -361,7 +361,7 @@ class PreviewMapper {
 				}
 				break;
 
-			// Peripheral has no class-specific extras beyond common fields
+				// Peripheral has no class-specific extras beyond common fields
 		}
 
 		return $extras;

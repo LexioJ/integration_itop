@@ -210,32 +210,32 @@ class ItopAPIService {
 		$firstName = $userInfo['user']['first_name'] ?? '';
 		$lastName = $userInfo['user']['last_name'] ?? '';
 		$fullName = trim($firstName . ' ' . $lastName);
-		
+
 		if (empty($fullName)) {
 			return [];
 		}
-		
+
 		$allTickets = [];
-		
+
 		$itopUrl = $this->getItopUrl($userId);
 
-	// Get person_id for more precise queries
-	$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
-	
-	// Query UserRequest tickets where user is caller OR contact
-	// Note: ORDER BY in complex queries with subqueries may not work, so we sort in PHP
-	if ($personId) {
-		$userRequestQuery = "SELECT UserRequest WHERE (caller_id = '$personId' OR id IN (SELECT UserRequest JOIN lnkContactToTicket ON lnkContactToTicket.ticket_id = UserRequest.id WHERE lnkContactToTicket.contact_id = '$personId')) AND status != 'closed'";
-	} else {
-		// Fallback to name-based query if no person_id
-		$userRequestQuery = "SELECT UserRequest WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
-	}
-	$userRequestParams = [
-		'operation' => 'core/get',
-		'class' => 'UserRequest',
-		'key' => $userRequestQuery,
-		'output_fields' => '*'
-	];
+		// Get person_id for more precise queries
+		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+
+		// Query UserRequest tickets where user is caller OR contact
+		// Note: ORDER BY in complex queries with subqueries may not work, so we sort in PHP
+		if ($personId) {
+			$userRequestQuery = "SELECT UserRequest WHERE (caller_id = '$personId' OR id IN (SELECT UserRequest JOIN lnkContactToTicket ON lnkContactToTicket.ticket_id = UserRequest.id WHERE lnkContactToTicket.contact_id = '$personId')) AND status != 'closed'";
+		} else {
+			// Fallback to name-based query if no person_id
+			$userRequestQuery = "SELECT UserRequest WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
+		}
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => $userRequestQuery,
+			'output_fields' => '*'
+		];
 
 		if ($limit) {
 			$userRequestParams['limit'] = $limit;
@@ -250,77 +250,77 @@ class ItopAPIService {
 				['app' => Application::APP_ID]
 			);
 		}
-	if (isset($userRequestResult['objects'])) {
-		foreach ($userRequestResult['objects'] as $objectKey => $ticket) {
-			// The ticket ID is in the 'key' field of the ticket object
-			$ticketId = $ticket['key'] ?? null;
-			if (!$ticketId) {
-				// Fallback: extract from object key like "UserRequest::2"
-				$ticketId = strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey;
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $objectKey => $ticket) {
+				// The ticket ID is in the 'key' field of the ticket object
+				$ticketId = $ticket['key'] ?? null;
+				if (!$ticketId) {
+					// Fallback: extract from object key like "UserRequest::2"
+					$ticketId = strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey;
+				}
+				$allTickets[] = [
+					'type' => 'UserRequest',
+					'id' => $ticketId,
+					'ref' => $ticket['fields']['ref'] ?? '',
+					'title' => $ticket['fields']['title'] ?? '',
+					'description' => $ticket['fields']['description'] ?? '',
+					'status' => $ticket['fields']['status'] ?? 'unknown',
+					'operational_status' => $ticket['fields']['operational_status'] ?? '',
+					'priority' => $ticket['fields']['priority'] ?? '',
+					'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
+					'start_date' => $ticket['fields']['start_date'] ?? '',
+					'last_update' => $ticket['fields']['last_update'] ?? '',
+					'close_date' => $ticket['fields']['close_date'] ?? '',
+					'url' => $this->buildTicketUrl($userId, 'UserRequest', $ticketId)
+				];
 			}
-			$allTickets[] = [
-				'type' => 'UserRequest',
-				'id' => $ticketId,
-				'ref' => $ticket['fields']['ref'] ?? '',
-				'title' => $ticket['fields']['title'] ?? '',
-				'description' => $ticket['fields']['description'] ?? '',
-				'status' => $ticket['fields']['status'] ?? 'unknown',
-				'operational_status' => $ticket['fields']['operational_status'] ?? '',
-				'priority' => $ticket['fields']['priority'] ?? '',
-				'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
-				'start_date' => $ticket['fields']['start_date'] ?? '',
-				'last_update' => $ticket['fields']['last_update'] ?? '',
-				'close_date' => $ticket['fields']['close_date'] ?? '',
-				'url' => $this->buildTicketUrl($userId, 'UserRequest', $ticketId)
-			];
 		}
-	}
-		
-	// Query Incident tickets where user is caller OR contact
-	if ($personId) {
-		$incidentQuery = "SELECT Incident WHERE (caller_id = '$personId' OR id IN (SELECT Incident JOIN lnkContactToTicket ON lnkContactToTicket.ticket_id = Incident.id WHERE lnkContactToTicket.contact_id = '$personId')) AND status != 'closed'";
-	} else {
-		// Fallback to name-based query if no person_id
-		$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
-	}
-	$incidentParams = [
-		'operation' => 'core/get',
-		'class' => 'Incident',
-		'key' => $incidentQuery,
-		'output_fields' => '*'
-	];
+
+		// Query Incident tickets where user is caller OR contact
+		if ($personId) {
+			$incidentQuery = "SELECT Incident WHERE (caller_id = '$personId' OR id IN (SELECT Incident JOIN lnkContactToTicket ON lnkContactToTicket.ticket_id = Incident.id WHERE lnkContactToTicket.contact_id = '$personId')) AND status != 'closed'";
+		} else {
+			// Fallback to name-based query if no person_id
+			$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
+		}
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => $incidentQuery,
+			'output_fields' => '*'
+		];
 
 		if ($limit) {
 			$incidentParams['limit'] = $limit;
 		}
 
-	$incidentResult = $this->request($userId, $incidentParams);
-	if (isset($incidentResult['objects'])) {
-		foreach ($incidentResult['objects'] as $objectKey => $ticket) {
-			// The ticket ID is in the 'key' field of the ticket object
-			$ticketId = $ticket['key'] ?? null;
-			if (!$ticketId) {
-				// Fallback: extract from object key like "Incident::4"
-				$ticketId = strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey;
+		$incidentResult = $this->request($userId, $incidentParams);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $objectKey => $ticket) {
+				// The ticket ID is in the 'key' field of the ticket object
+				$ticketId = $ticket['key'] ?? null;
+				if (!$ticketId) {
+					// Fallback: extract from object key like "Incident::4"
+					$ticketId = strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey;
+				}
+				$allTickets[] = [
+					'type' => 'Incident',
+					'id' => $ticketId,
+					'ref' => $ticket['fields']['ref'] ?? '',
+					'title' => $ticket['fields']['title'] ?? '',
+					'description' => $ticket['fields']['description'] ?? '',
+					'status' => $ticket['fields']['status'] ?? 'unknown',
+					'operational_status' => $ticket['fields']['operational_status'] ?? '',
+					'priority' => $ticket['fields']['priority'] ?? '',
+					'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
+					'start_date' => $ticket['fields']['start_date'] ?? '',
+					'last_update' => $ticket['fields']['last_update'] ?? '',
+					'close_date' => $ticket['fields']['close_date'] ?? '',
+					'url' => $this->buildTicketUrl($userId, 'Incident', $ticketId)
+				];
 			}
-			$allTickets[] = [
-				'type' => 'Incident',
-				'id' => $ticketId,
-				'ref' => $ticket['fields']['ref'] ?? '',
-				'title' => $ticket['fields']['title'] ?? '',
-				'description' => $ticket['fields']['description'] ?? '',
-				'status' => $ticket['fields']['status'] ?? 'unknown',
-				'operational_status' => $ticket['fields']['operational_status'] ?? '',
-				'priority' => $ticket['fields']['priority'] ?? '',
-				'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
-				'start_date' => $ticket['fields']['start_date'] ?? '',
-				'last_update' => $ticket['fields']['last_update'] ?? '',
-				'close_date' => $ticket['fields']['close_date'] ?? '',
-				'url' => $this->buildTicketUrl($userId, 'Incident', $ticketId)
-			];
 		}
-	}
-		
+
 		return $allTickets;
 	}
 
@@ -379,7 +379,7 @@ class ItopAPIService {
 			'tickets' => $groups,
 		];
 	}
-	
+
 	/**
 	 * Get count of tickets created by the current user (separate counts for UserRequest and Incident)
 	 *
@@ -398,14 +398,14 @@ class ItopAPIService {
 		$firstName = $userInfo['user']['first_name'] ?? '';
 		$lastName = $userInfo['user']['last_name'] ?? '';
 		$fullName = trim($firstName . ' ' . $lastName);
-		
+
 		if (empty($fullName)) {
 			return ['incidents' => 0, 'requests' => 0, 'status' => 'no_user'];
 		}
-		
+
 		$incidentCount = 0;
 		$requestCount = 0;
-		
+
 		// Query UserRequest tickets
 		$userRequestQuery = "SELECT UserRequest WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
 		$userRequestParams = [
@@ -419,7 +419,7 @@ class ItopAPIService {
 		if (isset($userRequestResult['objects'])) {
 			$requestCount = count($userRequestResult['objects']);
 		}
-		
+
 		// Query Incident tickets
 		$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
 		$incidentParams = [
@@ -433,7 +433,7 @@ class ItopAPIService {
 		if (isset($incidentResult['objects'])) {
 			$incidentCount = count($incidentResult['objects']);
 		}
-		
+
 		// Return separate counts
 		return [
 			'incidents' => $incidentCount,
@@ -442,7 +442,7 @@ class ItopAPIService {
 			'status' => 'success'
 		];
 	}
-	
+
 
 	/**
 	 * Get current user information
@@ -557,7 +557,7 @@ class ItopAPIService {
 		// Search UserRequests - tickets where user is creator OR assigned agent
 		// Also search by ref (ticket ID like R-000001)
 		// Note: Contact relationship search added separately below
-		$userRequestQuery = "SELECT UserRequest WHERE "
+		$userRequestQuery = 'SELECT UserRequest WHERE '
 			. "(caller_id_friendlyname = '$fullName' OR agent_id_friendlyname = '$fullName') "
 			. "AND (title LIKE '%$escapedQuery%' OR description LIKE '%$escapedQuery%' OR ref LIKE '%$escapedQuery%')";
 
@@ -596,7 +596,7 @@ class ItopAPIService {
 		// Search Incidents - tickets where user is creator OR assigned agent
 		// Also search by ref (ticket ID like I-000006)
 		// Note: Contact relationship search added separately below
-		$incidentQuery = "SELECT Incident WHERE "
+		$incidentQuery = 'SELECT Incident WHERE '
 			. "(caller_id_friendlyname = '$fullName' OR agent_id_friendlyname = '$fullName') "
 			. "AND (title LIKE '%$escapedQuery%' OR description LIKE '%$escapedQuery%' OR ref LIKE '%$escapedQuery%')";
 
@@ -652,8 +652,8 @@ class ItopAPIService {
 					// Only fetch if ref matches search query
 					if ($ticketId && (empty($escapedQuery) || stripos($ticketRef, $query) !== false)) {
 						// Determine ticket class from ref (R- = UserRequest, I- = Incident)
-						$ticketClass = (strpos($ticketRef, 'R-') === 0) ? 'UserRequest' :
-									   ((strpos($ticketRef, 'I-') === 0) ? 'Incident' : null);
+						$ticketClass = (strpos($ticketRef, 'R-') === 0) ? 'UserRequest'
+									   : ((strpos($ticketRef, 'I-') === 0) ? 'Incident' : null);
 
 						if ($ticketClass) {
 							$ticketData = $this->request($userId, [
@@ -696,7 +696,7 @@ class ItopAPIService {
 
 		// Remove duplicates (ticket might be in both searches)
 		$seen = [];
-		$searchResults = array_filter($searchResults, function($ticket) use (&$seen) {
+		$searchResults = array_filter($searchResults, function ($ticket) use (&$seen) {
 			$key = $ticket['type'] . '-' . $ticket['id'];
 			if (isset($seen[$key])) {
 				return false;
@@ -706,7 +706,7 @@ class ItopAPIService {
 		});
 
 		// Sort by last_update descending (most recent first)
-		usort($searchResults, function($a, $b) {
+		usort($searchResults, function ($a, $b) {
 			return strcmp($b['last_update'] ?? '', $a['last_update'] ?? '');
 		});
 
@@ -796,9 +796,9 @@ class ItopAPIService {
 	 */
 	public function searchCIs(string $userId, string $term, array $classes = [], bool $isPortalOnly = false, int $limit = 10): array {
 		// Default to effective enabled CI classes (admin-enabled minus user-disabled)
-			if (empty($classes)) {
-				$classes = Application::getEffectiveEnabledCIClasses($this->config, $userId);
-			}
+		if (empty($classes)) {
+			$classes = Application::getEffectiveEnabledCIClasses($this->config, $userId);
+		}
 
 		$searchResults = [];
 		$itopUrl = $this->getItopUrl($userId);
@@ -824,113 +824,113 @@ class ItopAPIService {
 			// Class-aware joins and term clause
 			$joins = '';
 			$termClause = '';
-				if (in_array($class, ['PCSoftware', 'OtherSoftware'], true)) {
-					// Software instances: match without joins using friendlyname fields
-					$termClause = "(ci.system_name LIKE '%$escapedTerm%' OR ci.software_id_friendlyname LIKE '%$escapedTerm%' OR ci.path LIKE '%$escapedTerm%' OR ci.friendlyname LIKE '%$escapedTerm%')";
-				} elseif ($class === 'WebApplication') {
-					// Web applications: match name and URL
-					$termClause = "(ci.name LIKE '%$escapedTerm%' OR ci.url LIKE '%$escapedTerm%')";
-				} elseif ($class === 'Software') {
-					// Software catalog entries: try exact-like on name/vendor first
-					$termClause = "(ci.name LIKE '$escapedTerm' OR ci.vendor_name LIKE '$escapedTerm')";
-				} else {
-					// Hardware-like CIs (FunctionalCI subclasses): include brand/model; add phone specifics
-					$termParts = [
-						"ci.name LIKE '%$escapedTerm%'",
-						"ci.serialnumber LIKE '%$escapedTerm%'",
-						"ci.asset_number LIKE '%$escapedTerm%'",
-						"ci.brand_id_friendlyname LIKE '%$escapedTerm%'",
-						"ci.model_id_friendlyname LIKE '%$escapedTerm%'",
-					];
-					if (in_array($class, ['Phone','IPPhone','MobilePhone'], true)) {
-						$termParts[] = "ci.phonenumber LIKE '%$escapedTerm%'";
-					}
-					if ($class === 'MobilePhone') {
-						$termParts[] = "ci.imei LIKE '%$escapedTerm%'";
-					}
-					$termClause = '(' . implode(' OR ', $termParts) . ')';
-				}
-
-				// Build OQL query with profile-aware filtering
-				if ($isPortalOnly) {
-					if ($class === 'Software') {
-						// Software is not a FunctionalCI; do not filter via lnkContactToFunctionalCI
-						$query = "SELECT $class AS ci WHERE $termClause";
-					} else {
-						// Portal-only: Only CIs where user is contact (FunctionalCI and subclasses)
-						$query = "SELECT $class AS ci JOIN lnkContactToFunctionalCI AS lnk ON lnk.functionalci_id = ci.id"
-							. $joins
-							. " WHERE lnk.contact_id = $personId AND $termClause";
-					}
-				} else {
-					// Power users: Full CMDB search within ACL
-					$query = "SELECT $class AS ci"
-						. $joins
-						. " WHERE $termClause";
-				}
-
-				$params = [
-					'operation' => 'core/get',
-					'class' => $class,
-					'key' => $query,
-					'output_fields' => $outputFields,
-					'limit' => $limit
+			if (in_array($class, ['PCSoftware', 'OtherSoftware'], true)) {
+				// Software instances: match without joins using friendlyname fields
+				$termClause = "(ci.system_name LIKE '%$escapedTerm%' OR ci.software_id_friendlyname LIKE '%$escapedTerm%' OR ci.path LIKE '%$escapedTerm%' OR ci.friendlyname LIKE '%$escapedTerm%')";
+			} elseif ($class === 'WebApplication') {
+				// Web applications: match name and URL
+				$termClause = "(ci.name LIKE '%$escapedTerm%' OR ci.url LIKE '%$escapedTerm%')";
+			} elseif ($class === 'Software') {
+				// Software catalog entries: try exact-like on name/vendor first
+				$termClause = "(ci.name LIKE '$escapedTerm' OR ci.vendor_name LIKE '$escapedTerm')";
+			} else {
+				// Hardware-like CIs (FunctionalCI subclasses): include brand/model; add phone specifics
+				$termParts = [
+					"ci.name LIKE '%$escapedTerm%'",
+					"ci.serialnumber LIKE '%$escapedTerm%'",
+					"ci.asset_number LIKE '%$escapedTerm%'",
+					"ci.brand_id_friendlyname LIKE '%$escapedTerm%'",
+					"ci.model_id_friendlyname LIKE '%$escapedTerm%'",
 				];
+				if (in_array($class, ['Phone','IPPhone','MobilePhone'], true)) {
+					$termParts[] = "ci.phonenumber LIKE '%$escapedTerm%'";
+				}
+				if ($class === 'MobilePhone') {
+					$termParts[] = "ci.imei LIKE '%$escapedTerm%'";
+				}
+				$termClause = '(' . implode(' OR ', $termParts) . ')';
+			}
 
-				// no debug logging
-
-				$result = $this->request($userId, $params, 'POST', $class !== 'Software');
-
-				// If Software exact-like returns empty, retry with wildcards
+			// Build OQL query with profile-aware filtering
+			if ($isPortalOnly) {
 				if ($class === 'Software') {
-					$empty = !isset($result['objects']) || empty($result['objects']);
-					if ($empty && $escapedTerm !== '') {
+					// Software is not a FunctionalCI; do not filter via lnkContactToFunctionalCI
+					$query = "SELECT $class AS ci WHERE $termClause";
+				} else {
+					// Portal-only: Only CIs where user is contact (FunctionalCI and subclasses)
+					$query = "SELECT $class AS ci JOIN lnkContactToFunctionalCI AS lnk ON lnk.functionalci_id = ci.id"
+						. $joins
+						. " WHERE lnk.contact_id = $personId AND $termClause";
+				}
+			} else {
+				// Power users: Full CMDB search within ACL
+				$query = "SELECT $class AS ci"
+					. $joins
+					. " WHERE $termClause";
+			}
+
+			$params = [
+				'operation' => 'core/get',
+				'class' => $class,
+				'key' => $query,
+				'output_fields' => $outputFields,
+				'limit' => $limit
+			];
+
+			// no debug logging
+
+			$result = $this->request($userId, $params, 'POST', $class !== 'Software');
+
+			// If Software exact-like returns empty, retry with wildcards
+			if ($class === 'Software') {
+				$empty = !isset($result['objects']) || empty($result['objects']);
+				if ($empty && $escapedTerm !== '') {
 					$termClauseWildcard = "(ci.name LIKE '%$escapedTerm%' OR ci.vendor_name LIKE '%$escapedTerm%')";
-						$queryWildcard = "SELECT $class AS ci WHERE $termClauseWildcard";
-						$result = $this->request($userId, [
-							'operation' => 'core/get',
-							'class' => $class,
-							'key' => $queryWildcard,
-							'output_fields' => $outputFields,
-							'limit' => $limit
-						], 'POST', false);
-					}
-
-				}
-
-				if ($class === 'Software') {
-					// no debug logging
-				}
-
-				// Fallback for Software: if empty, derive from SoftwareInstance matches
-				if (($class === 'Software') && (!isset($result['objects']) || empty($result['objects'])) && $escapedTerm !== '') {
-					$si = $this->request($userId, [
+					$queryWildcard = "SELECT $class AS ci WHERE $termClauseWildcard";
+					$result = $this->request($userId, [
 						'operation' => 'core/get',
-						'class' => 'SoftwareInstance',
-						'key' => "SELECT SoftwareInstance AS si WHERE (si.system_name LIKE '%$escapedTerm%' OR si.software_id_friendlyname LIKE '%$escapedTerm%')",
-						'output_fields' => 'software_id',
-						'limit' => $limit * 2,
+						'class' => $class,
+						'key' => $queryWildcard,
+						'output_fields' => $outputFields,
+						'limit' => $limit
 					], 'POST', false);
-					$ids = [];
-					if (isset($si['objects'])) {
-						foreach ($si['objects'] as $obj) {
-							$ids[] = (int)($obj['fields']['software_id'] ?? 0);
-						}
-						$ids = array_values(array_unique(array_filter($ids)));
-					}
-					if (!empty($ids)) {
-						$idsCsv = implode(',', $ids);
-						$result = $this->request($userId, [
-							'operation' => 'core/get',
-							'class' => 'Software',
-							'key' => "SELECT Software WHERE id IN ($idsCsv)",
-							'output_fields' => $outputFields,
-							'limit' => $limit
-						]);
-					}
 				}
 
-				if (isset($result['objects'])) {
+			}
+
+			if ($class === 'Software') {
+				// no debug logging
+			}
+
+			// Fallback for Software: if empty, derive from SoftwareInstance matches
+			if (($class === 'Software') && (!isset($result['objects']) || empty($result['objects'])) && $escapedTerm !== '') {
+				$si = $this->request($userId, [
+					'operation' => 'core/get',
+					'class' => 'SoftwareInstance',
+					'key' => "SELECT SoftwareInstance AS si WHERE (si.system_name LIKE '%$escapedTerm%' OR si.software_id_friendlyname LIKE '%$escapedTerm%')",
+					'output_fields' => 'software_id',
+					'limit' => $limit * 2,
+				], 'POST', false);
+				$ids = [];
+				if (isset($si['objects'])) {
+					foreach ($si['objects'] as $obj) {
+						$ids[] = (int)($obj['fields']['software_id'] ?? 0);
+					}
+					$ids = array_values(array_unique(array_filter($ids)));
+				}
+				if (!empty($ids)) {
+					$idsCsv = implode(',', $ids);
+					$result = $this->request($userId, [
+						'operation' => 'core/get',
+						'class' => 'Software',
+						'key' => "SELECT Software WHERE id IN ($idsCsv)",
+						'output_fields' => $outputFields,
+						'limit' => $limit
+					]);
+				}
+			}
+
+			if (isset($result['objects'])) {
 				foreach ($result['objects'] as $key => $ci) {
 					$fields = $ci['fields'] ?? [];
 					// Robust title fallback across CI families
@@ -978,12 +978,12 @@ class ItopAPIService {
 		}
 
 		// Sort by name
-		usort($searchResults, function($a, $b) {
+		usort($searchResults, function ($a, $b) {
 			return strcasecmp($a['name'], $b['name']);
 		});
 
 		return $searchResults;
-}
+	}
 
 	/**
 	 * Helper to count linked objects for Software summaries from AttributeLinkedSet
@@ -1055,7 +1055,7 @@ class ItopAPIService {
 	public function request(string $userId, array $params, string $method = 'POST', bool $useCache = true): array {
 		// Build cache key from 'key' parameter
 		$cacheKey = $this->buildQueryCacheKey($params);
-		
+
 		// Check cache first if enabled
 		if ($useCache) {
 			$cached = $this->cache->get($cacheKey);
@@ -1085,7 +1085,7 @@ class ItopAPIService {
 				'class' => $params['class'] ?? ''
 			]);
 		}
-		
+
 		$itopUrl = $this->getItopUrl($userId);
 		if (!$itopUrl) {
 			return ['error' => $this->l10n->t('iTop URL not configured')];
@@ -1309,7 +1309,7 @@ class ItopAPIService {
 		}
 
 		// Sort by last_update descending (most recent first)
-		usort($allTickets, function($a, $b) {
+		usort($allTickets, function ($a, $b) {
 			return strcmp($b['last_update'] ?? '', $a['last_update'] ?? '');
 		});
 
@@ -1330,7 +1330,7 @@ class ItopAPIService {
 			return [];
 		}
 
-		$teamIds = array_map(fn($t) => $t['id'], $teams);
+		$teamIds = array_map(fn ($t) => $t['id'], $teams);
 		$teamIdList = implode(',', $teamIds);
 
 		$itopUrl = $this->getItopUrl($userId);
@@ -1399,7 +1399,7 @@ class ItopAPIService {
 		}
 
 		// Sort by priority (critical first) then by last_update
-		usort($allTickets, function($a, $b) {
+		usort($allTickets, function ($a, $b) {
 			$priorityOrder = ['1' => 3, '2' => 2, '3' => 1]; // low, medium, high
 			$aPriority = $priorityOrder[$a['priority'] ?? ''] ?? 0;
 			$bPriority = $priorityOrder[$b['priority'] ?? ''] ?? 0;
@@ -1428,7 +1428,7 @@ class ItopAPIService {
 			return [];
 		}
 
-		$teamIds = array_map(fn($t) => $t['id'], $teams);
+		$teamIds = array_map(fn ($t) => $t['id'], $teams);
 		$teamIdList = implode(',', $teamIds);
 
 		$itopUrl = $this->getItopUrl($userId);
@@ -1497,7 +1497,7 @@ class ItopAPIService {
 		}
 
 		// Sort by last_update descending (most recent escalations first)
-		usort($allTickets, function($a, $b) {
+		usort($allTickets, function ($a, $b) {
 			return strcmp($b['last_update'] ?? '', $a['last_update'] ?? '');
 		});
 
@@ -1553,7 +1553,7 @@ class ItopAPIService {
 		}
 
 		// Sort by priority: current (ongoing) first, then planned (soonest first)
-		usort($allChanges, function($a, $b) {
+		usort($allChanges, function ($a, $b) {
 			$now = time();
 			$aStart = strtotime($a['start_date'] ?? '');
 			$aEnd = strtotime($a['end_date'] ?? '');
@@ -1565,8 +1565,12 @@ class ItopAPIService {
 			$bIsCurrent = $bStart <= $now && $bEnd >= $now;
 
 			// Prioritize current changes
-			if ($aIsCurrent && !$bIsCurrent) return -1;
-			if (!$aIsCurrent && $bIsCurrent) return 1;
+			if ($aIsCurrent && !$bIsCurrent) {
+				return -1;
+			}
+			if (!$aIsCurrent && $bIsCurrent) {
+				return 1;
+			}
 
 			// Both current or both planned - sort by start_date
 			return strcmp($a['start_date'] ?? '', $b['start_date'] ?? '');

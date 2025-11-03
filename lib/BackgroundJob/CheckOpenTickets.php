@@ -13,8 +13,8 @@
 namespace OCA\Itop\BackgroundJob;
 
 use OCA\Itop\Service\ItopAPIService;
-use OCP\BackgroundJob\TimedJob;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\BackgroundJob\TimedJob;
 
 use Psr\Log\LoggerInterface;
 

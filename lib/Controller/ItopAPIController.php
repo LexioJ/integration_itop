@@ -32,7 +32,7 @@ class ItopAPIController extends Controller {
 		private IConfig $config,
 		private IL10N $l10n,
 		private LoggerInterface $logger,
-		private ?string $userId
+		private ?string $userId,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -142,7 +142,7 @@ class ItopAPIController extends Controller {
 		try {
 			$results = $this->itopAPIService->search($this->userId, '', 0, $limit);
 			// Filter to only CIs
-			$cis = array_filter($results, function($item) {
+			$cis = array_filter($results, function ($item) {
 				return $item['type'] === 'FunctionalCI';
 			});
 			return new DataResponse(array_values($cis));
@@ -174,7 +174,7 @@ class ItopAPIController extends Controller {
 	 */
 	public function getDashboardData(): DataResponse {
 		$this->logger->info('getDashboardData called for user: ' . ($this->userId ?? 'null'), ['app' => Application::APP_ID]);
-		
+
 		if ($this->userId === null) {
 			$this->logger->warning('getDashboardData: No user ID', ['app' => Application::APP_ID]);
 			return new DataResponse(['error' => 'Unauthorized'], Http::STATUS_UNAUTHORIZED);
@@ -208,7 +208,7 @@ class ItopAPIController extends Controller {
 				'itop_url' => $itopUrl,
 				'display_name' => $displayName
 			];
-			
+
 			$this->logger->info('getDashboardData success, returning data', ['app' => Application::APP_ID]);
 			return new DataResponse($response);
 		} catch (\Exception $e) {
@@ -263,11 +263,11 @@ class ItopAPIController extends Controller {
 			$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
 
 			// Calculate type-specific counts for detailed breakdown
-			$myIncidents = count(array_filter($myTickets, fn($t) => $t['type'] === 'Incident'));
-			$myRequests = count(array_filter($myTickets, fn($t) => $t['type'] === 'UserRequest'));
+			$myIncidents = count(array_filter($myTickets, fn ($t) => $t['type'] === 'Incident'));
+			$myRequests = count(array_filter($myTickets, fn ($t) => $t['type'] === 'UserRequest'));
 
-			$teamIncidents = count(array_filter($teamTickets, fn($t) => $t['type'] === 'Incident'));
-			$teamRequests = count(array_filter($teamTickets, fn($t) => $t['type'] === 'UserRequest'));
+			$teamIncidents = count(array_filter($teamTickets, fn ($t) => $t['type'] === 'Incident'));
+			$teamRequests = count(array_filter($teamTickets, fn ($t) => $t['type'] === 'UserRequest'));
 
 			$response = [
 				'myTickets' => $myTickets,

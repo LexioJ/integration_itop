@@ -65,7 +65,7 @@ class Notifier implements INotifier {
 		switch ($notification->getSubject()) {
 			case 'new_open_tickets':
 				$p = $notification->getSubjectParameters();
-				$nbOpen = (int) ($p['nbOpen'] ?? 0);
+				$nbOpen = (int)($p['nbOpen'] ?? 0);
 				$link = $p['link'] ?? '';
 
 				$notification->setParsedSubject($l->n('New iTop ticket assigned', 'New iTop tickets assigned', $nbOpen));

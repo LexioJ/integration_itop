@@ -81,7 +81,7 @@ class ItopSearchProvider implements IProvider {
 		}
 
 		$term = $query->getTerm();
-		$offset = (int) $query->getCursor();
+		$offset = (int)$query->getCursor();
 		$limit = $query->getLimit();
 
 		try {
@@ -94,21 +94,27 @@ class ItopSearchProvider implements IProvider {
 			}
 
 			// Score tickets
-			$scoredTickets = array_map(function(array $entry) use ($term) {
+			$scoredTickets = array_map(function (array $entry) use ($term) {
 				$score = 0.0;
 				$lcTerm = mb_strtolower($term);
 				$title = (string)($entry['title'] ?? '');
 				$desc = (string)($entry['description'] ?? '');
-				if (mb_strtolower($title) === $lcTerm) { $score += 50; }
-				elseif (mb_stripos($title, $lcTerm) !== false) { $score += 20; }
-				if ($desc !== '' && mb_stripos($desc, $lcTerm) !== false) { $score += 5; }
+				if (mb_strtolower($title) === $lcTerm) {
+					$score += 50;
+				} elseif (mb_stripos($title, $lcTerm) !== false) {
+					$score += 20;
+				}
+				if ($desc !== '' && mb_stripos($desc, $lcTerm) !== false) {
+					$score += 5;
+				}
 				// recency boost
 				if (!empty($entry['last_update'])) {
 					try {
 						$dt = new \DateTime($entry['last_update']);
 						$ageDays = max(0, (time() - $dt->getTimestamp()) / 86400);
 						$score += max(0, 10 - $ageDays); // up to +10
-					} catch (\Exception $e) { /* ignore */ }
+					} catch (\Exception $e) { /* ignore */
+					}
 				}
 				return ['score' => $score, 'kind' => 'ticket', 'data' => $entry];
 			}, $tickets);
@@ -130,19 +136,28 @@ class ItopSearchProvider implements IProvider {
 			}
 
 			// Score CIs
-			$scoredCis = array_map(function(array $ci) use ($term) {
+			$scoredCis = array_map(function (array $ci) use ($term) {
 				$score = 0.0;
 				$lcTerm = mb_strtolower($term);
 				$name = (string)($ci['name'] ?? '');
 				$vendor = (string)($ci['vendor'] ?? '');
-				if (mb_strtolower($name) === $lcTerm) { $score += 60; }
-				elseif (mb_stripos($name, $lcTerm) !== false) { $score += 25; }
-				if ($vendor !== '' && mb_stripos($vendor, $lcTerm) !== false) { $score += 10; }
+				if (mb_strtolower($name) === $lcTerm) {
+					$score += 60;
+				} elseif (mb_stripos($name, $lcTerm) !== false) {
+					$score += 25;
+				}
+				if ($vendor !== '' && mb_stripos($vendor, $lcTerm) !== false) {
+					$score += 10;
+				}
 				// class weighting
 				$class = (string)($ci['class'] ?? '');
-				if ($class === 'Software') { $score += 30; }
-				elseif ($class === 'WebApplication') { $score += 15; }
-				else { $score += 10; }
+				if ($class === 'Software') {
+					$score += 30;
+				} elseif ($class === 'WebApplication') {
+					$score += 15;
+				} else {
+					$score += 10;
+				}
 				// counts small boost
 				$counts = $ci['counts'] ?? [];
 				$score += (int)($counts['instances'] ?? 0) * 0.2;
@@ -151,14 +166,16 @@ class ItopSearchProvider implements IProvider {
 
 			// Merge and sort by score desc
 			$scored = array_merge($scoredTickets, $scoredCis);
-			usort($scored, function($a, $b) {
-				if ($a['score'] === $b['score']) { return 0; }
+			usort($scored, function ($a, $b) {
+				if ($a['score'] === $b['score']) {
+					return 0;
+				}
 				return ($a['score'] > $b['score']) ? -1 : 1;
 			});
 
 			// Map top N to SearchResultEntry
 			$selected = array_slice($scored, 0, $limit);
-			$entries = array_map(function($row) {
+			$entries = array_map(function ($row) {
 				if ($row['kind'] === 'ticket') {
 					$entry = $row['data'];
 					$statusEmoji = $this->getStatusEmoji($entry['status'] ?? '');
@@ -182,9 +199,15 @@ class ItopSearchProvider implements IProvider {
 					$ci = $row['data'];
 					if (($ci['class'] ?? '') === 'Software') {
 						$parts = [];
-						if (!empty($ci['vendor'])) $parts[] = $ci['vendor'];
-						if (!empty($ci['name'])) $parts[] = $ci['name'];
-						if (!empty($ci['version'])) $parts[] = $ci['version'];
+						if (!empty($ci['vendor'])) {
+							$parts[] = $ci['vendor'];
+						}
+						if (!empty($ci['name'])) {
+							$parts[] = $ci['name'];
+						}
+						if (!empty($ci['version'])) {
+							$parts[] = $ci['version'];
+						}
 						$title = implode(' ', $parts);
 					} else {
 						$title = $ci['name'] ?? '';
@@ -364,9 +387,9 @@ class ItopSearchProvider implements IProvider {
 			if (!empty($counts['licenses'])) {
 				$bits[] = $this->l10n->t('Licenses: %s', [(string)$counts['licenses']]);
 			}
-				if (!empty($bits)) {
-					$parts[] = implode(' • ', $bits);
-				}
+			if (!empty($bits)) {
+				$parts[] = implode(' • ', $bits);
+			}
 		} else {
 			// Hardware-like fields
 			$assetBits = [];
@@ -516,37 +539,37 @@ class ItopSearchProvider implements IProvider {
 			return $this->l10n->t('just now');
 		}
 
-	// Less than 1 hour - show minutes
-	if ($diff < 3600) {
-		$minutes = floor($diff / 60);
-		return $this->l10n->t('%dm ago', [$minutes]);
-	}
-
-	// Less than 24 hours - show hours and minutes
-	if ($diff < 86400) {
-		$hours = floor($diff / 3600);
-		$minutes = floor(($diff % 3600) / 60);
-		if ($minutes > 0) {
-			return $this->l10n->t('%1$dh %2$dm ago', [$hours, $minutes]);
+		// Less than 1 hour - show minutes
+		if ($diff < 3600) {
+			$minutes = floor($diff / 60);
+			return $this->l10n->t('%dm ago', [$minutes]);
 		}
-		return $this->l10n->t('%dh ago', [$hours]);
-	}
 
-	// Less than 7 days - show days and hours
-	if ($diff < 604800) {
-		$days = floor($diff / 86400);
-		$hours = floor(($diff % 86400) / 3600);
-		if ($hours > 0) {
-			return $this->l10n->t('%1$dd %2$dh ago', [$days, $hours]);
+		// Less than 24 hours - show hours and minutes
+		if ($diff < 86400) {
+			$hours = floor($diff / 3600);
+			$minutes = floor(($diff % 3600) / 60);
+			if ($minutes > 0) {
+				return $this->l10n->t('%1$dh %2$dm ago', [$hours, $minutes]);
+			}
+			return $this->l10n->t('%dh ago', [$hours]);
 		}
-		return $this->l10n->t('%dd ago', [$days]);
-	}
 
-	// Less than 30 days - show days
-	if ($diff < 2592000) {
-		$days = floor($diff / 86400);
-		return $this->l10n->t('%d days ago', [$days]);
-	}
+		// Less than 7 days - show days and hours
+		if ($diff < 604800) {
+			$days = floor($diff / 86400);
+			$hours = floor(($diff % 86400) / 3600);
+			if ($hours > 0) {
+				return $this->l10n->t('%1$dd %2$dh ago', [$days, $hours]);
+			}
+			return $this->l10n->t('%dd ago', [$days]);
+		}
+
+		// Less than 30 days - show days
+		if ($diff < 2592000) {
+			$days = floor($diff / 86400);
+			return $this->l10n->t('%d days ago', [$days]);
+		}
 
 		// More than 30 days - show the actual date
 		return $this->dateTimeFormatter->formatDate($dateTime, 'short');
