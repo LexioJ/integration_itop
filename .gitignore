@@ -9,6 +9,7 @@ vite.config.local.*.ts
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+/js/
 
 # Nextcloud build artifacts
 appstore/
