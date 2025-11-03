@@ -1,7 +1,6 @@
 # Dependencies
 vendor/
 node_modules/
-composer.lock
 
 # Node/Vite build artifacts
 dist/
