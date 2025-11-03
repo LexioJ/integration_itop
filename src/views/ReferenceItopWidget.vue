@@ -44,6 +44,10 @@
 							</span>
 						</template>
 						<!-- Dates -->
+						<!--
+						TODO use the NcPopover component: https://nextcloud-vue-components.netlify.app/#/Components/NcPopover
+						It can be displayed on hover
+						 -->
 						<span v-if="richObject.close_date"
 							v-tooltip.top="{ content: closedAtFormatted }"
 							class="date-with-tooltip">
@@ -107,11 +111,6 @@ import ItopIcon from '../components/icons/ItopIcon.vue'
 
 import { generateUrl } from '@nextcloud/router'
 import moment from '@nextcloud/moment'
-
-import { Tooltip } from '@nextcloud/vue'
-import Vue from 'vue'
-
-Vue.directive('tooltip', Tooltip)
 
 export default {
 	name: 'ReferenceItopWidget',

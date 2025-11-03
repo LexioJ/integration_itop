@@ -19,25 +19,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { registerWidget } from '@nextcloud/vue/dist/Components/NcRichText.js'
+import { registerWidget } from '@nextcloud/vue/components/NcRichText'
 
 // Shared widget registration function
 const registerItopWidget = (widgetType) => {
 	try {
 		registerWidget(widgetType, async (el, { richObjectType, richObject, accessible }) => {
-			const { default: Vue } = await import('vue')
+			const { createApp } = await import('vue')
 			const { default: ReferenceItopWidget } = await import('./views/ReferenceItopWidget.vue')
-			const { translate, translatePlural } = await import('@nextcloud/l10n')
-			Vue.mixin({ methods: { t: translate, n: translatePlural } })
-			const Widget = Vue.extend(ReferenceItopWidget)
-			const widget = new Widget({
-				propsData: {
+
+			const app = createApp(
+				ReferenceItopWidget,
+				{
 					richObjectType,
 					richObject,
 					accessible,
 				},
-			}).$mount(el)
-			return widget
+			)
+			app.mixin({ methods: { t, n } })
+			app.mount(el)
 		}, () => {}, { hasInteractiveView: false })
 	} catch (error) {
 		// Widget already registered, this is fine - just ignore the error silently
