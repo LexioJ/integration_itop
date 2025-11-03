@@ -4,6 +4,8 @@
  * Personal settings JavaScript
  */
 
+import { generateUrl } from '@nextcloud/router'
+
 (function() {
 	'use strict'
 
@@ -47,7 +49,7 @@
 				return
 			}
 
-			fetch(OC.generateUrl('/apps/integration_itop/user-info'), {
+			fetch(generateUrl('/apps/integration_itop/user-info'), {
 				method: 'GET',
 				headers: {
 					requesttoken: OC.requestToken,
@@ -127,7 +129,7 @@
 
 			ticketsValue.textContent = 'Loading...'
 
-			fetch(OC.generateUrl('/apps/integration_itop/tickets/count'), {
+			fetch(generateUrl('/apps/integration_itop/tickets/count'), {
 				method: 'GET',
 				headers: {
 					requesttoken: OC.requestToken,
@@ -258,7 +260,7 @@
 			}
 
 			const req = new XMLHttpRequest()
-			req.open('PUT', OC.generateUrl('/apps/integration_itop/config'))
+			req.open('PUT', generateUrl('/apps/integration_itop/config'))
 			req.setRequestHeader('requesttoken', OC.requestToken)
 			req.setRequestHeader('Content-Type', 'application/json')
 

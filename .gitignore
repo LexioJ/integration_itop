@@ -1,7 +1,6 @@
 # Dependencies
 vendor/
 node_modules/
-composer.lock
 
 # Node/Vite build artifacts
 dist/
@@ -10,6 +9,7 @@ vite.config.local.*.ts
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+/js/
 
 # Nextcloud build artifacts
 appstore/
@@ -45,7 +45,6 @@ junit.xml
 .phpunit.result.cache
 phpunit.xml
 docs/testing.md
-tests/
 
 # Temporary files
 *.tmp

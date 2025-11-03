@@ -13,13 +13,14 @@
 namespace OCA\Itop\Controller;
 
 use OCA\Itop\AppInfo\Application;
-use OCA\Itop\Service\ItopAPIService;
 use OCA\Itop\Service\CacheService;
+use OCA\Itop\Service\ItopAPIService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IConfig;
+use OCP\IDBConnection;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\PreConditionNotMetException;
@@ -39,7 +40,8 @@ class ConfigController extends Controller {
 		private CacheService $cacheService,
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
-		private ?string $userId
+		private IDBConnection $db,
+		private ?string $userId,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -90,7 +92,7 @@ class ConfigController extends Controller {
 				$this->config->setUserValue($this->userId, Application::APP_ID, $key, $value);
 			}
 		}
-		
+
 		// Handle disabled CI classes (user preferences)
 		if (isset($values['disabled_ci_classes']) && is_array($values['disabled_ci_classes'])) {
 			$disabledClasses = array_values(array_unique($values['disabled_ci_classes']));
@@ -229,6 +231,9 @@ class ConfigController extends Controller {
 
 			if ($result === false || !empty($error)) {
 				return new DataResponse(['error' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])], Http::STATUS_SERVICE_UNAVAILABLE);
+			} elseif ($result === true) {
+				// even if $result cannot be true, psalm complains that curl_exec declares it as a possible return value
+				throw new \Exception($this->l10n->t('Unexpected CURL result'));
 			}
 
 			$responseData = json_decode($result, true);
@@ -377,6 +382,9 @@ class ConfigController extends Controller {
 					'status' => 'error',
 					'message' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])
 				]);
+			} elseif ($result === true) {
+				// even if $result cannot be true, psalm complains that curl_exec declares it as a possible return value
+				throw new \Exception($this->l10n->t('Unexpected CURL result'));
 			}
 
 			$responseData = json_decode($result, true);
@@ -457,22 +465,22 @@ class ConfigController extends Controller {
 		if (empty($testUrl)) {
 			return new DataResponse(['status' => 'error', 'message' => $this->l10n->t('No server URL provided for testing')], Http::STATUS_BAD_REQUEST);
 		}
-		
+
 		$this->logger->info('iTop testing connection to URL: ' . $testUrl, ['app' => Application::APP_ID]);
-		
+
 		// Test iTop API endpoint specifically
 		try {
 			// Construct the iTop REST API URL
 			$apiUrl = rtrim($testUrl, '/') . '/webservices/rest.php?version=1.3';
 			$this->logger->info('iTop testing API endpoint: ' . $apiUrl, ['app' => Application::APP_ID]);
-			
+
 			// Prepare a basic API request (without credentials to test for proper iTop error response)
 			$postData = [
 				'json_data' => json_encode([
 					'operation' => 'core/check_credentials'
 				])
 			];
-			
+
 			$ch = curl_init();
 			curl_setopt($ch, CURLOPT_URL, $apiUrl);
 			curl_setopt($ch, CURLOPT_POST, true);
@@ -484,18 +492,21 @@ class ConfigController extends Controller {
 				'Content-Type: application/x-www-form-urlencoded',
 				'User-Agent: Nextcloud-iTop-Integration/1.0'
 			]);
-			
+
 			$result = curl_exec($ch);
 			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 			$error = curl_error($ch);
 			curl_close($ch);
-			
+
 			if ($result === false || !empty($error)) {
 				return new DataResponse([
 					'status' => 'error',
 					'message' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')]),
 					'details' => ['url' => $testUrl, 'api_url' => $apiUrl]
 				]);
+			} elseif ($result === true) {
+				// even if $result cannot be true, psalm complains that curl_exec declares it as a possible return value
+				throw new \Exception($this->l10n->t('Unexpected CURL result'));
 			}
 
 			if ($httpCode !== 200) {
@@ -944,6 +955,9 @@ class ConfigController extends Controller {
 					'has_update' => false,
 					'error' => 'Failed to fetch version information'
 				]);
+			} elseif ($result === true) {
+				// even if $result cannot be true, psalm complains that curl_exec declares it as a possible return value
+				throw new \Exception($this->l10n->t('Unexpected CURL result'));
 			}
 
 			$releaseData = json_decode($result, true);
@@ -981,7 +995,7 @@ class ConfigController extends Controller {
 	private function getConnectedUsersCount(): int {
 		try {
 			// Count users who have person_id configured (indicates completed setup)
-			$query = \OC::$server->getDatabaseConnection()->getQueryBuilder();
+			$query = $this->db->getQueryBuilder();
 			$result = $query->select($query->func()->count('*', 'count'))
 				->from('preferences')
 				->where($query->expr()->eq('appid', $query->createNamedParameter(Application::APP_ID)))
@@ -992,13 +1006,13 @@ class ConfigController extends Controller {
 			$row = $result->fetch();
 			$result->closeCursor();
 			// Database may return the count as 'count' or 'COUNT(*)' depending on driver
-			return (int) ($row['count'] ?? $row['COUNT(*)'] ?? 0);
+			return (int)($row['count'] ?? $row['COUNT(*)'] ?? 0);
 		} catch (\Exception $e) {
 			$this->logger->error('Error counting connected users: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return 0;
 		}
 	}
-	
+
 
 	/**
 	 * Validate personal token and extract Person ID using iTop's :current_contact_id placeholder
@@ -1062,6 +1076,9 @@ class ConfigController extends Controller {
 					'user_info' => null,
 					'error' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])
 				];
+			} elseif ($result === true) {
+				// even if $result cannot be true, psalm complains that curl_exec declares it as a possible return value
+				throw new \Exception($this->l10n->t('Unexpected CURL result'));
 			}
 
 			$responseData = json_decode($result, true);
@@ -1121,11 +1138,11 @@ class ConfigController extends Controller {
 			// Personal tokens can't query User class, so we use the application token
 			$encryptedAppToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
 			$userIdValue = null;
-			
+
 			if (!empty($encryptedAppToken)) {
 				try {
 					$applicationToken = $this->crypto->decrypt($encryptedAppToken);
-					
+
 					// Query User class using application token
 					$getUserData = [
 						'json_data' => json_encode([
@@ -1135,7 +1152,7 @@ class ConfigController extends Controller {
 							'output_fields' => 'id,login,finalclass'
 						])
 					];
-					
+
 					$ch2 = curl_init();
 					curl_setopt($ch2, CURLOPT_URL, $apiUrl);
 					curl_setopt($ch2, CURLOPT_POST, true);
@@ -1148,10 +1165,15 @@ class ConfigController extends Controller {
 						'Auth-Token: ' . $applicationToken,
 						'User-Agent: Nextcloud-iTop-Integration/1.0'
 					]);
-					
+
 					$userResult = curl_exec($ch2);
 					curl_close($ch2);
-					
+
+					if (!is_string($userResult)) {
+						// even if $result cannot be a boolean, psalm complains that curl_exec declares it as a possible return value
+						throw new \Exception($this->l10n->t('Unexpected CURL result'));
+					}
+
 					$userData = json_decode($userResult, true);
 					if (isset($userData['objects']) && !empty($userData['objects'])) {
 						$userObject = reset($userData['objects']);

@@ -44,7 +44,7 @@ class ItopAgentWidget implements IWidget, IConditionalWidget {
 		private ItopAPIService $itopAPIService,
 		private ProfileService $profileService,
 		private LoggerInterface $logger,
-		private ?string $userId
+		private ?string $userId,
 	) {
 		$this->logger->info('ItopAgentWidget constructed for user: ' . ($userId ?? 'null'), ['app' => Application::APP_ID]);
 	}
