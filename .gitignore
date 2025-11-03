@@ -45,7 +45,6 @@ junit.xml
 .phpunit.result.cache
 phpunit.xml
 docs/testing.md
-tests/
 
 # Temporary files
 *.tmp

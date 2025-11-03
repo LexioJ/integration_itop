@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<psalm
+	errorBaseline="tests/psalm-baseline.xml"
+	errorLevel="4"
+	resolveFromConfigFile="true"
+	findUnusedBaselineEntry="true"
+	findUnusedCode="false"
+	ensureOverrideAttribute="false"
+	phpVersion="8.1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns="https://getpsalm.org/schema/config"
+	xsi:schemaLocation="https://getpsalm.org/schema/config vendor/vimeo/psalm/config.xsd"
+>
+	<!--stubs>
+		<file name="tests/stub.phpstub" preloadClasses="true"/>
+	</stubs-->
+	<projectFiles>
+		<directory name="lib" />
+		<ignoreFiles>
+			<directory name="vendor" />
+		</ignoreFiles>
+	</projectFiles>
+	<extraFiles>
+		<directory name="vendor" />
+	</extraFiles>
+</psalm>
