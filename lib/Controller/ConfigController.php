@@ -20,6 +20,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IConfig;
+use OCP\IDBConnection;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\PreConditionNotMetException;
@@ -39,6 +40,7 @@ class ConfigController extends Controller {
 		private CacheService $cacheService,
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
+		private IDBConnection $db,
 		private ?string $userId,
 	) {
 		parent::__construct($appName, $request);
@@ -229,6 +231,9 @@ class ConfigController extends Controller {
 
 			if ($result === false || !empty($error)) {
 				return new DataResponse(['error' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])], Http::STATUS_SERVICE_UNAVAILABLE);
+			} elseif ($result === true) {
+				// even if $result cannot be true, psalm complains that curl_exec declares it as a possible return value
+				throw new \Exception($this->l10n->t('Unexpected CURL result'));
 			}
 
 			$responseData = json_decode($result, true);
@@ -377,6 +382,9 @@ class ConfigController extends Controller {
 					'status' => 'error',
 					'message' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])
 				]);
+			} elseif ($result === true) {
+				// even if $result cannot be true, psalm complains that curl_exec declares it as a possible return value
+				throw new \Exception($this->l10n->t('Unexpected CURL result'));
 			}
 
 			$responseData = json_decode($result, true);
@@ -496,6 +504,9 @@ class ConfigController extends Controller {
 					'message' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')]),
 					'details' => ['url' => $testUrl, 'api_url' => $apiUrl]
 				]);
+			} elseif ($result === true) {
+				// even if $result cannot be true, psalm complains that curl_exec declares it as a possible return value
+				throw new \Exception($this->l10n->t('Unexpected CURL result'));
 			}
 
 			if ($httpCode !== 200) {
@@ -944,6 +955,9 @@ class ConfigController extends Controller {
 					'has_update' => false,
 					'error' => 'Failed to fetch version information'
 				]);
+			} elseif ($result === true) {
+				// even if $result cannot be true, psalm complains that curl_exec declares it as a possible return value
+				throw new \Exception($this->l10n->t('Unexpected CURL result'));
 			}
 
 			$releaseData = json_decode($result, true);
@@ -981,7 +995,7 @@ class ConfigController extends Controller {
 	private function getConnectedUsersCount(): int {
 		try {
 			// Count users who have person_id configured (indicates completed setup)
-			$query = \OC::$server->getDatabaseConnection()->getQueryBuilder();
+			$query = $this->db->getQueryBuilder();
 			$result = $query->select($query->func()->count('*', 'count'))
 				->from('preferences')
 				->where($query->expr()->eq('appid', $query->createNamedParameter(Application::APP_ID)))
@@ -1062,6 +1076,9 @@ class ConfigController extends Controller {
 					'user_info' => null,
 					'error' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])
 				];
+			} elseif ($result === true) {
+				// even if $result cannot be true, psalm complains that curl_exec declares it as a possible return value
+				throw new \Exception($this->l10n->t('Unexpected CURL result'));
 			}
 
 			$responseData = json_decode($result, true);
@@ -1151,6 +1168,11 @@ class ConfigController extends Controller {
 
 					$userResult = curl_exec($ch2);
 					curl_close($ch2);
+
+					if (!is_string($userResult)) {
+						// even if $result cannot be a boolean, psalm complains that curl_exec declares it as a possible return value
+						throw new \Exception($this->l10n->t('Unexpected CURL result'));
+					}
 
 					$userData = json_decode($userResult, true);
 					if (isset($userData['objects']) && !empty($userData['objects'])) {

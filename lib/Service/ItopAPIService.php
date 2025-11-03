@@ -245,10 +245,7 @@ class ItopAPIService {
 		// Debug: log raw API response structure
 		if (isset($userRequestResult['objects']) && count($userRequestResult['objects']) > 0) {
 			$firstTicket = array_values($userRequestResult['objects'])[0];
-			\OC::$server->get(\Psr\Log\LoggerInterface::class)->debug(
-				'First UserRequest full structure: ' . json_encode($firstTicket),
-				['app' => Application::APP_ID]
-			);
+			$this->logger->debug('First UserRequest full structure: ' . json_encode($firstTicket));
 		}
 		if (isset($userRequestResult['objects'])) {
 			foreach ($userRequestResult['objects'] as $objectKey => $ticket) {
@@ -328,7 +325,7 @@ class ItopAPIService {
 	 * Get tickets created by the current user grouped by status with counts
 	 *
 	 * @param string $userId
-	 * @return array { by_status: {status=>count}, tickets: {status=>tickets[]} }
+	 * @return array{by_status: array<string, int>, tickets: array<string, array>}
 	 */
 	public function getUserTicketsByStatus(string $userId): array {
 		$tickets = $this->getUserCreatedTickets($userId, null, 100);
@@ -342,7 +339,7 @@ class ItopAPIService {
 		];
 
 		$rawStatuses = []; // Debug: collect all raw statuses
-		foreach (is_array($tickets) ? $tickets : [] as $ticket) {
+		foreach ($tickets as $ticket) {
 			$statusRaw = strtolower($ticket['status'] ?? '');
 			$rawStatuses[] = $statusRaw; // Debug
 			// Map iTop statuses to dashboard categories
@@ -369,10 +366,7 @@ class ItopAPIService {
 		}
 
 		// Debug: log raw statuses
-		\OC::$server->get(\Psr\Log\LoggerInterface::class)->debug(
-			'getUserTicketsByStatus: Raw statuses found: ' . json_encode($rawStatuses),
-			['app' => Application::APP_ID]
-		);
+		$this->logger->debug('getUserTicketsByStatus: Raw statuses found: ' . json_encode($rawStatuses));
 
 		return [
 			'by_status' => $counts,
@@ -1060,6 +1054,7 @@ class ItopAPIService {
 		if ($useCache) {
 			$cached = $this->cache->get($cacheKey);
 			if ($cached !== null) {
+				/** @var array $cacheData */
 				$cacheData = json_decode($cached, true);
 				// Validate timestamp and TTL are present
 				if (isset($cacheData['_cache_timestamp']) && isset($cacheData['_cache_ttl'])) {
@@ -1138,7 +1133,7 @@ class ItopAPIService {
 			if ($useCache && !isset($result['error'])) {
 				// Get TTL from config or use default (60 seconds)
 				$defaultTTL = 60;
-				$ttl = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_api_query', $defaultTTL);
+				$ttl = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_api_query', (string)$defaultTTL);
 				if ($ttl > 0) {
 					// Add timestamp and TTL metadata to cache data for explicit validation
 					$cacheData = array_merge($result, [

@@ -129,7 +129,7 @@ class ItopSearchProvider implements IProvider {
 			}
 
 			$ciLimit = $limit; // simple strategy: request up to limit CIs as well, slice later
-			$cis = $this->itopAPIService->searchCIs($userId, (string)$term, [], $isPortalOnly, $ciLimit);
+			$cis = $this->itopAPIService->searchCIs($userId, $term, [], $isPortalOnly, $ciLimit);
 			if (isset($cis['error'])) {
 				$this->logger->error('Error searching iTop CIs: ' . $cis['error'], ['app' => Application::APP_ID]);
 				$cis = [];

@@ -99,9 +99,7 @@ class PreviewMapper {
 
 		// For Software: Show vendor and type
 		if ($class === 'Software' && !empty($fields['vendor'])) {
-			if (!empty($fields['vendor'])) {
-				$parts[] = $fields['vendor'];
-			}
+			$parts[] = $fields['vendor'];
 			if (!empty($fields['type'])) {
 				// Map enum values to readable names
 				$typeMap = [
@@ -202,12 +200,10 @@ class PreviewMapper {
 		// Contacts count
 		$contactsCount = $this->countFromLinkedSet($fields['contacts_list'] ?? null);
 		// Show 0 if null, otherwise show the actual count
-		if ($contactsCount !== null) {
-			$chips[] = [
-				'icon' => 'contacts',
-				'label' => (string)($contactsCount ?? 0)
-			];
-		}
+		$chips[] = [
+			'icon' => 'contacts',
+			'label' => (string)$contactsCount,
+		];
 
 		// Asset number
 		if (!empty($fields['asset_number'])) {
