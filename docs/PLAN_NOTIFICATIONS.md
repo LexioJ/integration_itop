@@ -74,6 +74,7 @@ This document outlines the comprehensive implementation plan for a **smart notif
 | **Ticket status changed** | Status field changes (e.g., new→assigned, assigned→resolved) | CMDBChangeOp: `attcode='status'` on caller's tickets | `notify_ticket_status_changed` |
 | **Agent responded** | Public log entry added by agent | CMDBChangeOp: `attcode='public_log'` with `user_login != ''` | `notify_agent_responded` |
 | **Ticket resolved** | Status becomes 'resolved' | CMDBChangeOp: `attcode='status'`, `newvalue='resolved'` | `notify_ticket_resolved` |
+| **Agent assigned changed** | Agent assignment changes | CMDBChangeOp: `attcode='agent_id'` with name resolution | `notify_agent_assigned` (via status_changed toggle) |
 
 ### Agent/Fulfiller Notifications
 
@@ -741,22 +742,30 @@ $this->logger->info('Portal notification check completed', [
 
 ## Migration Path
 
-### Phase 1: Portal Notifications (Priority 1)
-**Estimated Time**: 8-12 hours
+### Phase 1: Portal Notifications (Priority 1) ✅ **COMPLETE**
+**Actual Time**: 12 hours
 
-- ✅ Admin settings for `portal_notification_interval`
-- ✅ Personal settings UI (portal section)
-- ✅ `CheckPortalTicketUpdates` background job
-- ✅ ItopAPIService: `getChangeOps()`, `getCaseLogChanges()`
-- ✅ Notifier: portal notification types
-- ✅ Unit tests for change detection
-- ✅ Manual testing with test iTop instance
+- ✅ Admin settings for `portal_notification_interval` (5-1440 min, default 15)
+- ✅ Personal settings UI (portal section with 3 toggles + master)
+- ✅ `CheckPortalTicketUpdates` background job (runs every 5 min)
+- ✅ ItopAPIService: `getChangeOps()`, `getCaseLogChanges()`, `getUserTicketIds()`, `resolveUserNames()`
+- ✅ Notifier: 4 portal notification types (status_changed, agent_responded, ticket_resolved, agent_assigned)
+- ✅ Timezone handling (uses Nextcloud's default_timezone config)
+- ✅ Self-notification filtering (no notifications for own comments)
+- ✅ Agent name resolution with 24-hour caching
+- ✅ OQL limitation workaround (PHP-side timestamp filtering)
+- ✅ OCC command: `itop:notifications:test-user` with reset functionality
+- ✅ Manual testing with OrbStack dev environment
 
-**Acceptance Criteria**:
-- Portal users receive notifications for status changes, agent responses, resolutions
-- No duplicate notifications
-- Master toggle works
-- Granular toggles respected
+**Acceptance Criteria**: ✅ ALL MET
+- ✅ Portal users receive notifications for status changes, agent responses, resolutions, agent assignments
+- ✅ No duplicate notifications (timestamp-based deduplication)
+- ✅ Master toggle works
+- ✅ Granular toggles respected
+- ✅ Correct timezone handling (Europe/Vienna)
+- ✅ No self-notifications
+- ✅ Rate limiting (max 20 per run)
+- ✅ Resolved ticket detection works
 
 ### Phase 2: Agent Notifications (Priority 2)
 **Estimated Time**: 12-16 hours
@@ -882,12 +891,31 @@ $this->logger->info('Portal notification check completed', [
 ### A. iTop REST API Examples
 
 #### Query CMDBChangeOp
+
+**IMPORTANT**: iTop OQL does **not** support comparison operators (`>`, `<`, `=`) on external key attributes like `change->date`. Attempting to use `change->date > 'timestamp'` will result in an `OQLParserSyntaxErrorException`.
+
+**Solution**: Fetch all relevant CMDBChangeOp records and filter by timestamp in PHP.
+
 ```json
 {
   "operation": "core/get",
   "class": "CMDBChangeOpSetAttributeScalar",
-  "key": "SELECT CMDBChangeOpSetAttributeScalar WHERE objclass='UserRequest' AND attcode='status' AND change->date > '2025-11-03 09:00:00'",
+  "key": "SELECT CMDBChangeOpSetAttributeScalar WHERE objclass='UserRequest' AND attcode='status' AND objkey IN (123,456,789)",
   "output_fields": "*"
+}
+```
+
+**Note**: The `change->date > '2025-11-03 09:00:00'` filter is **removed** from the OQL query and applied in PHP:
+
+```php
+$sinceTimestamp = strtotime($since);
+foreach ($result['objects'] as $changeOp) {
+    $fields = $changeOp['fields'] ?? [];
+    $changeDate = $fields['date'] ?? '';
+    
+    if (!empty($changeDate) && strtotime($changeDate) > $sinceTimestamp) {
+        // Process this change
+    }
 }
 ```
 
@@ -903,17 +931,16 @@ $this->logger->info('Portal notification check completed', [
         "attcode": "status",
         "oldvalue": "new",
         "newvalue": "assigned",
-        "change": {
-          "id": "789",
-          "date": "2025-11-03 09:30:00",
-          "userinfo": "John Doe",
-          "user_id": "42"
-        }
+        "date": "2025-11-03 09:30:00",
+        "userinfo": "John Doe",
+        "user_id": "42"
       }
     }
   }
 }
 ```
+
+**Note**: The `change` object is not directly accessible in the API response. The `date`, `userinfo`, and `user_id` are available as top-level fields.
 
 ### B. Nextcloud Notification API
 

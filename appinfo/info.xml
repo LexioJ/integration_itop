@@ -109,8 +109,12 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 	</dependencies>
 
 	<background-jobs>
-		<job>OCA\Itop\BackgroundJob\CheckOpenTickets</job>
+		<job>OCA\Itop\BackgroundJob\CheckPortalTicketUpdates</job>
 	</background-jobs>
+
+	<commands>
+		<command>OCA\Itop\Command\NotificationsTestUser</command>
+	</commands>
 
 	<settings>
 		<admin>OCA\Itop\Settings\Admin</admin>

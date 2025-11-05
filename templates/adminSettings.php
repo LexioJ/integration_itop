@@ -231,6 +231,39 @@ $ciClassLabels = [
 			</div>
 		</div>
 
+		<!-- Notification Settings Section -->
+		<div class="settings-section">
+			<div class="section-header">
+				<h3><?php p($l->t('🔔 Notification Settings')); ?></h3>
+				<p class="section-description"><?php p($l->t('Configure how often the system checks for ticket updates to send notifications')); ?></p>
+			</div>
+
+			<div class="settings-form">
+				<div class="form-group">
+					<label for="portal-notification-interval" class="form-label">
+						<span class="icon">⏱️</span>
+						<?php p($l->t('Portal Notification Check Interval (minutes)')); ?>
+					</label>
+					<input
+						type="number"
+						id="portal-notification-interval"
+						value="<?php p($_['portal_notification_interval']); ?>"
+						min="5"
+						max="1440"
+						class="form-input"
+					/>
+					<p class="form-hint"><?php p($l->t('How often to check for ticket status changes, agent responses, and ticket resolutions (5-1440 minutes). Lower = more responsive notifications, higher = less load')); ?></p>
+				</div>
+
+				<div class="form-actions">
+					<button id="save-notification-settings" class="btn-primary">
+						<span class="btn-icon">💾</span>
+						<?php p($l->t('Save Notification Settings')); ?>
+					</button>
+				</div>
+			</div>
+		</div>
+
 		<!-- Cache & Performance Settings Section -->
 		<div class="settings-section">
 			<div class="section-header">

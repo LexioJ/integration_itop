@@ -394,7 +394,17 @@
     "🎯 Configuration States": "🎯 Configuration States",
     "💡 Next Steps": "💡 Next Steps",
     "📊 Current Status": "📊 Current Status",
-    "📡 Connection Configuration": "📡 Connection Configuration"
+    "📡 Connection Configuration": "📡 Connection Configuration",
+    "Ticket status changed": "Ticket status changed",
+    "Status changed: %s → %s": "Status changed: %s → %s",
+    "Agent responded to your ticket": "Agent responded to your ticket",
+    "%s added a response": "%s added a response",
+    "Ticket resolved": "Ticket resolved",
+    "Your ticket has been resolved": "Your ticket has been resolved",
+    "Assigned agent changed": "Assigned agent changed",
+    "%s → %s": "%s → %s",
+    "Unassigned": "Unassigned",
+    "Agent": "Agent"
   },
   "pluralForm": "nplurals=2; plural=(n != 1);"
 }

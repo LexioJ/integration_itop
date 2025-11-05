@@ -71,6 +71,48 @@ This directory contains comprehensive documentation for the iTop Integration app
 
 See [PLAN_DASHBOARD.md](PLAN_DASHBOARD.md) for complete implementation details.
 
+### Portal Notifications Feature (Phase 1) ✅ **COMPLETE**
+
+**Status**: Fully implemented and tested smart notification system for portal users
+- [x] Admin settings: Configurable check interval (5-1440 minutes, default 15)
+- [x] Personal settings: Master toggle + 3 granular notification type toggles
+- [x] Change detection: CMDBChangeOp-based tracking (status, agent_id, case logs)
+- [x] Background job: `CheckPortalTicketUpdates` runs every 5 minutes with per-user interval checking
+- [x] Notifier extensions: Four portal notification types with localized messages
+- [x] OCC test command: `occ itop:notifications:test-user` for testing and timestamp reset
+- [x] Rate limiting: Max 20 notifications per user per run
+- [x] Timezone handling: Uses Nextcloud's `default_timezone` config for correct relative timestamps
+- [x] Self-notification filtering: No notifications for user's own comments
+- [x] Agent name resolution: Cached lookups (24h TTL) to minimize API calls
+- [x] **Zero duplicate notifications** through event-time based detection
+- [x] **Minimal state storage** (only timestamps, no per-ticket data)
+- [x] **OQL limitation workaround**: PHP-side timestamp filtering (iTop OQL doesn't support comparison operators on external keys)
+
+**Notification Types**:
+1. **Ticket status changed**: Notifies when ticket status changes (new→assigned, pending→assigned, etc.)
+2. **Agent responded**: Notifies when agent adds public_log entry (filters out self-comments)
+3. **Ticket resolved**: Notifies when ticket status becomes 'resolved'
+4. **Agent assigned changed**: Notifies when assigned agent changes with resolved names (e.g., "John Doe → Jane Smith")
+
+**Technical Implementation**:
+- **ItopAPIService methods**: `getChangeOps()`, `getCaseLogChanges()`, `getUserTicketIds()`, `resolveUserNames()`
+- **Name resolution**: Queries Person class (not User) with 24-hour cache via Nextcloud distributed cache
+- **Timestamp consistency**: All timestamps stored/compared in server timezone (not PHP default UTC)
+- **iTop OQL limitation**: Cannot use `change->date > 'timestamp'` - queries fetch all records, filter in PHP
+- **Resolution detection**: Includes resolved tickets in query (`operational_status IN ('ongoing','resolved')`)
+
+**Testing Results** (OrbStack nextcloud-dev VM):
+- ✅ Successfully detects status changes via CMDBChangeOpSetAttributeScalar
+- ✅ Successfully detects agent responses via CMDBChangeOpSetAttributeCaseLog
+- ✅ Successfully detects agent assignment changes with name resolution
+- ✅ Successfully detects ticket resolution events
+- ✅ Notifications sent with correct timing (relative timestamps: "vor X Minuten")
+- ✅ No duplicate notifications across multiple job runs
+- ✅ No self-notifications when user comments on own ticket
+- ✅ Clickable links route correctly to portal/agent UI based on user profile
+
+**Next Steps**: Phase 2 (Agent Notifications) - SLA warnings, assignments, team queue, priority escalations
+
 ## Key Features Overview
 
 ### 📊 Dashboard Widgets ✅

@@ -106,10 +106,42 @@ $ciClassLabels = [
 			</p>
 		</div>
 
-		<div class="field">
-			<input id="itop-notification-enabled" type="checkbox" <?php echo $_['notification_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
-			<label for="itop-notification-enabled"><?php p($l->t('Enable notifications')); ?></label>
-			<p class="hint"><?php p($l->t('Get notified when new tickets are assigned to you')); ?></p>
+		<!-- Notification Settings -->
+		<div class="field notification-section">
+			<h4><?php p($l->t('Notification Settings')); ?></h4>
+			
+			<!-- Master toggle -->
+			<div class="notification-master-toggle">
+				<input id="itop-notification-enabled" type="checkbox" <?php echo $_['notification_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+				<label for="itop-notification-enabled"><strong><?php p($l->t('Enable iTop Notifications')); ?></strong></label>
+				<p class="hint"><?php p($l->t('Receive notifications about ticket updates and changes')); ?></p>
+			</div>
+			
+			<!-- Portal notification types -->
+			<div class="notification-types" style="margin-left: 24px; <?php echo !$_['notification_enabled'] ? 'opacity: 0.5;' : ''; ?>">
+				<h5><?php p($l->t('My Tickets')); ?></h5>
+				
+				<div class="notification-type-item">
+					<input id="notify-ticket-status-changed" type="checkbox" 
+						<?php echo ($_['notify_ticket_status_changed'] ?? true) ? 'checked' : ''; ?>
+						<?php echo !$_['has_application_token'] || !$_['notification_enabled'] ? 'disabled' : ''; ?>>
+					<label for="notify-ticket-status-changed"><?php p($l->t('Ticket status changed')); ?></label>
+				</div>
+				
+				<div class="notification-type-item">
+					<input id="notify-agent-responded" type="checkbox" 
+						<?php echo ($_['notify_agent_responded'] ?? true) ? 'checked' : ''; ?>
+						<?php echo !$_['has_application_token'] || !$_['notification_enabled'] ? 'disabled' : ''; ?>>
+					<label for="notify-agent-responded"><?php p($l->t('Agent responded to my ticket')); ?></label>
+				</div>
+				
+				<div class="notification-type-item">
+					<input id="notify-ticket-resolved" type="checkbox" 
+						<?php echo ($_['notify_ticket_resolved'] ?? true) ? 'checked' : ''; ?>
+						<?php echo !$_['has_application_token'] || !$_['notification_enabled'] ? 'disabled' : ''; ?>>
+					<label for="notify-ticket-resolved"><?php p($l->t('Ticket resolved')); ?></label>
+				</div>
+			</div>
 		</div>
 
 		<div class="field">

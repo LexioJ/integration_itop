@@ -123,74 +123,6 @@ class ItopAPIService {
 	}
 
 	/**
-	 * triggered by a cron job
-	 * notifies user of their number of new assigned tickets
-	 *
-	 * @return void
-	 */
-	public function checkOpenTickets(): void {
-		$this->userManager->callForAllUsers(function (IUser $user) {
-			$this->checkOpenTicketsForUser($user->getUID());
-		});
-	}
-
-	/**
-	 * Check open tickets for a user and send notifications
-	 *
-	 * @param string $userId
-	 * @return void
-	 * @throws PreConditionNotMetException
-	 */
-	private function checkOpenTicketsForUser(string $userId): void {
-		// Check if user has configured their person_id
-		$personId = $this->getPersonId($userId);
-		$notificationEnabled = ($this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0') === '1');
-
-		if ($personId && $notificationEnabled) {
-			$itopUrl = $this->getItopUrl($userId);
-			if ($itopUrl) {
-				$lastNotificationCheck = $this->config->getUserValue($userId, Application::APP_ID, 'last_open_check');
-				$lastNotificationCheck = $lastNotificationCheck === '' ? null : $lastNotificationCheck;
-
-				// Get tickets created by user that are open
-				$tickets = $this->getUserCreatedTickets($userId, $lastNotificationCheck);
-				if (!isset($tickets['error']) && count($tickets) > 0) {
-					$this->config->setUserValue($userId, Application::APP_ID, 'last_open_check', date('Y-m-d H:i:s'));
-					$nbOpen = count($tickets);
-					if ($nbOpen > 0) {
-						$this->sendNCNotification($userId, 'new_open_tickets', [
-							'nbOpen' => $nbOpen,
-							'link' => $itopUrl
-						]);
-					}
-				} elseif (isset($tickets['error-code']) && $tickets['error-code'] === Http::STATUS_UNAUTHORIZED) {
-					// Application token invalid - admin needs to reconfigure
-					$this->logger->warning('Application token appears invalid, notifications disabled', ['app' => Application::APP_ID]);
-				}
-			}
-		}
-	}
-
-	/**
-	 * @param string $userId
-	 * @param string $subject
-	 * @param array $params
-	 * @return void
-	 */
-	private function sendNCNotification(string $userId, string $subject, array $params): void {
-		$manager = $this->notificationManager;
-		$notification = $manager->createNotification();
-
-		$notification->setApp(Application::APP_ID)
-			->setUser($userId)
-			->setDateTime(new DateTime())
-			->setObject('dum', 'dum')
-			->setSubject($subject, $params);
-
-		$manager->notify($notification);
-	}
-
-	/**
 	 * Get tickets created by the current user (UserRequest + Incident)
 	 *
 	 * @param string $userId
@@ -1734,7 +1666,300 @@ class ItopAPIService {
 			}
 		}
 
-		return ['tto' => $ttoCount, 'ttr' => $ttrCount];
+	return ['tto' => $ttoCount, 'ttr' => $ttrCount];
+	}
+
+	/**
+	 * ==========================================
+	 * NOTIFICATION CHANGE DETECTION METHODS
+	 * ==========================================
+	 * Methods for detecting ticket changes via CMDBChangeOp
+	 */
+
+	/**
+	 * Get scalar attribute changes (status, priority, agent_id, SLA flags) since timestamp
+	 *
+	 * NOTE: iTop OQL does not support comparison operators on external key attributes like change->date
+	 * We fetch all changes and filter by timestamp in PHP
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param array $ticketIds Array of ticket IDs to filter (optional)
+	 * @param string $since ISO 8601 timestamp (e.g., '2025-11-05 20:00:00')
+	 * @param array $attcodes Attribute codes to filter (['status', 'agent_id', 'priority', 'sla_tto_passed', 'sla_ttr_passed'])
+	 * @return array Array of change operations with fields: objclass, objkey, attcode, oldvalue, newvalue, date, userinfo, user_id
+	 */
+	public function getChangeOps(string $userId, array $ticketIds, string $since, array $attcodes): array {
+		// Build ticket filter
+		$ticketFilter = '';
+		if (!empty($ticketIds)) {
+			$ticketFilter = ' AND objkey IN (' . implode(',', $ticketIds) . ')';
+		}
+
+		// Build attcode filter
+		$attcodeFilter = '';
+		if (!empty($attcodes)) {
+			$attcodeList = implode("','", $attcodes);
+			$attcodeFilter = " AND attcode IN ('$attcodeList')";
+		}
+
+		// NOTE: Cannot use "AND change->date > '$since'" - OQL syntax doesn't support comparison on external keys
+		// We filter by timestamp in PHP instead
+		$oql = "SELECT CMDBChangeOpSetAttributeScalar 
+				WHERE objclass IN ('UserRequest','Incident')
+				  $ticketFilter
+				  $attcodeFilter";
+
+		$params = [
+			'operation' => 'core/get',
+			'class' => 'CMDBChangeOpSetAttributeScalar',
+			'key' => $oql,
+			'output_fields' => '*'
+		];
+
+		$result = $this->request($userId, $params, 'POST', false); // No cache for change ops
+
+		if (!isset($result['objects'])) {
+			return [];
+		}
+
+		// Filter by timestamp in PHP (since OQL doesn't support change->date comparisons)
+		$sinceTimestamp = strtotime($since);
+		$changes = [];
+		foreach ($result['objects'] as $changeOp) {
+			$fields = $changeOp['fields'] ?? [];
+			$changeDate = $fields['date'] ?? '';
+			
+			// Filter out changes before the 'since' timestamp
+			if (!empty($changeDate) && strtotime($changeDate) > $sinceTimestamp) {
+				$changes[] = [
+					'objclass' => $fields['objclass'] ?? '',
+					'objkey' => $fields['objkey'] ?? '',
+					'attcode' => $fields['attcode'] ?? '',
+					'oldvalue' => $fields['oldvalue'] ?? '',
+					'newvalue' => $fields['newvalue'] ?? '',
+					'date' => $changeDate,
+					'userinfo' => $fields['userinfo'] ?? '',
+					'user_id' => $fields['user_id'] ?? ''
+				];
+			}
+		}
+
+		return $changes;
+	}
+
+	/**
+	 * Get case log changes (public_log, private_log) since timestamp
+	 *
+	 * IMPORTANT: Uses CMDBChangeOpSetAttributeCaseLog class (different from scalar changes)
+	 * NOTE: iTop OQL does not support comparison operators on external key attributes like change->date
+	 * We fetch all log changes and filter by timestamp in PHP
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param array $ticketIds Array of ticket IDs to filter
+	 * @param string $since ISO 8601 timestamp
+	 * @param array $logAttributes ['public_log', 'private_log']
+	 * @return array Array of log changes with fields: objclass, objkey, attcode, lastentry, date, userinfo, user_id
+	 */
+	public function getCaseLogChanges(string $userId, array $ticketIds, string $since, array $logAttributes): array {
+		if (empty($ticketIds)) {
+			return [];
+		}
+
+		$ticketIdList = implode(',', $ticketIds);
+		$logAttrList = implode("','", $logAttributes);
+
+		// NOTE: Cannot use "AND change->date > '$since'" - OQL syntax doesn't support comparison on external keys
+		// We filter by timestamp in PHP instead
+		$oql = "SELECT CMDBChangeOpSetAttributeCaseLog 
+				WHERE objclass IN ('UserRequest','Incident')
+				  AND objkey IN ($ticketIdList)
+				  AND attcode IN ('$logAttrList')
+				  AND user_id != ''";
+
+		$params = [
+			'operation' => 'core/get',
+			'class' => 'CMDBChangeOpSetAttributeCaseLog',
+			'key' => $oql,
+			'output_fields' => '*'
+		];
+
+		$result = $this->request($userId, $params, 'POST', false); // No cache
+
+		$this->logger->debug('getCaseLogChanges API result', [
+			'app' => Application::APP_ID,
+			'since' => $since,
+			'ticketCount' => count($ticketIds),
+			'resultCode' => $result['code'] ?? 'missing',
+			'objectCount' => isset($result['objects']) ? count($result['objects']) : 0,
+			'oql' => $oql
+		]);
+
+		if (!isset($result['objects'])) {
+			return [];
+		}
+
+		// Filter by timestamp in PHP (since OQL doesn't support change->date comparisons)
+		$sinceTimestamp = strtotime($since);
+		$changes = [];
+		foreach ($result['objects'] as $changeOp) {
+			$fields = $changeOp['fields'] ?? [];
+			$changeDate = $fields['date'] ?? '';
+			
+			// Filter out changes before the 'since' timestamp
+			if (!empty($changeDate) && strtotime($changeDate) > $sinceTimestamp) {
+				$changes[] = [
+					'objclass' => $fields['objclass'] ?? '',
+					'objkey' => $fields['objkey'] ?? '',
+					'attcode' => $fields['attcode'] ?? '',
+					'lastentry' => $fields['lastentry'] ?? '',
+					'date' => $changeDate,
+					'userinfo' => $fields['userinfo'] ?? '',
+					'user_id' => $fields['user_id'] ?? ''
+				];
+			}
+		}
+
+		return $changes;
+	}
+
+	/**
+	 * Resolve User IDs to friendly names
+	 * Uses 24-hour cache to minimize API calls
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param array $userIds Array of iTop User IDs to resolve
+	 * @return array Associative array mapping user_id => friendlyname
+	 */
+	public function resolveUserNames(string $userId, array $userIds): array {
+		if (empty($userIds)) {
+			return [];
+		}
+
+		// Filter out invalid IDs (0, empty, etc.)
+		$validIds = array_filter($userIds, function($id) {
+			return !empty($id) && $id != '0';
+		});
+
+		if (empty($validIds)) {
+			return [];
+		}
+
+		$mapping = [];
+		$uncachedIds = [];
+
+		// Check cache for each user ID
+		foreach ($validIds as $id) {
+			$cacheKey = 'user_name_' . $id;
+			$cachedName = $this->cache->get($cacheKey);
+			if ($cachedName !== null) {
+				$mapping[$id] = $cachedName;
+			} else {
+				$uncachedIds[] = $id;
+			}
+		}
+
+		// Fetch uncached names from API
+		// Note: agent_id typically references Person, not User
+		if (!empty($uncachedIds)) {
+			$idList = implode(',', $uncachedIds);
+			$params = [
+				'operation' => 'core/get',
+				'class' => 'Person',
+				'key' => "SELECT Person WHERE id IN ($idList)",
+				'output_fields' => 'id,friendlyname'
+			];
+
+			$result = $this->request($userId, $params, 'POST', false);
+			
+			$this->logger->debug('Resolved person names', [
+				'app' => Application::APP_ID,
+				'requestedIds' => $uncachedIds,
+				'resultCode' => $result['code'] ?? 'missing',
+				'objectCount' => isset($result['objects']) ? count($result['objects']) : 0
+			]);
+			
+			if (isset($result['objects'])) {
+				foreach ($result['objects'] as $user) {
+					$id = $user['fields']['id'] ?? $user['key'];
+					$name = $user['fields']['friendlyname'] ?? '';
+					if ($id && $name) {
+						$mapping[$id] = $name;
+						// Cache for 24 hours (86400 seconds)
+						$this->cache->set('user_name_' . $id, $name, 86400);
+					}
+				}
+			}
+		}
+
+		return $mapping;
+	}
+
+	/**
+	 * Get user's ticket IDs (for filtering change operations)
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param bool $portalOnly If true, only return tickets where user is caller; if false, include assigned tickets
+	 * @param bool $includeResolved If true, also include recently resolved tickets (for detecting resolution notifications)
+	 * @return array Array of ticket IDs
+	 */
+	public function getUserTicketIds(string $userId, bool $portalOnly = true, bool $includeResolved = false): array {
+		$personId = $this->getPersonId($userId);
+		if (!$personId) {
+			return [];
+		}
+
+		$ticketIds = [];
+
+		// Build status filter
+		$statusFilter = $includeResolved 
+			? "operational_status IN ('ongoing','resolved')" 
+			: "operational_status = 'ongoing'";
+
+		// Get UserRequest IDs
+		if ($portalOnly) {
+			$userRequestOql = "SELECT UserRequest WHERE caller_id = '$personId' AND $statusFilter";
+		} else {
+			// Agent: tickets where caller OR assigned
+			$userRequestOql = "SELECT UserRequest WHERE (caller_id = '$personId' OR agent_id = '$personId') AND $statusFilter";
+		}
+
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => $userRequestOql,
+			'output_fields' => 'id'
+		];
+
+		$userRequestResult = $this->request($userId, $userRequestParams, 'POST', false);
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $ticket) {
+				$ticketIds[] = $ticket['fields']['id'] ?? $ticket['key'];
+			}
+		}
+
+		// Get Incident IDs
+		if ($portalOnly) {
+			$incidentOql = "SELECT Incident WHERE caller_id = '$personId' AND $statusFilter";
+		} else {
+			// Agent: tickets where caller OR assigned
+			$incidentOql = "SELECT Incident WHERE (caller_id = '$personId' OR agent_id = '$personId') AND $statusFilter";
+		}
+
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => $incidentOql,
+			'output_fields' => 'id'
+		];
+
+		$incidentResult = $this->request($userId, $incidentParams, 'POST', false);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $ticket) {
+				$ticketIds[] = $ticket['fields']['id'] ?? $ticket['key'];
+			}
+		}
+
+		return $ticketIds;
 	}
 
 }

@@ -42,6 +42,9 @@ class Admin implements ISettings {
 		$hasApplicationToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '') !== '';
 		$this->logger->info('iTop Admin current config values - URL: ' . $adminInstanceUrl . ', Name: ' . $userFacingName . ', Has Token: ' . ($hasApplicationToken ? 'yes' : 'no'), ['app' => Application::APP_ID]);
 
+		// Get notification interval (default: 15 minutes)
+		$portalNotificationInterval = (int)$this->config->getAppValue(Application::APP_ID, 'portal_notification_interval', '15');
+
 		// Get cache TTL values (with defaults matching CacheService)
 		$cacheTtlCiPreview = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ci_preview', '60');
 		$cacheTtlTicketInfo = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ticket_info', '60');
@@ -58,6 +61,7 @@ class Admin implements ISettings {
 			'has_application_token' => $hasApplicationToken,
 			'last_updated' => date('Y-m-d H:i:s'),
 			'version' => Application::getVersion($this->appManager),
+			'portal_notification_interval' => $portalNotificationInterval,
 			'cache_ttl_ci_preview' => $cacheTtlCiPreview,
 			'cache_ttl_ticket_info' => $cacheTtlTicketInfo,
 			'cache_ttl_search' => $cacheTtlSearch,

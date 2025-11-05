@@ -46,6 +46,11 @@ class Personal implements ISettings {
 		$navigationEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'navigation_enabled', '0') === '1';
 		$notificationEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'notification_enabled', '0') === '1';
 		$searchEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'search_enabled', '1') === '1'; // Default: enabled (opt-out)
+		
+		// Get portal notification preferences (default: enabled)
+		$notifyTicketStatusChanged = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_ticket_status_changed', '1') === '1';
+		$notifyAgentResponded = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_agent_responded', '1') === '1';
+		$notifyTicketResolved = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_ticket_resolved', '1') === '1';
 
 		// Get admin-configured display name and URL
 		$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
@@ -76,6 +81,9 @@ class Personal implements ISettings {
 			'navigation_enabled' => $navigationEnabled,
 			'notification_enabled' => $notificationEnabled,
 			'search_enabled' => $searchEnabled,
+			'notify_ticket_status_changed' => $notifyTicketStatusChanged,
+			'notify_agent_responded' => $notifyAgentResponded,
+			'notify_ticket_resolved' => $notifyTicketResolved,
 			'user_choice_ci_classes' => $userChoiceCIClasses,
 			'user_disabled_ci_classes' => $userDisabledClasses,
 			'version' => Application::getVersion($this->appManager),

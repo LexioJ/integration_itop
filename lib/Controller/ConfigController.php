@@ -85,9 +85,20 @@ class ConfigController extends Controller {
 		$values = $input;
 
 		// Save non-token settings first
+		$allowedKeys = [
+			'navigation_enabled',
+			'notification_enabled',
+			'search_enabled',
+			'notify_ticket_status_changed',
+			'notify_agent_responded',
+			'notify_ticket_resolved'
+		];
+		
 		foreach ($values as $key => $value) {
-			if ($key !== 'token' && $key !== 'personal_token' && $key !== 'disabled_ci_classes') {
-				$this->config->setUserValue($this->userId, Application::APP_ID, $key, $value);
+			if (in_array($key, $allowedKeys)) {
+				// Boolean values should be '0' or '1'
+				$boolValue = $value ? '1' : '0';
+				$this->config->setUserValue($this->userId, Application::APP_ID, $key, $boolValue);
 			}
 		}
 		
@@ -638,6 +649,37 @@ class ConfigController extends Controller {
 		$result['message'] = $this->l10n->t('Admin configuration saved');
 
 		return new DataResponse($result);
+	}
+
+	/**
+	 * Save notification interval settings with validation
+	 *
+	 * @param int $portalInterval Portal notification check interval in minutes (5-1440)
+	 * @return DataResponse
+	 */
+	public function saveNotificationSettings(int $portalInterval): DataResponse {
+		// Validation: 5 minutes to 24 hours
+		$minInterval = 5;
+		$maxInterval = 1440;
+
+		if ($portalInterval < $minInterval || $portalInterval > $maxInterval) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Portal notification interval must be between %d and %d minutes', [$minInterval, $maxInterval])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Save validated value
+		$this->config->setAppValue(Application::APP_ID, 'portal_notification_interval', (string)$portalInterval);
+
+		$this->logger->info('Notification interval settings updated', [
+			'app' => Application::APP_ID,
+			'portal_interval' => $portalInterval
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('Notification settings saved successfully'),
+			'portal_notification_interval' => $portalInterval
+		]);
 	}
 
 	/**

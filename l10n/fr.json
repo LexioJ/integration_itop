@@ -380,7 +380,17 @@
     "🎯 Configuration States": "🎯 États de configuration",
     "💡 Next Steps": "💡 Prochaines étapes",
     "📊 Current Status": "📊 État actuel",
-    "📡 Connection Configuration": "📡 Configuration de connexion"
+    "📡 Connection Configuration": "📡 Configuration de connexion",
+    "Ticket status changed": "Statut du ticket modifié",
+    "Status changed: %s → %s": "Statut modifié : %s → %s",
+    "Agent responded to your ticket": "L'agent a répondu à votre ticket",
+    "%s added a response": "%s a ajouté une réponse",
+    "Ticket resolved": "Ticket résolu",
+    "Your ticket has been resolved": "Votre ticket a été résolu",
+    "Assigned agent changed": "Agent assigné modifié",
+    "%s → %s": "%s → %s",
+    "Unassigned": "Non assigné",
+    "Agent": "Agent"
   },
   "pluralForm": "nplurals=2; plural=(n > 1);"
 }

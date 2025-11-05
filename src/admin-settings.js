@@ -92,6 +92,16 @@
 			}
 		})
 
+		// Notification settings
+		const saveNotificationButton = document.getElementById('save-notification-settings')
+
+		if (saveNotificationButton) {
+			saveNotificationButton.addEventListener('click', function(e) {
+				e.preventDefault()
+				saveNotificationSettings()
+			})
+		}
+
 		// Cache settings
 		const saveCacheButton = document.getElementById('save-cache-settings')
 		const clearCacheButton = document.getElementById('clear-all-cache')
@@ -378,6 +388,42 @@
 			.finally(() => {
 				testButton.disabled = false
 				testButton.innerHTML = originalText
+			})
+	}
+
+	/**
+	 * Save notification settings
+	 */
+	function saveNotificationSettings() {
+
+		const saveButton = document.getElementById('save-notification-settings')
+		const portalInterval = parseInt(document.getElementById('portal-notification-interval').value)
+
+		saveButton.disabled = true
+		const originalText = saveButton.innerHTML
+		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
+
+		fetch(OC.generateUrl('/apps/integration_itop/notification-settings'), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				requesttoken: OC.requestToken,
+			},
+			body: JSON.stringify({ portalInterval }),
+		})
+			.then(response => {
+				if (!response.ok) throw new Error('Server error')
+				return response.json()
+			})
+			.then(data => {
+				showNotification(t('integration_itop', 'Notification settings saved'), false)
+			})
+			.catch(() => {
+				showNotification(t('integration_itop', 'Error saving notification settings'), true)
+			})
+			.finally(() => {
+				saveButton.disabled = false
+				saveButton.innerHTML = originalText
 			})
 	}
 
