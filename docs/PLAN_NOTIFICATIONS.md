@@ -27,31 +27,39 @@ This document outlines the comprehensive implementation plan for a **smart notif
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Per-User Interval Check                                        │
-│  • Skip if now - last_check < admin_configured_interval         │
-│  • Skip if master toggle off or no person_id                    │
-│  • Portal: skip if portal-only AND not portal job               │
-│  • Agent: skip if is_portal_only='1'                            │
+│  • Skip if now - last_check < user_configured_interval         │
+│  • Skip if disabled_portal/agent_notifications = 'all'         │
+│  • Skip if no person_id                                        │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Query Optimization Check                                       │
+│  • Skip CaseLog query if 'agent_responded' disabled           │
+│  • Skip Scalar query if all status/agent/resolved disabled    │
+│  • Filter to operational_status='ongoing' (+ resolved if needed)│
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Query iTop for Changes Since Last Check                        │
-│  • CMDBChangeOp (change tracking) since last_check              │
-│  • Current ticket state for SLA deadline calculations           │
-│  • Filter to operational_status='ongoing'                       │
+│  • CMDBChangeOpSetAttributeScalar (if any scalar notif enabled)│
+│  • CMDBChangeOpSetAttributeCaseLog (if agent_responded enabled)│
+│  • Apply PHP-side timestamp filtering (OQL limitation)         │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Detect & Classify Events                                       │
-│  • Portal: status changes, agent comments, resolved             │
+│  • Portal: status/agent_id changes, agent comments, resolved  │
 │  • Agent: assignments, SLA warnings/breaches, priority, comments│
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Create Nextcloud Notifications                                 │
-│  • Respect user's granular toggles                              │
+│  Filter & Send Notifications                                    │
+│  • Respect disabled_portal/agent_notifications array          │
+│  • Skip if notification type in disabled array                 │
 │  • Rate limit: max 20 notifications per user per run            │
 │  • Use buildTicketUrl() for portal vs. agent UI routing         │
 └─────────────────────────────────────────────────────────────────┘
@@ -59,7 +67,8 @@ This document outlines the comprehensive implementation plan for a **smart notif
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Update last_check Timestamp                                    │
-│  • last_portal_check or last_agent_check = NOW()                │
+│  • notification_last_portal_check = time() (Unix timestamp)   │
+│  • notification_last_agent_check = time() (Unix timestamp)    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -67,27 +76,77 @@ This document outlines the comprehensive implementation plan for a **smart notif
 
 ## Notification Types
 
-### Portal User Notifications
+**Config Value Format**: Short identifier without `notify_` prefix for storage efficiency
 
-| Type | Trigger | Detection Method | User Toggle |
-|------|---------|------------------|-------------|
-| **Ticket status changed** | Status field changes (e.g., new→assigned, assigned→resolved) | CMDBChangeOp: `attcode='status'` on caller's tickets | `notify_ticket_status_changed` |
-| **Agent responded** | Public log entry added by agent | CMDBChangeOp: `attcode='public_log'` with `user_login != ''` | `notify_agent_responded` |
-| **Ticket resolved** | Status becomes 'resolved' | CMDBChangeOp: `attcode='status'`, `newvalue='resolved'` | `notify_ticket_resolved` |
-| **Agent assigned changed** | Agent assignment changes | CMDBChangeOp: `attcode='agent_id'` with name resolution | `notify_agent_assigned` (via status_changed toggle) |
+### Complete Notification Type Values
 
-### Agent/Fulfiller Notifications
+**Portal Notifications** (4 types - stored without prefix):
+```
+ticket_status_changed
+agent_responded  
+ticket_resolved
+agent_assigned
+```
 
-| Type | Trigger | Detection Method | User Toggle |
-|------|---------|------------------|-------------|
-| **Ticket assigned to me** | agent_id changes from NULL to my person_id | CMDBChangeOp: `attcode='agent_id'`, `oldvalue IS NULL`, `newvalue=person_id` | `notify_ticket_assigned` |
-| **Ticket reassigned to me** | agent_id changes from another person to me | CMDBChangeOp: `attcode='agent_id'`, `oldvalue != NULL AND != person_id`, `newvalue=person_id` | `notify_ticket_reassigned` |
-| **New unassigned ticket in my team** | Ticket created/updated in my teams with no agent | CMDBChangeOp: ticket creation or `agent_id=NULL` in team queue | `notify_team_unassigned_new` *(optional)* |
-| **TTO SLA warning (escalating)** | Unassigned team ticket approaching TTO deadline | Current ticket state: `tto_escalation_deadline - now` crosses 24h/12h/4h/1h thresholds | `notify_ticket_tto_warning` |
-| **TTR SLA warning (escalating)** | My assigned ticket approaching TTR deadline | Current ticket state: `ttr_escalation_deadline - now` crosses 24h/12h/4h/1h thresholds | `notify_ticket_ttr_warning` |
-| **SLA breach (TTO/TTR)** | Ticket enters escalated status | CMDBChangeOp: `attcode IN ('sla_tto_passed','sla_ttr_passed')`, `newvalue='yes'` | `notify_ticket_sla_breach` |
-| **Priority changed to Critical** | Priority escalates to level 1 (critical) | CMDBChangeOp: `attcode='priority'`, `newvalue='1'` | `notify_ticket_priority_critical` |
-| **New comment on my ticket** | Public/private log entry added | CMDBChangeOp: `attcode IN ('public_log','private_log')` with `user_login != ''` | `notify_ticket_comment` |
+**Agent Notifications** (8 types - stored without prefix):
+```
+ticket_assigned
+ticket_reassigned
+team_unassigned_new
+ticket_tto_warning
+ticket_ttr_warning
+ticket_sla_breach
+ticket_priority_critical
+ticket_comment
+```
+
+**Note**: The `notify_` prefix is NOT stored in config values to reduce storage size. It's only used in PHP constant names for clarity.
+
+### Portal User Notifications (4 types)
+
+| Type | Config Value | Trigger | Detection Method |
+|------|-------------|---------|------------------|
+| **Ticket status changed** | `ticket_status_changed` | Status field changes (e.g., new→assigned) | CMDBChangeOp: `attcode='status'` |
+| **Agent responded** | `agent_responded` | Public log entry added by agent | CMDBChangeOp: `attcode='public_log'` |
+| **Ticket resolved** | `ticket_resolved` | Status becomes 'resolved' | CMDBChangeOp: `attcode='status'`, `newvalue='resolved'` |
+| **Agent assigned changed** | `agent_assigned` | Agent assignment changes | CMDBChangeOp: `attcode='agent_id'` |
+
+**Storage values**:
+```php
+Application::PORTAL_NOTIFICATION_TYPES = [
+    'ticket_status_changed',
+    'agent_responded',
+    'ticket_resolved',
+    'agent_assigned'
+];
+```
+
+### Agent/Fulfiller Notifications (8 types)
+
+| Type | Config Value | Trigger | Detection Method |
+|------|-------------|---------|------------------|
+| **Ticket assigned to me** | `ticket_assigned` | agent_id changes from NULL to me | CMDBChangeOp: `attcode='agent_id'`, `oldvalue IS NULL` |
+| **Ticket reassigned to me** | `ticket_reassigned` | agent_id changes from other to me | CMDBChangeOp: `attcode='agent_id'`, `oldvalue != NULL` |
+| **New unassigned in team** | `team_unassigned_new` | Ticket created in my team, no agent | CMDBChangeOp: ticket creation, `agent_id=NULL` |
+| **TTO SLA warning** | `ticket_tto_warning` | Team ticket approaching TTO | Current state: deadline crossing (24h/12h/4h/1h) |
+| **TTR SLA warning** | `ticket_ttr_warning` | My ticket approaching TTR | Current state: deadline crossing (24h/12h/4h/1h) |
+| **SLA breach** | `ticket_sla_breach` | SLA exceeded | CMDBChangeOp: `attcode IN ('sla_tto_passed','sla_ttr_passed')` |
+| **Priority critical** | `ticket_priority_critical` | Priority → 1 (critical) | CMDBChangeOp: `attcode='priority'`, `newvalue='1'` |
+| **New comment** | `ticket_comment` | Public/private log entry | CMDBChangeOp: `attcode IN ('public_log','private_log')` |
+
+**Storage values**:
+```php
+Application::AGENT_NOTIFICATION_TYPES = [
+    'ticket_assigned',
+    'ticket_reassigned',
+    'team_unassigned_new',
+    'ticket_tto_warning',
+    'ticket_ttr_warning',
+    'ticket_sla_breach',
+    'ticket_priority_critical',
+    'ticket_comment'
+];
+```
 
 ### Newsroom Mirroring (Opt-In)
 
@@ -229,35 +288,84 @@ WHERE change->date > :last_check
 
 ## Admin Configuration
 
-### Polling Intervals
+### 3-State Notification Configuration
+
+Admins configure which notifications are available to users using a **3-state system** (mirroring CI class configuration):
+
+**States**:
+1. **`disabled`** - Notification type is completely disabled (not shown to users)
+2. **`forced`** - Notification is mandatory for all users (enabled, no opt-out)
+3. **`user_choice`** - Notification is enabled by default, users can opt-out in personal settings
 
 **Keys** (in `oc_appconfig`):
 ```
-integration_itop.portal_notification_interval
-integration_itop.agent_notification_interval
+integration_itop.portal_notification_config = JSON string
+integration_itop.agent_notification_config = JSON string
+integration_itop.default_notification_interval = integer (minutes)
 ```
 
-**Values**: Integer minutes
-- **Default**: Portal: 15 min, Agent: 10 min
+**Portal Notification Types** (default config):
+```json
+{
+  "ticket_status_changed": "user_choice",
+  "agent_responded": "user_choice",
+  "ticket_resolved": "user_choice",
+  "agent_assigned": "user_choice"
+}
+```
+
+**Agent Notification Types** (default config):
+```json
+{
+  "ticket_assigned": "user_choice",
+  "ticket_reassigned": "user_choice",
+  "team_unassigned_new": "disabled",
+  "ticket_tto_warning": "user_choice",
+  "ticket_ttr_warning": "user_choice",
+  "ticket_sla_breach": "forced",
+  "ticket_priority_critical": "forced",
+  "ticket_comment": "user_choice"
+}
+```
+
+**Default Interval**:
+- **Default**: 15 minutes
 - **Min**: 5 minutes
 - **Max**: 1440 minutes (24 hours)
+- **Behavior**: Users inherit this value in `notification_check_interval` (can customize per-user)
 
-**Behavior**:
-- Background jobs run **every 5 minutes** (TimedJob)
-- Per-user checks **skip** unless `(now - last_check) >= configured_interval`
-
-**UI**: `templates/adminSettings.php`
+**UI**: `templates/adminSettings.php` (similar to CI class configuration)
 ```html
-<input type="number" name="portal_notification_interval" 
+<!-- Default Check Interval -->
+<input type="number" name="default_notification_interval" 
        min="5" max="1440" value="15" />
-<input type="number" name="agent_notification_interval" 
-       min="5" max="1440" value="10" />
+
+<!-- 3-State Toggle Grid for Portal Notifications -->
+<div class="notification-config-grid">
+  <div class="notification-config-row">
+    <span class="notification-label">Ticket status changed</span>
+    <div class="state-toggle-group" data-notification="ticket_status_changed">
+      <button data-state="disabled">🚫 Disable</button>
+      <button data-state="forced">✓ Force Enable</button>
+      <button data-state="user_choice" class="active">⚙️ User Choice</button>
+    </div>
+  </div>
+  <!-- Repeat for other notification types -->
+</div>
 ```
 
 **Validation**: In `lib/Settings/Admin.php`
 ```php
-$portalInterval = max(5, min(1440, (int)$_POST['portal_notification_interval']));
-$agentInterval = max(5, min(1440, (int)$_POST['agent_notification_interval']));
+$defaultInterval = max(5, min(1440, (int)$_POST['default_notification_interval']));
+
+// Validate portal notification config
+$portalConfig = json_decode($_POST['portal_notification_config'], true);
+foreach (Application::PORTAL_NOTIFICATION_TYPES as $type) {
+    if (!isset($portalConfig[$type]) || 
+        !in_array($portalConfig[$type], ['disabled', 'forced', 'user_choice'])) {
+        $portalConfig[$type] = 'disabled'; // Safe default
+    }
+}
 ```
 
 ---
@@ -266,100 +374,132 @@ $agentInterval = max(5, min(1440, (int)$_POST['agent_notification_interval']));
 
 ### Configuration Keys (per user in `oc_preferences`)
 
-**Master toggle**:
+**Master toggle behavior**:
+- When user disables all portal notifications: store `disabled_portal_notifications = "all"`
+- When user disables all agent notifications: store `disabled_agent_notifications = "all"`
+- Background job skips users with `"all"` value (optimization)
+
+**Disabled notification arrays** (stores opt-outs only):
 ```
-integration_itop.notification_enabled = '1' | '0'
+integration_itop.disabled_portal_notifications = JSON array
+integration_itop.disabled_agent_notifications = JSON array
+integration_itop.notification_check_interval = integer (minutes)
 ```
 
-**Portal notifications** (always visible):
-```
-integration_itop.notify_ticket_status_changed = '1' | '0'
-integration_itop.notify_agent_responded = '1' | '0'
-integration_itop.notify_ticket_resolved = '1' | '0'
-```
-
-**Agent notifications** (visible when `is_portal_only='0'`):
-```
-integration_itop.notify_ticket_assigned = '1' | '0'
-integration_itop.notify_ticket_reassigned = '1' | '0'
-integration_itop.notify_team_unassigned_new = '1' | '0'  # Optional
-integration_itop.notify_ticket_tto_warning = '1' | '0'
-integration_itop.notify_ticket_ttr_warning = '1' | '0'
-integration_itop.notify_ticket_sla_breach = '1' | '0'
-integration_itop.notify_ticket_priority_critical = '1' | '0'
-integration_itop.notify_ticket_comment = '1' | '0'
+**Example - User disables specific portal notifications**:
+```json
+{
+  "disabled_portal_notifications": ["agent_responded", "ticket_resolved"],
+  "disabled_agent_notifications": [],
+  "notification_check_interval": 30
+}
 ```
 
-**Newsroom** (opt-in for all users):
+**Example - User disables all portal notifications** (master toggle off):
+```json
+{
+  "disabled_portal_notifications": "all",
+  "disabled_agent_notifications": [],
+  "notification_check_interval": 15
+}
 ```
-integration_itop.notify_newsroom_enabled = '1' | '0'
-```
+
+**Logic**:
+1. **Disabled** by admin → Not shown in UI, never sent
+2. **Forced** by admin → Not shown in UI (always enabled), always sent
+3. **User Choice** by admin → Shown in UI with checkbox
+   - Unchecked → Added to `disabled_*_notifications` array
+   - Checked → Not in array (enabled)
+
+**Check Interval**:
+- **Default**: Inherits from `default_notification_interval` (admin setting)
+- **Range**: 5-1440 minutes
+- **Per-user**: Users can customize their own check frequency
 
 ### UI Layout (`templates/personalSettings.php`)
 
+**Similar to CI class configuration** - only show "User Choice" notifications:
+
 ```html
-<h3>iTop Notifications</h3>
+<h4>Notification Settings</h4>
 
-<!-- Master Toggle -->
-<label>
-  <input type="checkbox" name="notification_enabled" value="1" <?= $enabled ? 'checked' : '' ?> />
-  Enable iTop Notifications
-</label>
+<!-- Check Interval (user-customizable) -->
+<div class="field">
+  <label for="notification-check-interval">
+    Check interval (minutes)
+  </label>
+  <input type="number" id="notification-check-interval" 
+         value="<?= $_['notification_check_interval'] ?>" 
+         min="5" max="1440" />
+  <p class="hint">How often to check for ticket updates (default: <?= $_['default_notification_interval'] ?> min)</p>
+</div>
 
-<!-- Portal Section (always visible) -->
-<h4>My Tickets</h4>
-<label>
-  <input type="checkbox" name="notify_ticket_status_changed" <?= ... ?> />
-  Ticket status changed
-</label>
-<label>
-  <input type="checkbox" name="notify_agent_responded" <?= ... ?> />
-  Agent responded to my ticket
-</label>
-<label>
-  <input type="checkbox" name="notify_ticket_resolved" <?= ... ?> />
-  Ticket resolved
-</label>
+<!-- Portal Notifications (only show user_choice types) -->
+<?php if (!empty($_['user_choice_portal_notifications'])): ?>
+<h5>My Tickets</h5>
+<div class="notification-toggles">
+  <?php foreach ($_['user_choice_portal_notifications'] as $notifType): ?>
+  <div class="notification-toggle">
+    <input type="checkbox" 
+           id="<?= $notifType ?>" 
+           name="portal_notification" 
+           value="<?= $notifType ?>"
+           <?= !in_array($notifType, $_['user_disabled_portal_notifications']) ? 'checked' : '' ?> />
+    <label for="<?= $notifType ?>"><?= $notificationLabels[$notifType] ?></label>
+  </div>
+  <?php endforeach; ?>
+</div>
 
-<!-- Agent Section (only if is_portal_only='0') -->
-<?php if (!$is_portal_only): ?>
-<h4>Agent Work (My Assignments & Team Queue)</h4>
-<label>
-  <input type="checkbox" name="notify_ticket_assigned" <?= ... ?> />
-  New ticket assigned to me
-</label>
-<label>
-  <input type="checkbox" name="notify_ticket_reassigned" <?= ... ?> />
-  Ticket reassigned to me
-</label>
-<label>
-  <input type="checkbox" name="notify_ticket_tto_warning" <?= ... ?> />
-  SLA warning: TTO approaching (escalating alerts)
-</label>
-<label>
-  <input type="checkbox" name="notify_ticket_ttr_warning" <?= ... ?> />
-  SLA warning: TTR approaching (escalating alerts)
-</label>
-<label>
-  <input type="checkbox" name="notify_ticket_sla_breach" <?= ... ?> />
-  SLA breach (TTO/TTR exceeded)
-</label>
-<label>
-  <input type="checkbox" name="notify_ticket_priority_critical" <?= ... ?> />
-  Priority escalated to Critical
-</label>
-<label>
-  <input type="checkbox" name="notify_ticket_comment" <?= ... ?> />
-  New comments on my tickets
-</label>
+<!-- Master toggle for portal (disable all) -->
+<div class="field">
+  <input type="checkbox" id="enable-all-portal" 
+         <?= $_['disabled_portal_notifications'] !== 'all' ? 'checked' : '' ?> />
+  <label for="enable-all-portal"><strong>Enable portal notifications</strong></label>
+</div>
 <?php endif; ?>
 
-<!-- Newsroom Opt-In -->
-<h4>Experimental Features</h4>
-<label>
-  <input type="checkbox" name="notify_newsroom_enabled" <?= ... ?> />
-  Enable iTop Newsroom sync (beta)
-</label>
+<!-- Agent Notifications (only if is_portal_only='0' AND has user_choice types) -->
+<?php if (!$_['is_portal_only'] && !empty($_['user_choice_agent_notifications'])): ?>
+<h5>Agent Work (My Assignments & Team Queue)</h5>
+<div class="notification-toggles">
+  <?php foreach ($_['user_choice_agent_notifications'] as $notifType): ?>
+  <div class="notification-toggle">
+    <input type="checkbox" 
+           id="<?= $notifType ?>" 
+           name="agent_notification" 
+           value="<?= $notifType ?>"
+           <?= !in_array($notifType, $_['user_disabled_agent_notifications']) ? 'checked' : '' ?> />
+    <label for="<?= $notifType ?>"><?= $notificationLabels[$notifType] ?></label>
+  </div>
+  <?php endforeach; ?>
+</div>
+
+<!-- Master toggle for agent (disable all) -->
+<div class="field">
+  <input type="checkbox" id="enable-all-agent" 
+         <?= $_['disabled_agent_notifications'] !== 'all' ? 'checked' : '' ?> />
+  <label for="enable-all-agent"><strong>Enable agent notifications</strong></label>
+</div>
+<?php endif; ?>
+
+<!-- Info box about forced notifications -->
+<?php if (!empty($_['forced_portal_notifications']) || !empty($_['forced_agent_notifications'])): ?>
+<div class="info-box">
+  <strong>ℹ️ Note:</strong> Some notifications are mandatory and cannot be disabled:
+  <ul>
+    <?php foreach (array_merge($_['forced_portal_notifications'], $_['forced_agent_notifications']) as $forced): ?>
+    <li><?= $notificationLabels[$forced] ?></li>
+    <?php endforeach; ?>
+  </ul>
+</div>
+<?php endif; ?>
+```
+
+**JavaScript behavior**:
+```javascript
+// When "Enable all portal" unchecked → set disabled_portal_notifications = "all"
+// When any individual checkbox changes → update disabled_portal_notifications array
+// Similar for agent notifications
 ```
 
 ---
@@ -370,14 +510,36 @@ integration_itop.notify_newsroom_enabled = '1' | '0'
 
 **Keys** (in `oc_preferences`):
 ```
-integration_itop.last_portal_check   = '2025-11-03 09:30:00'
-integration_itop.last_agent_check    = '2025-11-03 09:30:00'
+integration_itop.notification_last_portal_check = integer (Unix timestamp)
+integration_itop.notification_last_agent_check  = integer (Unix timestamp)
+```
+
+**Format**: Unix timestamp (seconds since epoch)
+- **Harmonized with**: `profiles_last_check` format
+- **Storage**: Integer value, e.g., `1730880000`
+- **PHP**: `time()` to get current timestamp
+- **Comparison**: Simple integer arithmetic: `time() - $lastCheck >= $interval`
+
+**Example**:
+```php
+// Store
+$this->config->setUserValue($userId, Application::APP_ID, 'notification_last_portal_check', (string)time());
+
+// Retrieve
+$lastCheck = (int)$this->config->getUserValue($userId, Application::APP_ID, 'notification_last_portal_check', '0');
+$now = time();
+$interval = 15 * 60; // 15 minutes in seconds
+
+if (($now - $lastCheck) >= $interval) {
+    // Check for notifications
+}
 ```
 
 **No per-ticket state needed** because:
 1. **Change events**: CMDBChangeOp provides old→new transitions directly
 2. **SLA warnings**: Crossing-time algorithm eliminates need for "last warned level"
 3. **Comments**: CMDBChangeOp tracks log additions with timestamps
+4. **Timestamps**: Unix format simplifies interval calculations and eliminates timezone issues
 
 ---
 
@@ -403,17 +565,11 @@ class CheckPortalTicketUpdates extends TimedJob {
     }
     
     protected function run($argument): void {
-        $configuredInterval = (int)$this->config->getAppValue(
-            Application::APP_ID, 
-            'portal_notification_interval', 
-            '15'
-        ) * 60; // Convert to seconds
-        
-        $this->userManager->callForAllUsers(function (IUser $user) use ($configuredInterval) {
+        $this->userManager->callForAllUsers(function (IUser $user) {
             $userId = $user->getUID();
             
-            // Skip if not configured
-            if (!$this->shouldCheckUser($userId, 'portal', $configuredInterval)) {
+            // Skip if not configured or all notifications disabled
+            if (!$this->shouldCheckUser($userId, 'portal')) {
                 return;
             }
             
@@ -421,39 +577,83 @@ class CheckPortalTicketUpdates extends TimedJob {
         });
     }
     
-    private function shouldCheckUser(string $userId, string $type, int $interval): bool {
-        // Check master toggle
-        $enabled = $this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0') === '1';
-        if (!$enabled) return false;
+    private function shouldCheckUser(string $userId, string $type): bool {
+        // Check if all notifications disabled (master toggle off)
+        $disabledKey = "disabled_{$type}_notifications";
+        $disabled = $this->config->getUserValue($userId, Application::APP_ID, $disabledKey, '');
+        if ($disabled === 'all') return false;
         
         // Check person_id configured
         $personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
         if (empty($personId)) return false;
         
-        // Check interval
-        $lastCheckKey = "last_{$type}_check";
-        $lastCheck = $this->config->getUserValue($userId, Application::APP_ID, $lastCheckKey, '');
+        // Check interval (user-specific or default)
+        $userInterval = (int)$this->config->getUserValue($userId, Application::APP_ID, 'notification_check_interval', '0');
+        if ($userInterval === 0) {
+            // Use admin default
+            $userInterval = (int)$this->config->getAppValue(Application::APP_ID, 'default_notification_interval', '15');
+        }
+        $interval = $userInterval * 60; // Convert to seconds
         
-        if (empty($lastCheck)) {
+        $lastCheckKey = "notification_last_{$type}_check";
+        $lastCheck = (int)$this->config->getUserValue($userId, Application::APP_ID, $lastCheckKey, '0');
+        
+        if ($lastCheck === 0) {
             return true; // First run
         }
         
-        $lastCheckTime = strtotime($lastCheck);
         $now = time();
-        
-        return ($now - $lastCheckTime) >= $interval;
+        return ($now - $lastCheck) >= $interval;
     }
     
     private function checkPortalNotifications(string $userId): void {
-        // Implementation: query CMDBChangeOp, detect events, send notifications
-        // (See detailed flow below)
+        // Get user's disabled notifications
+        $disabledJson = $this->config->getUserValue($userId, Application::APP_ID, 'disabled_portal_notifications', '');
+        $disabledNotifications = [];
+        if ($disabledJson !== '' && $disabledJson !== 'all') {
+            $disabledNotifications = json_decode($disabledJson, true) ?? [];
+        }
+        
+        // Query optimization: determine which queries to run
+        $needCaseLogQuery = !in_array('agent_responded', $disabledNotifications);
+        $needScalarQuery = !in_array('ticket_status_changed', $disabledNotifications) ||
+                          !in_array('ticket_resolved', $disabledNotifications) ||
+                          !in_array('agent_assigned', $disabledNotifications);
+        
+        // Get last check timestamp
+        $lastCheck = (int)$this->config->getUserValue($userId, Application::APP_ID, 'notification_last_portal_check', '0');
+        if ($lastCheck === 0) {
+            $lastCheck = time() - (30 * 24 * 3600); // 30 days ago for first run
+        }
+        
+        $notificationCount = 0;
+        
+        // Query and process changes
+        if ($needScalarQuery) {
+            $ticketIds = $this->itopService->getUserTicketIds($userId, true, true);
+            if (!empty($ticketIds)) {
+                $changes = $this->itopService->getChangeOps($userId, $ticketIds, $lastCheck, ['status', 'agent_id']);
+                // Process status/agent changes
+                // Send notifications respecting $disabledNotifications
+                $notificationCount += $this->processScalarChanges($userId, $changes, $disabledNotifications);
+            }
+        }
+        
+        if ($needCaseLogQuery && $notificationCount < 20) {
+            $ticketIds = $this->itopService->getUserTicketIds($userId, true, false);
+            if (!empty($ticketIds)) {
+                $changes = $this->itopService->getCaseLogChanges($userId, $ticketIds, $lastCheck, ['public_log']);
+                // Process case log changes
+                $notificationCount += $this->processCaseLogChanges($userId, $changes, $disabledNotifications);
+            }
+        }
         
         // Update timestamp
         $this->config->setUserValue(
             $userId, 
             Application::APP_ID, 
-            'last_portal_check', 
-            date('Y-m-d H:i:s')
+            'notification_last_portal_check', 
+            (string)time()
         );
     }
 }
