@@ -357,6 +357,10 @@ $ciClassLabels = [
 						<span class="btn-icon">💾</span>
 						<?php p($l->t('Save Notification Configuration')); ?>
 					</button>
+					<button id="toggle-all-notifications" class="btn-secondary">
+						<span class="btn-icon">🔄</span>
+						<?php p($l->t('Toggle All')); ?>
+					</button>
 				</div>
 			</div>
 		</div>

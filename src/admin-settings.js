@@ -130,23 +130,33 @@
 			})
 		}
 
-		// CI class configuration
-		const saveCIClassesButton = document.getElementById('save-ci-classes')
-		const toggleAllButton = document.getElementById('toggle-all-ci-classes')
+	// CI class configuration
+	const saveCIClassesButton = document.getElementById('save-ci-classes')
+	const toggleAllButton = document.getElementById('toggle-all-ci-classes')
 
-		if (saveCIClassesButton) {
-			saveCIClassesButton.addEventListener('click', function(e) {
-				e.preventDefault()
-				saveCIClasses()
-			})
-		}
+	if (saveCIClassesButton) {
+		saveCIClassesButton.addEventListener('click', function(e) {
+			e.preventDefault()
+			saveCIClasses()
+		})
+	}
 
-		if (toggleAllButton) {
-			toggleAllButton.addEventListener('click', function(e) {
-				e.preventDefault()
-				toggleAllCIClasses()
-			})
-		}
+	if (toggleAllButton) {
+		toggleAllButton.addEventListener('click', function(e) {
+			e.preventDefault()
+			toggleAllCIClasses()
+		})
+	}
+
+	// Notification toggle all button
+	const toggleAllNotificationsButton = document.getElementById('toggle-all-notifications')
+
+	if (toggleAllNotificationsButton) {
+		toggleAllNotificationsButton.addEventListener('click', function(e) {
+			e.preventDefault()
+			toggleAllNotifications()
+		})
+	}
 
 		// CI class state toggle buttons
 		const stateButtons = document.querySelectorAll('.state-button')
@@ -643,6 +653,41 @@
 		}
 
 		// Update all groups
+		groups.forEach(group => {
+			group.querySelectorAll('.state-button').forEach(btn => {
+				btn.classList.remove('active')
+				if (btn.dataset.state === targetState) {
+					btn.classList.add('active')
+				}
+			})
+		})
+	}
+
+	/**
+	 * Toggle all notifications (Portal + Agent) to next state
+	 */
+	function toggleAllNotifications() {
+
+		// Get all notification toggle groups (both portal and agent)
+		const groups = document.querySelectorAll('.state-toggle-group[data-notification-type]')
+		const states = []
+		groups.forEach(group => {
+			const activeButton = group.querySelector('.state-button.active')
+			if (activeButton) {
+				states.push(activeButton.dataset.state)
+			}
+		})
+
+		// Determine target state using same cycle as CI classes
+		// disabled -> forced -> user_choice -> disabled
+		let targetState = 'forced'
+		if (states.every(s => s === 'forced')) {
+			targetState = 'user_choice'
+		} else if (states.every(s => s === 'user_choice')) {
+			targetState = 'disabled'
+		}
+
+		// Update all notification groups
 		groups.forEach(group => {
 			group.querySelectorAll('.state-button').forEach(btn => {
 				btn.classList.remove('active')
