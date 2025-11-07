@@ -92,13 +92,23 @@
 			}
 		})
 
-		// Notification settings
+		// Notification settings (legacy)
 		const saveNotificationButton = document.getElementById('save-notification-settings')
 
 		if (saveNotificationButton) {
 			saveNotificationButton.addEventListener('click', function(e) {
 				e.preventDefault()
 				saveNotificationSettings()
+			})
+		}
+
+		// Notification configuration (3-state)
+		const saveNotificationConfigButton = document.getElementById('save-notification-config')
+
+		if (saveNotificationConfigButton) {
+			saveNotificationConfigButton.addEventListener('click', function(e) {
+				e.preventDefault()
+				saveNotificationConfig()
 			})
 		}
 
@@ -392,7 +402,7 @@
 	}
 
 	/**
-	 * Save notification settings
+	 * Save notification settings (legacy)
 	 */
 	function saveNotificationSettings() {
 
@@ -420,6 +430,66 @@
 			})
 			.catch(() => {
 				showNotification(t('integration_itop', 'Error saving notification settings'), true)
+			})
+			.finally(() => {
+				saveButton.disabled = false
+				saveButton.innerHTML = originalText
+			})
+	}
+
+	/**
+	 * Save notification configuration (3-state)
+	 */
+	function saveNotificationConfig() {
+
+		const saveButton = document.getElementById('save-notification-config')
+		const defaultInterval = parseInt(document.getElementById('default-notification-interval').value)
+
+		// Collect portal notification states
+		const portalConfig = {}
+		document.querySelectorAll('.state-toggle-group[data-notification-type="portal"]').forEach(group => {
+			const notificationType = group.dataset.notification
+			const activeButton = group.querySelector('.state-button.active')
+			if (activeButton) {
+				portalConfig[notificationType] = activeButton.dataset.state
+			}
+		})
+
+		// Collect agent notification states
+		const agentConfig = {}
+		document.querySelectorAll('.state-toggle-group[data-notification-type="agent"]').forEach(group => {
+			const notificationType = group.dataset.notification
+			const activeButton = group.querySelector('.state-button.active')
+			if (activeButton) {
+				agentConfig[notificationType] = activeButton.dataset.state
+			}
+		})
+
+		saveButton.disabled = true
+		const originalText = saveButton.innerHTML
+		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
+
+		fetch(OC.generateUrl('/apps/integration_itop/notification-config'), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				requesttoken: OC.requestToken,
+			},
+			body: JSON.stringify({
+				defaultInterval,
+				portalConfig: JSON.stringify(portalConfig),
+				agentConfig: JSON.stringify(agentConfig)
+			}),
+		})
+			.then(response => {
+				if (!response.ok) throw new Error('Server error')
+				return response.json()
+			})
+			.then(data => {
+				showNotification(t('integration_itop', 'Notification configuration saved'), false)
+			})
+			.catch(() => {
+				showNotification(t('integration_itop', 'Error saving notification configuration'), true)
 			})
 			.finally(() => {
 				saveButton.disabled = false

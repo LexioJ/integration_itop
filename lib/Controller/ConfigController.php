@@ -683,6 +683,85 @@ class ConfigController extends Controller {
 	}
 
 	/**
+	 * Save 3-state notification configuration
+	 *
+	 * @param int $defaultInterval Default notification check interval in minutes (5-1440)
+	 * @param string $portalConfig JSON-encoded portal notification configuration
+	 * @param string $agentConfig JSON-encoded agent notification configuration
+	 * @return DataResponse
+	 */
+	public function saveNotificationConfig(int $defaultInterval, string $portalConfig, string $agentConfig): DataResponse {
+		// Validate interval
+		$minInterval = 5;
+		$maxInterval = 1440;
+
+		if ($defaultInterval < $minInterval || $defaultInterval > $maxInterval) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Default notification interval must be between %d and %d minutes', [$minInterval, $maxInterval])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Decode and validate portal config
+		$portalConfigArray = json_decode($portalConfig, true);
+		if (!is_array($portalConfigArray)) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Invalid portal notification configuration format')
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Decode and validate agent config
+		$agentConfigArray = json_decode($agentConfig, true);
+		if (!is_array($agentConfigArray)) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Invalid agent notification configuration format')
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Validate portal notification types and states
+		$validStates = [
+			Application::NOTIFICATION_STATE_DISABLED,
+			Application::NOTIFICATION_STATE_FORCED,
+			Application::NOTIFICATION_STATE_USER_CHOICE
+		];
+
+		foreach (Application::PORTAL_NOTIFICATION_TYPES as $type) {
+			if (!isset($portalConfigArray[$type]) || !in_array($portalConfigArray[$type], $validStates)) {
+				return new DataResponse([
+					'message' => $this->l10n->t('Invalid portal notification state for type: %s', [$type])
+				], Http::STATUS_BAD_REQUEST);
+			}
+		}
+
+		// Validate agent notification types and states
+		foreach (Application::AGENT_NOTIFICATION_TYPES as $type) {
+			if (!isset($agentConfigArray[$type]) || !in_array($agentConfigArray[$type], $validStates)) {
+				return new DataResponse([
+					'message' => $this->l10n->t('Invalid agent notification state for type: %s', [$type])
+				], Http::STATUS_BAD_REQUEST);
+			}
+		}
+
+		// Save all validated values
+		$this->config->setAppValue(Application::APP_ID, 'default_notification_interval', (string)$defaultInterval);
+		$this->config->setAppValue(Application::APP_ID, 'portal_notification_config', $portalConfig);
+		$this->config->setAppValue(Application::APP_ID, 'agent_notification_config', $agentConfig);
+
+		$this->logger->info('Notification configuration updated', [
+			'app' => Application::APP_ID,
+			'default_interval' => $defaultInterval,
+			'portal_config_keys' => array_keys($portalConfigArray),
+			'agent_config_keys' => array_keys($agentConfigArray)
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('Notification configuration saved successfully'),
+			'default_notification_interval' => $defaultInterval,
+			'portal_notification_config' => $portalConfigArray,
+			'agent_notification_config' => $agentConfigArray
+		]);
+	}
+
+	/**
 	 * Save cache TTL settings with validation
 	 *
 	 * @param int $ciPreviewTTL CI preview cache TTL in seconds
