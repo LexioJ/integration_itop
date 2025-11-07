@@ -260,7 +260,7 @@ $ciClassLabels = [
 				<h4 style="margin-top: 20px; margin-bottom: 12px;"><?php p($l->t('Portal Notifications')); ?></h4>
 				<p class="form-hint" style="margin-bottom: 16px;"><?php p($l->t('Configure which notifications portal users can receive (My Tickets)')); ?></p>
 				
-				<div class="notification-config-grid">
+				<div class="ci-class-config-grid">
 					<?php 
 					$portalNotificationLabels = [
 						'ticket_status_changed' => $l->t('Ticket status changed'),
@@ -268,14 +268,17 @@ $ciClassLabels = [
 						'ticket_resolved' => $l->t('Ticket resolved'),
 						'agent_assigned' => $l->t('Agent assignment changed')
 					];
-					foreach ($_['portal_notification_types'] as $notificationType): 
+					$iconPath = \OC::$server->getURLGenerator()->imagePath($appId, 'notification.svg');
+				foreach ($_['portal_notification_types'] as $notificationType): 
 						$currentState = $_['portal_notification_config'][$notificationType] ?? 'user_choice';
 						$label = $portalNotificationLabels[$notificationType] ?? $notificationType;
 					?>
 					<div class="notification-config-row">
-						<div class="notification-info">
-							<span class="notification-icon">🔔</span>
-							<span class="notification-label"><?php p($label); ?></span>
+						<div class="ci-class-info">
+							<span class="ci-class-icon">
+								<img src="<?php p($iconPath); ?>" alt="notification" width="25" height="25" style="display: block;" />
+							</span>
+							<span class="ci-class-label"><?php p($label); ?></span>
 						</div>
 						<div class="state-toggle-group" data-notification-type="portal" data-notification="<?php p($notificationType); ?>">
 							<button type="button" class="state-button <?php echo $currentState === 'disabled' ? 'active' : ''; ?>" data-state="disabled">
@@ -299,7 +302,7 @@ $ciClassLabels = [
 				<h4 style="margin-top: 24px; margin-bottom: 12px;"><?php p($l->t('Agent Notifications')); ?></h4>
 				<p class="form-hint" style="margin-bottom: 16px;"><?php p($l->t('Configure which notifications IT agents can receive (Assignments, SLA, Priority)')); ?></p>
 				
-				<div class="notification-config-grid">
+				<div class="ci-class-config-grid">
 					<?php 
 					$agentNotificationLabels = [
 						'ticket_assigned' => $l->t('Ticket assigned to me'),
@@ -311,14 +314,17 @@ $ciClassLabels = [
 						'ticket_priority_critical' => $l->t('Priority escalated to critical'),
 						'ticket_comment' => $l->t('New comment on ticket')
 					];
+					$iconPath = \OC::$server->getURLGenerator()->imagePath($appId, 'notification.svg');
 					foreach ($_['agent_notification_types'] as $notificationType): 
 						$currentState = $_['agent_notification_config'][$notificationType] ?? 'user_choice';
 						$label = $agentNotificationLabels[$notificationType] ?? $notificationType;
 					?>
 					<div class="notification-config-row">
-						<div class="notification-info">
-							<span class="notification-icon">🔔</span>
-							<span class="notification-label"><?php p($label); ?></span>
+						<div class="ci-class-info">
+							<span class="ci-class-icon">
+								<img src="<?php p($iconPath); ?>" alt="notification" width="25" height="25" style="display: block;" />
+							</span>
+							<span class="ci-class-label"><?php p($label); ?></span>
 						</div>
 						<div class="state-toggle-group" data-notification-type="agent" data-notification="<?php p($notificationType); ?>">
 							<button type="button" class="state-button <?php echo $currentState === 'disabled' ? 'active' : ''; ?>" data-state="disabled">
