@@ -109,22 +109,30 @@ $ciClassLabels = [
 		<!-- Search Settings -->
 		<div class="field search-section">
 			<h4><?php p($l->t('🔎 Search Settings')); ?></h4>
-			<div class="field checkbox-field">
-				<input id="itop-search-enabled" type="checkbox" <?php echo $_['search_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
-				<label for="itop-search-enabled"><?php p($l->t('Enable unified search')); ?></label>
-				<p class="hint"><?php p($l->t('Search your %s tickets from the search bar (tickets you created or are assigned to you)',[$_['display_name']])); ?></p>
+			<p class="hint"><?php p($l->t('Search your %s tickets from the search bar (tickets you created or are assigned to you)',[$_['display_name']])); ?></p>
+			<div class="notification-user-list">
+				<div class="notification-user-toggle">
+					<input id="itop-search-enabled" type="checkbox" <?php echo $_['search_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+					<label for="itop-search-enabled" class="notification-user-label-container">
+						<span class="notification-user-label"><?php p($l->t('Enable unified search')); ?></span>
+					</label>
+				</div>
 			</div>
 		</div>
 
 		<!-- Notification Settings (3-State System) -->
 		<div class="field notification-section">
 			<h4><?php p($l->t('🔔 Notification Settings')); ?></h4>
+			<p class="hint"><?php p($l->t('Receive notifications about ticket updates and changes')); ?></p>
 			
 			<!-- Master toggle for all notifications -->
-			<div class="notification-master-toggle checkbox-field">
-				<input id="itop-notification-enabled" type="checkbox" <?php echo $_['notification_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
-				<label for="itop-notification-enabled"><strong><?php p($l->t('Enable iTop Notifications')); ?></strong></label>
-				<p class="hint"><?php p($l->t('Receive notifications about ticket updates and changes')); ?></p>
+			<div class="notification-user-list">
+				<div class="notification-user-toggle">
+					<input id="itop-notification-enabled" type="checkbox" <?php echo $_['notification_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+					<label for="itop-notification-enabled" class="notification-user-label-container">
+						<span class="notification-user-label"><strong><?php p($l->t('Enable iTop Notifications')); ?></strong></span>
+					</label>
+				</div>
 			</div>
 			
 			<div id="notification-settings-content" style="<?php echo !$_['notification_enabled'] ? 'display: none;' : ''; ?>">
