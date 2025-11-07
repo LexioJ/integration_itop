@@ -177,7 +177,7 @@ $ciClassLabels = [
 						'ticket_status_changed' => 'user-request-deadline.svg',
 						'agent_responded' => 'discussion-forum.svg',
 						'ticket_resolved' => 'checkmark.svg',
-						'agent_assigned' => 'team.svg'
+						'agent_assigned' => 'customer.svg'
 					];
 					?>
 					<div class="notification-user-list">
