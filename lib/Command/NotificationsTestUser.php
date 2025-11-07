@@ -113,9 +113,9 @@ class NotificationsTestUser extends Command {
 			$output->writeln('Last check: <comment>Never</comment>');
 		}
 
-		// Check preferences (3-state notification system)
+		// Check preferences
 		$output->writeln('');
-		$output->writeln('<info>Notification preferences (3-state system):</info>');
+		$output->writeln('<info>Notification preferences:</info>');
 		
 		$disabledPortalStr = $this->config->getUserValue($userId, Application::APP_ID, 'disabled_portal_notifications', '');
 		if ($disabledPortalStr === 'all') {
