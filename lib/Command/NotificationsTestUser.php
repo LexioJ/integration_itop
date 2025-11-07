@@ -64,12 +64,15 @@ class NotificationsTestUser extends Command {
 	private function resetTimestamps(string $userId, OutputInterface $output): int {
 		$output->writeln("<info>Resetting notification timestamps for user: $userId</info>");
 
-		// Reset portal check timestamp
+		// Reset portal check timestamp (Unix timestamp format)
+		$this->config->deleteUserValue($userId, Application::APP_ID, 'notification_last_portal_check');
+		$output->writeln('  ✓ Reset notification_last_portal_check');
+		
+		// Clean up old timestamp format if it exists
 		$this->config->deleteUserValue($userId, Application::APP_ID, 'last_portal_check');
-		$output->writeln('  ✓ Reset last_portal_check');
 
 		// Future: Reset agent check timestamp when Phase 2 is implemented
-		// $this->config->deleteUserValue($userId, Application::APP_ID, 'last_agent_check');
+		// $this->config->deleteUserValue($userId, Application::APP_ID, 'notification_last_agent_check');
 
 		$output->writeln('<info>Done! Next background job run will check all changes since 30 days ago.</info>');
 
@@ -83,7 +86,7 @@ class NotificationsTestUser extends Command {
 		// Check configuration
 		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
 		$notificationEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0') === '1';
-		$lastCheck = $this->config->getUserValue($userId, Application::APP_ID, 'last_portal_check', '');
+		$lastCheckStr = $this->config->getUserValue($userId, Application::APP_ID, 'notification_last_portal_check', '');
 
 		if (empty($personId)) {
 			$output->writeln('<error>Error: User has no person_id configured</error>');
@@ -101,35 +104,52 @@ class NotificationsTestUser extends Command {
 			return 1;
 		}
 
-		$output->writeln('Last check: ' . ($lastCheck ?: '<comment>Never</comment>'));
+		// Display last check timestamp
+		if (!empty($lastCheckStr)) {
+			$lastCheckTime = (int)$lastCheckStr;
+			$lastCheckDate = date('Y-m-d H:i:s', $lastCheckTime);
+			$output->writeln("Last check: <comment>$lastCheckDate (Unix: $lastCheckTime)</comment>");
+		} else {
+			$output->writeln('Last check: <comment>Never</comment>');
+		}
 
-		// Check preferences
+		// Check preferences (3-state notification system)
 		$output->writeln('');
-		$output->writeln('<info>Notification preferences:</info>');
-		$notifyStatusChanged = $this->config->getUserValue($userId, Application::APP_ID, 'notify_ticket_status_changed', '1') === '1';
-		$notifyAgentResponded = $this->config->getUserValue($userId, Application::APP_ID, 'notify_agent_responded', '1') === '1';
-		$notifyTicketResolved = $this->config->getUserValue($userId, Application::APP_ID, 'notify_ticket_resolved', '1') === '1';
+		$output->writeln('<info>Notification preferences (3-state system):</info>');
+		
+		$disabledPortalStr = $this->config->getUserValue($userId, Application::APP_ID, 'disabled_portal_notifications', '');
+		if ($disabledPortalStr === 'all') {
+			$output->writeln('  <error>All portal notifications disabled</error>');
+		} else {
+			$disabledPortal = !empty($disabledPortalStr) ? json_decode($disabledPortalStr, true) : [];
+			if (!is_array($disabledPortal)) {
+				$disabledPortal = [];
+			}
+			
+			$output->writeln('  Ticket status changed: ' . (in_array('ticket_status_changed', $disabledPortal) ? '✗' : '✓'));
+			$output->writeln('  Agent responded: ' . (in_array('agent_responded', $disabledPortal) ? '✗' : '✓'));
+			$output->writeln('  Ticket resolved: ' . (in_array('ticket_resolved', $disabledPortal) ? '✗' : '✓'));
+			$output->writeln('  Agent assigned: ' . (in_array('agent_assigned', $disabledPortal) ? '✗' : '✓'));
+		}
 
-		$output->writeln('  Ticket status changed: ' . ($notifyStatusChanged ? '✓' : '✗'));
-		$output->writeln('  Agent responded: ' . ($notifyAgentResponded ? '✓' : '✗'));
-		$output->writeln('  Ticket resolved: ' . ($notifyTicketResolved ? '✓' : '✗'));
-
-		// Get admin interval
-		$interval = (int)$this->config->getAppValue(Application::APP_ID, 'portal_notification_interval', '15');
+		// Get admin default interval and user's interval
+		$adminInterval = (int)$this->config->getAppValue(Application::APP_ID, 'default_notification_interval', '60');
+		$userInterval = (int)$this->config->getUserValue($userId, Application::APP_ID, 'notification_check_interval', (string)$adminInterval);
 		$output->writeln('');
-		$output->writeln("Admin configured interval: <comment>{$interval} minutes</comment>");
+		$output->writeln("Admin default interval: <comment>{$adminInterval} minutes</comment>");
+		$output->writeln("User interval: <comment>{$userInterval} minutes</comment>");
 
 		// Check if user would be processed
-		if (!empty($lastCheck)) {
-			$lastCheckTime = strtotime($lastCheck);
+		if (!empty($lastCheckStr)) {
+			$lastCheckTime = (int)$lastCheckStr;
 			$now = time();
 			$elapsedMinutes = round(($now - $lastCheckTime) / 60);
 			$output->writeln("Time since last check: <comment>{$elapsedMinutes} minutes</comment>");
 
-			if ($elapsedMinutes >= $interval) {
+			if ($elapsedMinutes >= $userInterval) {
 				$output->writeln('<info>✓ User would be processed on next job run</info>');
 			} else {
-				$remaining = $interval - $elapsedMinutes;
+				$remaining = $userInterval - $elapsedMinutes;
 				$output->writeln("<comment>⏳ User will be processed in ~{$remaining} minutes</comment>");
 			}
 		} else {
