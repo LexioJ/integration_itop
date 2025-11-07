@@ -130,33 +130,33 @@
 			})
 		}
 
-	// CI class configuration
-	const saveCIClassesButton = document.getElementById('save-ci-classes')
-	const toggleAllButton = document.getElementById('toggle-all-ci-classes')
+		// CI class configuration
+		const saveCIClassesButton = document.getElementById('save-ci-classes')
+		const toggleAllButton = document.getElementById('toggle-all-ci-classes')
 
-	if (saveCIClassesButton) {
-		saveCIClassesButton.addEventListener('click', function(e) {
-			e.preventDefault()
-			saveCIClasses()
-		})
-	}
+		if (saveCIClassesButton) {
+			saveCIClassesButton.addEventListener('click', function(e) {
+				e.preventDefault()
+				saveCIClasses()
+			})
+		}
 
-	if (toggleAllButton) {
-		toggleAllButton.addEventListener('click', function(e) {
-			e.preventDefault()
-			toggleAllCIClasses()
-		})
-	}
+		if (toggleAllButton) {
+			toggleAllButton.addEventListener('click', function(e) {
+				e.preventDefault()
+				toggleAllCIClasses()
+			})
+		}
 
-	// Notification toggle all button
-	const toggleAllNotificationsButton = document.getElementById('toggle-all-notifications')
+		// Notification toggle all button
+		const toggleAllNotificationsButton = document.getElementById('toggle-all-notifications')
 
-	if (toggleAllNotificationsButton) {
-		toggleAllNotificationsButton.addEventListener('click', function(e) {
-			e.preventDefault()
-			toggleAllNotifications()
-		})
-	}
+		if (toggleAllNotificationsButton) {
+			toggleAllNotificationsButton.addEventListener('click', function(e) {
+				e.preventDefault()
+				toggleAllNotifications()
+			})
+		}
 
 		// CI class state toggle buttons
 		const stateButtons = document.querySelectorAll('.state-button')
