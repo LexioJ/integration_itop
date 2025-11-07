@@ -353,11 +353,17 @@ class CheckPortalTicketUpdates extends TimedJob {
 				$dateTime = new \DateTime();
 			}
 
+			// Create unique object key to prevent duplicate notifications
+			// Format: ticket_id|subject|timestamp_hash
+			// This ensures each change generates a unique notification
+			$timestampHash = $timestamp ? substr(md5($timestamp), 0, 8) : time();
+			$objectKey = $params['ticket_id'] . '|' . $subject . '|' . $timestampHash;
+
 			$notification = $this->notificationManager->createNotification();
 			$notification->setApp(Application::APP_ID)
 				->setUser($userId)
 				->setDateTime($dateTime)
-				->setObject('ticket', $params['ticket_id'])
+				->setObject('ticket', $objectKey)
 				->setSubject($subject, $params);
 
 			$this->notificationManager->notify($notification);
