@@ -71,6 +71,41 @@ class Personal implements ISettings {
 				$userDisabledClasses = [];
 			}
 		}
+		
+		// Get notification configuration (3-state system)
+		$userChoicePortalNotifications = Application::getUserChoicePortalNotifications($this->config);
+		$userChoiceAgentNotifications = Application::getUserChoiceAgentNotifications($this->config);
+		$forcedPortalNotifications = Application::getForcedPortalNotifications($this->config);
+		$forcedAgentNotifications = Application::getForcedAgentNotifications($this->config);
+		
+		// Get user's disabled notifications
+		$userDisabledPortalNotifications = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications', '');
+		$userDisabledAgentNotifications = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications', '');
+		
+		// Parse disabled notification arrays
+		$disabledPortalArray = [];
+		if ($userDisabledPortalNotifications === 'all') {
+			$disabledPortalArray = 'all';
+		} elseif ($userDisabledPortalNotifications !== '') {
+			$parsed = json_decode($userDisabledPortalNotifications, true);
+			if (is_array($parsed)) {
+				$disabledPortalArray = $parsed;
+			}
+		}
+		
+		$disabledAgentArray = [];
+		if ($userDisabledAgentNotifications === 'all') {
+			$disabledAgentArray = 'all';
+		} elseif ($userDisabledAgentNotifications !== '') {
+			$parsed = json_decode($userDisabledAgentNotifications, true);
+			if (is_array($parsed)) {
+				$disabledAgentArray = $parsed;
+			}
+		}
+		
+		// Get user's notification check interval (fallback to admin default)
+		$adminDefaultInterval = (int)$this->config->getAppValue(Application::APP_ID, 'default_notification_interval', '60');
+		$userNotificationInterval = (int)$this->config->getUserValue($this->userId, Application::APP_ID, 'notification_check_interval', (string)$adminDefaultInterval);
 
 		$parameters = [
 			'display_name' => $displayName,
@@ -86,6 +121,15 @@ class Personal implements ISettings {
 			'notify_ticket_resolved' => $notifyTicketResolved,
 			'user_choice_ci_classes' => $userChoiceCIClasses,
 			'user_disabled_ci_classes' => $userDisabledClasses,
+			// 3-state notification configuration
+			'user_choice_portal_notifications' => $userChoicePortalNotifications,
+			'user_choice_agent_notifications' => $userChoiceAgentNotifications,
+			'forced_portal_notifications' => $forcedPortalNotifications,
+			'forced_agent_notifications' => $forcedAgentNotifications,
+			'disabled_portal_notifications' => $disabledPortalArray,
+			'disabled_agent_notifications' => $disabledAgentArray,
+			'notification_check_interval' => $userNotificationInterval,
+			'admin_default_interval' => $adminDefaultInterval,
 			'version' => Application::getVersion($this->appManager),
 		];
 
