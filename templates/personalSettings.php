@@ -172,13 +172,21 @@ $ciClassLabels = [
 					<?php 
 					$disabledPortal = $_['disabled_portal_notifications'];
 					$allPortalDisabled = $disabledPortal === 'all';
-					$iconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', 'notification.svg');
+					// Icon mapping for portal notifications
+					$portalNotificationIcons = [
+						'ticket_status_changed' => 'user-request-deadline.svg',
+						'agent_responded' => 'discussion-forum.svg',
+						'ticket_resolved' => 'checkmark.svg',
+						'agent_assigned' => 'team.svg'
+					];
 					?>
 					<div class="notification-user-list">
 						<?php foreach ($_['user_choice_portal_notifications'] as $type): ?>
 						<?php 
 						$isDisabled = $allPortalDisabled || (is_array($disabledPortal) && in_array($type, $disabledPortal));
 						$isChecked = !$isDisabled;
+						$iconFile = isset($portalNotificationIcons[$type]) ? $portalNotificationIcons[$type] : 'notification.svg';
+						$iconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', $iconFile);
 						?>
 						<div class="notification-user-toggle">
 							<input id="notify-portal-<?php p($type); ?>" 
