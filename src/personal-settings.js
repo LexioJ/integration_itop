@@ -256,6 +256,50 @@
 				// Send disabled classes to backend
 				params.disabled_ci_classes = disabledClasses
 			}
+			
+			// Collect notification preferences (3-state system)
+			const notificationCheckboxes = document.querySelectorAll('input[data-notification-type]')
+			if (notificationCheckboxes.length > 0) {
+				const disabledPortalNotifications = []
+				const disabledAgentNotifications = []
+				
+				notificationCheckboxes.forEach(function(checkbox) {
+					if (!checkbox.checked) {
+						const notificationType = checkbox.dataset.notificationType
+						const notificationName = checkbox.dataset.notification
+						
+						if (notificationType === 'portal') {
+							disabledPortalNotifications.push(notificationName)
+						} else if (notificationType === 'agent') {
+							disabledAgentNotifications.push(notificationName)
+						}
+					}
+				})
+				
+				// Send disabled notification arrays to backend
+				if (disabledPortalNotifications.length > 0) {
+					params.disabled_portal_notifications = disabledPortalNotifications
+				} else {
+					// Empty array = enable all user_choice types
+					params.disabled_portal_notifications = []
+				}
+				
+				if (disabledAgentNotifications.length > 0) {
+					params.disabled_agent_notifications = disabledAgentNotifications
+				} else {
+					// Empty array = enable all user_choice types
+					params.disabled_agent_notifications = []
+				}
+			}
+			
+			// Collect notification check interval
+			const intervalField = document.getElementById('notification-check-interval')
+			if (intervalField) {
+				const interval = parseInt(intervalField.value)
+				if (interval >= 5 && interval <= 1440) {
+					params.notification_check_interval = interval
+				}
+			}
 
 			const req = new XMLHttpRequest()
 			req.open('PUT', OC.generateUrl('/apps/integration_itop/config'))
