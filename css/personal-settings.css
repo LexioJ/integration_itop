@@ -569,6 +569,31 @@ body[data-theme-dark] .itop-personal-status-card {
     cursor: pointer;
 }
 
+/* Checkbox field with inline layout */
+.checkbox-field {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0;
+}
+
+.checkbox-field input[type="checkbox"] {
+    margin: 0 12px 0 0;
+    flex-shrink: 0;
+}
+
+.checkbox-field label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    margin: 0;
+}
+
+.checkbox-field .hint {
+    margin-top: 4px;
+}
+
 /* Field Hints */
 .field .hint {
     font-size: 12px;

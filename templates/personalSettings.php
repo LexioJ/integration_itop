@@ -108,8 +108,8 @@ $ciClassLabels = [
 
 		<!-- Search Settings -->
 		<div class="field search-section">
-			<h4><?php p($l->t('Search Settings')); ?></h4>
-			<div class="field">
+			<h4><?php p($l->t('🔎 Search Settings')); ?></h4>
+			<div class="field checkbox-field">
 				<input id="itop-search-enabled" type="checkbox" <?php echo $_['search_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 				<label for="itop-search-enabled"><?php p($l->t('Enable unified search')); ?></label>
 				<p class="hint"><?php p($l->t('Search your %s tickets from the search bar (tickets you created or are assigned to you)',[$_['display_name']])); ?></p>
@@ -118,10 +118,10 @@ $ciClassLabels = [
 
 		<!-- Notification Settings (3-State System) -->
 		<div class="field notification-section">
-			<h4><?php p($l->t('Notification Settings')); ?></h4>
+			<h4><?php p($l->t('🔔 Notification Settings')); ?></h4>
 			
 			<!-- Master toggle for all notifications -->
-			<div class="notification-master-toggle">
+			<div class="notification-master-toggle checkbox-field">
 				<input id="itop-notification-enabled" type="checkbox" <?php echo $_['notification_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 				<label for="itop-notification-enabled"><strong><?php p($l->t('Enable iTop Notifications')); ?></strong></label>
 				<p class="hint"><?php p($l->t('Receive notifications about ticket updates and changes')); ?></p>
@@ -136,7 +136,7 @@ $ciClassLabels = [
 						style="width: 80px; margin: 0 8px;"
 						<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?> />
 					<span><?php p($l->t('minutes')); ?></span>
-					<p class="hint"><?php p($l->t('Default: %d minutes (set by administrator)', [$_['admin_default_interval'] ?? 60])); ?></p>
+					<p class="hint" style="margin-bottom: 10px;"><?php p($l->t('Default: %d minutes (set by administrator)', [$_['admin_default_interval'] ?? 60])); ?></p>
 				</div>
 				
 				<!-- Forced notifications info -->
@@ -160,7 +160,7 @@ $ciClassLabels = [
 				<!-- Portal notification types (user_choice only) -->
 				<?php if (!empty($_['user_choice_portal_notifications'])): ?>
 				<div class="notification-types" style="margin-left: 24px;">
-					<h5><?php p($l->t('My Tickets (Portal Notifications)')); ?></h5>
+					<h5><?php p($l->t('My Ticket Notifications')); ?></h5>
 					<?php 
 					$disabledPortal = $_['disabled_portal_notifications'];
 					$allPortalDisabled = $disabledPortal === 'all';
@@ -194,7 +194,7 @@ $ciClassLabels = [
 				<!-- Agent notification types (user_choice only) -->
 				<?php if (!empty($_['user_choice_agent_notifications'])): ?>
 				<div class="notification-types" style="margin-left: 24px; margin-top: 16px;">
-					<h5><?php p($l->t('Agent Tickets (Agent Notifications)')); ?></h5>
+					<h5><?php p($l->t('Agent Notifications')); ?></h5>
 					<?php 
 					$disabledAgent = $_['disabled_agent_notifications'];
 					$allAgentDisabled = $disabledAgent === 'all';
@@ -230,7 +230,7 @@ $ciClassLabels = [
 
 		<?php if (!empty($_['user_choice_ci_classes'])): ?>
 		<div class="field ci-class-preferences">
-			<h4><?php p($l->t('Configuration Item Classes')); ?></h4>
+			<h4><?php p($l->t('🎯 Configuration Item Classes')); ?></h4>
 			<p class="hint"><?php p($l->t('Choose which CI types you want to see in search, smart picker, and previews')); ?></p>
 			<div id="ci-class-user-toggles" class="ci-class-user-list">
 				<?php foreach ($_['user_choice_ci_classes'] as $className): ?>
