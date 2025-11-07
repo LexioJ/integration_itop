@@ -309,13 +309,30 @@
 				}
 			}
 
-			// Collect notification check interval
+			// Collect notification check interval with validation
 			const intervalField = document.getElementById('notification-check-interval')
 			if (intervalField) {
 				const interval = parseInt(intervalField.value)
-				if (interval >= 5 && interval <= 1440) {
-					params.notification_check_interval = interval
+
+				// Validate interval range
+				if (isNaN(interval) || interval < 5 || interval > 1440) {
+					saveButton.disabled = false
+					saveButton.innerHTML = originalButtonText
+
+					let errorMsg = 'Invalid notification check interval. '
+					if (isNaN(interval)) {
+						errorMsg += 'Please enter a valid number.'
+					} else if (interval < 5) {
+						errorMsg += 'Minimum value is 5 minutes.'
+					} else {
+						errorMsg += 'Maximum value is 1440 minutes (24 hours).'
+					}
+
+					showResult(errorMsg, true)
+					return
 				}
+
+				params.notification_check_interval = interval
 			}
 
 			const req = new XMLHttpRequest()
