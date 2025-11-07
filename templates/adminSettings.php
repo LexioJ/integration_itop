@@ -231,34 +231,125 @@ $ciClassLabels = [
 			</div>
 		</div>
 
-		<!-- Notification Settings Section -->
+		<!-- Notification Configuration Section -->
 		<div class="settings-section">
 			<div class="section-header">
-				<h3><?php p($l->t('🔔 Notification Settings')); ?></h3>
-				<p class="section-description"><?php p($l->t('Configure how often the system checks for ticket updates to send notifications')); ?></p>
+				<h3><?php p($l->t('🔔 Notification Configuration')); ?></h3>
+				<p class="section-description"><?php p($l->t('Configure which notifications are available to users and set default check interval')); ?></p>
 			</div>
 
 			<div class="settings-form">
+				<!-- Default Check Interval -->
 				<div class="form-group">
-					<label for="portal-notification-interval" class="form-label">
+					<label for="default-notification-interval" class="form-label">
 						<span class="icon">⏱️</span>
-						<?php p($l->t('Portal Notification Check Interval (minutes)')); ?>
+						<?php p($l->t('Default Notification Check Interval (minutes)')); ?>
 					</label>
 					<input
 						type="number"
-						id="portal-notification-interval"
-						value="<?php p($_['portal_notification_interval']); ?>"
+						id="default-notification-interval"
+						value="<?php p($_['default_notification_interval']); ?>"
 						min="5"
 						max="1440"
 						class="form-input"
 					/>
-					<p class="form-hint"><?php p($l->t('How often to check for ticket status changes, agent responses, and ticket resolutions (5-1440 minutes). Lower = more responsive notifications, higher = less load')); ?></p>
+					<p class="form-hint"><?php p($l->t('Default interval for all users (5-1440 minutes). Users can customize their own interval in personal settings')); ?></p>
+				</div>
+
+				<!-- Portal Notifications Configuration -->
+				<h4 style="margin-top: 20px; margin-bottom: 12px;"><?php p($l->t('Portal Notifications')); ?></h4>
+				<p class="form-hint" style="margin-bottom: 16px;"><?php p($l->t('Configure which notifications portal users can receive (My Tickets)')); ?></p>
+				
+				<div class="notification-config-grid">
+					<?php 
+					$portalNotificationLabels = [
+						'ticket_status_changed' => $l->t('Ticket status changed'),
+						'agent_responded' => $l->t('Agent responded to ticket'),
+						'ticket_resolved' => $l->t('Ticket resolved'),
+						'agent_assigned' => $l->t('Agent assignment changed')
+					];
+					foreach ($_['portal_notification_types'] as $notificationType): 
+						$currentState = $_['portal_notification_config'][$notificationType] ?? 'user_choice';
+						$label = $portalNotificationLabels[$notificationType] ?? $notificationType;
+					?>
+					<div class="notification-config-row">
+						<div class="notification-info">
+							<span class="notification-icon">🔔</span>
+							<span class="notification-label"><?php p($label); ?></span>
+						</div>
+						<div class="state-toggle-group" data-notification-type="portal" data-notification="<?php p($notificationType); ?>">
+							<button type="button" class="state-button <?php echo $currentState === 'disabled' ? 'active' : ''; ?>" data-state="disabled">
+								<span class="state-icon">🚫</span>
+								<span class="state-text"><?php p($l->t('Disable')); ?></span>
+							</button>
+							<button type="button" class="state-button <?php echo $currentState === 'forced' ? 'active' : ''; ?>" data-state="forced">
+								<span class="state-icon">✓</span>
+								<span class="state-text"><?php p($l->t('Force Enable')); ?></span>
+							</button>
+							<button type="button" class="state-button <?php echo $currentState === 'user_choice' ? 'active' : ''; ?>" data-state="user_choice">
+								<span class="state-icon">⚙️</span>
+								<span class="state-text"><?php p($l->t('User Choice')); ?></span>
+							</button>
+						</div>
+					</div>
+					<?php endforeach; ?>
+				</div>
+
+				<!-- Agent Notifications Configuration -->
+				<h4 style="margin-top: 24px; margin-bottom: 12px;"><?php p($l->t('Agent Notifications')); ?></h4>
+				<p class="form-hint" style="margin-bottom: 16px;"><?php p($l->t('Configure which notifications IT agents can receive (Assignments, SLA, Priority)')); ?></p>
+				
+				<div class="notification-config-grid">
+					<?php 
+					$agentNotificationLabels = [
+						'ticket_assigned' => $l->t('Ticket assigned to me'),
+						'ticket_reassigned' => $l->t('Ticket reassigned to me'),
+						'team_unassigned_new' => $l->t('New unassigned ticket in team'),
+						'ticket_tto_warning' => $l->t('TTO SLA warning'),
+						'ticket_ttr_warning' => $l->t('TTR SLA warning'),
+						'ticket_sla_breach' => $l->t('SLA breach'),
+						'ticket_priority_critical' => $l->t('Priority escalated to critical'),
+						'ticket_comment' => $l->t('New comment on ticket')
+					];
+					foreach ($_['agent_notification_types'] as $notificationType): 
+						$currentState = $_['agent_notification_config'][$notificationType] ?? 'user_choice';
+						$label = $agentNotificationLabels[$notificationType] ?? $notificationType;
+					?>
+					<div class="notification-config-row">
+						<div class="notification-info">
+							<span class="notification-icon">🔔</span>
+							<span class="notification-label"><?php p($label); ?></span>
+						</div>
+						<div class="state-toggle-group" data-notification-type="agent" data-notification="<?php p($notificationType); ?>">
+							<button type="button" class="state-button <?php echo $currentState === 'disabled' ? 'active' : ''; ?>" data-state="disabled">
+								<span class="state-icon">🚫</span>
+								<span class="state-text"><?php p($l->t('Disable')); ?></span>
+							</button>
+							<button type="button" class="state-button <?php echo $currentState === 'forced' ? 'active' : ''; ?>" data-state="forced">
+								<span class="state-icon">✓</span>
+								<span class="state-text"><?php p($l->t('Force Enable')); ?></span>
+							</button>
+							<button type="button" class="state-button <?php echo $currentState === 'user_choice' ? 'active' : ''; ?>" data-state="user_choice">
+								<span class="state-icon">⚙️</span>
+								<span class="state-text"><?php p($l->t('User Choice')); ?></span>
+							</button>
+						</div>
+					</div>
+					<?php endforeach; ?>
+				</div>
+
+				<!-- Info Box -->
+				<div class="form-info-box" style="margin-top: 16px;">
+					<strong><?php p($l->t('🎯 Configuration States')); ?>:</strong><br>
+					<strong style="color: #e53e3e;">🚫 <?php p($l->t('Disable')); ?></strong> - <?php p($l->t('Notification not available (hidden from users)')); ?><br>
+					<strong style="color: #38a169;">✓ <?php p($l->t('Force Enable')); ?></strong> - <?php p($l->t('Mandatory for all users (cannot be disabled)')); ?><br>
+					<strong style="color: #3182ce;">⚙️ <?php p($l->t('User Choice')); ?></strong> - <?php p($l->t('Enabled by default, users can opt-out')); ?>
 				</div>
 
 				<div class="form-actions">
-					<button id="save-notification-settings" class="btn-primary">
+					<button id="save-notification-config" class="btn-primary">
 						<span class="btn-icon">💾</span>
-						<?php p($l->t('Save Notification Settings')); ?>
+						<?php p($l->t('Save Notification Configuration')); ?>
 					</button>
 				</div>
 			</div>
