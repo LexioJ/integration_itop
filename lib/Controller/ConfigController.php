@@ -113,6 +113,55 @@ class ConfigController extends Controller {
 				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', json_encode($validDisabled));
 			}
 		}
+		
+		// Handle disabled portal notifications (3-state system)
+		if (isset($values['disabled_portal_notifications'])) {
+			if ($values['disabled_portal_notifications'] === 'all') {
+				// Master toggle: disable all portal notifications
+				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications', 'all');
+			} elseif (is_array($values['disabled_portal_notifications'])) {
+				$disabledPortal = array_values(array_unique($values['disabled_portal_notifications']));
+				// Validate against PORTAL_NOTIFICATION_TYPES
+				$validDisabledPortal = array_intersect($disabledPortal, Application::PORTAL_NOTIFICATION_TYPES);
+				if (empty($validDisabledPortal)) {
+					$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications');
+				} else {
+					$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications', json_encode($validDisabledPortal));
+				}
+			} else {
+				// Empty or invalid: clear disabled array (enable all)
+				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications');
+			}
+		}
+		
+		// Handle disabled agent notifications (3-state system)
+		if (isset($values['disabled_agent_notifications'])) {
+			if ($values['disabled_agent_notifications'] === 'all') {
+				// Master toggle: disable all agent notifications
+				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications', 'all');
+			} elseif (is_array($values['disabled_agent_notifications'])) {
+				$disabledAgent = array_values(array_unique($values['disabled_agent_notifications']));
+				// Validate against AGENT_NOTIFICATION_TYPES
+				$validDisabledAgent = array_intersect($disabledAgent, Application::AGENT_NOTIFICATION_TYPES);
+				if (empty($validDisabledAgent)) {
+					$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications');
+				} else {
+					$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications', json_encode($validDisabledAgent));
+				}
+			} else {
+				// Empty or invalid: clear disabled array (enable all)
+				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications');
+			}
+		}
+		
+		// Handle notification check interval
+		if (isset($values['notification_check_interval'])) {
+			$interval = (int)$values['notification_check_interval'];
+			// Validate range: 5-1440 minutes
+			if ($interval >= 5 && $interval <= 1440) {
+				$this->config->setUserValue($this->userId, Application::APP_ID, 'notification_check_interval', (string)$interval);
+			}
+		}
 
 		// Phase 2: Handle personal token validation
 		$personalToken = $values['personal_token'] ?? $values['token'] ?? null;
