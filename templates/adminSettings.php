@@ -260,7 +260,7 @@ $ciClassLabels = [
 				<h4 style="margin-top: 20px; margin-bottom: 12px;"><?php p($l->t('Portal Notifications')); ?></h4>
 				<p class="form-hint" style="margin-bottom: 16px;"><?php p($l->t('Configure which notifications portal users can receive (My Tickets)')); ?></p>
 				
-				<div class="ci-class-config-grid">
+				<div class="notification-config-grid">
 					<?php 
 					$portalNotificationLabels = [
 						'ticket_status_changed' => $l->t('Ticket status changed'),
@@ -274,11 +274,11 @@ $ciClassLabels = [
 						$label = $portalNotificationLabels[$notificationType] ?? $notificationType;
 					?>
 					<div class="notification-config-row">
-						<div class="ci-class-info">
-							<span class="ci-class-icon">
+						<div class="notification-info">
+							<span class="notification-icon">
 								<img src="<?php p($iconPath); ?>" alt="notification" width="25" height="25" style="display: block;" />
 							</span>
-							<span class="ci-class-label"><?php p($label); ?></span>
+							<span class="notification-label"><?php p($label); ?></span>
 						</div>
 						<div class="state-toggle-group" data-notification-type="portal" data-notification="<?php p($notificationType); ?>">
 							<button type="button" class="state-button <?php echo $currentState === 'disabled' ? 'active' : ''; ?>" data-state="disabled">
@@ -302,7 +302,7 @@ $ciClassLabels = [
 				<h4 style="margin-top: 24px; margin-bottom: 12px;"><?php p($l->t('Agent Notifications')); ?></h4>
 				<p class="form-hint" style="margin-bottom: 16px;"><?php p($l->t('Configure which notifications IT agents can receive (Assignments, SLA, Priority)')); ?></p>
 				
-				<div class="ci-class-config-grid">
+				<div class="notification-config-grid">
 					<?php 
 					$agentNotificationLabels = [
 						'ticket_assigned' => $l->t('Ticket assigned to me'),
@@ -320,11 +320,11 @@ $ciClassLabels = [
 						$label = $agentNotificationLabels[$notificationType] ?? $notificationType;
 					?>
 					<div class="notification-config-row">
-						<div class="ci-class-info">
-							<span class="ci-class-icon">
+						<div class="notification-info">
+							<span class="notification-icon">
 								<img src="<?php p($iconPath); ?>" alt="notification" width="25" height="25" style="display: block;" />
 							</span>
-							<span class="ci-class-label"><?php p($label); ?></span>
+							<span class="notification-label"><?php p($label); ?></span>
 						</div>
 						<div class="state-toggle-group" data-notification-type="agent" data-notification="<?php p($notificationType); ?>">
 							<button type="button" class="state-button <?php echo $currentState === 'disabled' ? 'active' : ''; ?>" data-state="disabled">
