@@ -1684,7 +1684,7 @@ class ItopAPIService {
 	 *
 	 * @param string $userId Nextcloud user ID
 	 * @param array $ticketIds Array of ticket IDs to filter (optional)
-	 * @param string $since ISO 8601 timestamp (e.g., '2025-11-05 20:00:00')
+	 * @param string|int $since Unix timestamp (integer or string) or ISO 8601 timestamp (e.g., '2025-11-05 20:00:00') - parsed by strtotime()
 	 * @param array $attcodes Attribute codes to filter (['status', 'agent_id', 'priority', 'sla_tto_passed', 'sla_ttr_passed'])
 	 * @return array Array of change operations with fields: objclass, objkey, attcode, oldvalue, newvalue, date, userinfo, user_id
 	 */
@@ -1756,7 +1756,7 @@ class ItopAPIService {
 	 *
 	 * @param string $userId Nextcloud user ID
 	 * @param array $ticketIds Array of ticket IDs to filter
-	 * @param string $since ISO 8601 timestamp
+	 * @param string|int $since Unix timestamp (integer or string) or ISO 8601 timestamp - parsed by strtotime()
 	 * @param array $logAttributes ['public_log', 'private_log']
 	 * @return array Array of log changes with fields: objclass, objkey, attcode, lastentry, date, userinfo, user_id
 	 */
