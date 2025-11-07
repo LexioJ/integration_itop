@@ -1723,7 +1723,8 @@ class ItopAPIService {
 		}
 
 		// Filter by timestamp in PHP (since OQL doesn't support change->date comparisons)
-		$sinceTimestamp = strtotime($since);
+		// Handle both Unix timestamps and date strings
+		$sinceTimestamp = is_numeric($since) ? (int)$since : strtotime($since);
 		$changes = [];
 		foreach ($result['objects'] as $changeOp) {
 			$fields = $changeOp['fields'] ?? [];
@@ -1799,7 +1800,8 @@ class ItopAPIService {
 		}
 
 		// Filter by timestamp in PHP (since OQL doesn't support change->date comparisons)
-		$sinceTimestamp = strtotime($since);
+		// Handle both Unix timestamps and date strings
+		$sinceTimestamp = is_numeric($since) ? (int)$since : strtotime($since);
 		$changes = [];
 		foreach ($result['objects'] as $changeOp) {
 			$fields = $changeOp['fields'] ?? [];
