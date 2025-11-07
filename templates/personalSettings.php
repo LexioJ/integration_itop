@@ -214,13 +214,52 @@ $ciClassLabels = [
 					<?php 
 					$disabledAgent = $_['disabled_agent_notifications'];
 					$allAgentDisabled = $disabledAgent === 'all';
-					$iconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', 'notification.svg');
+					
+					// Icon mapping for agent notifications
+					$agentNotificationIcons = [
+						'ticket_assigned' => 'security-pass.svg',
+						'team_unassigned_new' => 'team.svg',
+						'ticket_reassigned' => 'change-normal.svg',
+						'ticket_comment' => 'discussion-forum.svg',
+						'ticket_ttr_warning' => 'user-request-deadline.svg',
+						'ticket_tto_warning' => 'incident-deadline.svg',
+						'ticket_sla_breach' => 'incident-escalated.svg',
+						'ticket_priority_critical' => 'notification.svg'
+					];
+					
+					// Desired display order for agent notifications
+					$agentNotificationOrder = [
+						'ticket_assigned',
+						'team_unassigned_new',
+						'ticket_reassigned',
+						'ticket_comment',
+						'ticket_ttr_warning',
+						'ticket_tto_warning',
+						'ticket_sla_breach',
+						'ticket_priority_critical'
+					];
+					
+					// Filter and sort agent notifications by desired order
+					$orderedAgentNotifications = [];
+					foreach ($agentNotificationOrder as $type) {
+						if (in_array($type, $_['user_choice_agent_notifications'])) {
+							$orderedAgentNotifications[] = $type;
+						}
+					}
+					// Add any remaining types not in the order list
+					foreach ($_['user_choice_agent_notifications'] as $type) {
+						if (!in_array($type, $orderedAgentNotifications)) {
+							$orderedAgentNotifications[] = $type;
+						}
+					}
 					?>
 					<div class="notification-user-list">
-						<?php foreach ($_['user_choice_agent_notifications'] as $type): ?>
+						<?php foreach ($orderedAgentNotifications as $type): ?>
 						<?php 
 						$isDisabled = $allAgentDisabled || (is_array($disabledAgent) && in_array($type, $disabledAgent));
 						$isChecked = !$isDisabled;
+						$iconFile = isset($agentNotificationIcons[$type]) ? $agentNotificationIcons[$type] : 'notification.svg';
+						$iconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', $iconFile);
 						?>
 						<div class="notification-user-toggle">
 							<input id="notify-agent-<?php p($type); ?>" 
