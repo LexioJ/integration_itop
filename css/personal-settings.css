@@ -293,6 +293,103 @@ body[data-theme-dark] .itop-personal-status-card {
     flex-wrap: wrap;
 }
 
+/* Notification User List - Same styling as CI Classes */
+.notification-user-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0;
+    margin: 16px 0;
+}
+
+.notification-user-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 12px 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--color-border);
+    min-height: 44px;
+}
+
+.notification-user-toggle:last-child {
+    border-bottom: none;
+}
+
+.notification-user-toggle input[type="checkbox"] {
+    cursor: pointer;
+    margin: 0 12px 0 0;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.notification-user-toggle input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.notification-user-label-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    cursor: pointer;
+    margin: 0;
+    font-weight: normal;
+}
+
+.notification-user-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.notification-user-icon img {
+    width: 24px;
+    height: 24px;
+    display: block;
+}
+
+.notification-user-label {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--color-main-text);
+    line-height: 1.4;
+}
+
+/* Notification section styling */
+.notification-section h4,
+.search-section h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    color: var(--color-main-text);
+}
+
+.search-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--color-border);
+}
+
+.notification-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--color-border);
+}
+
+.notification-types h5 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: var(--color-main-text);
+}
+
 .itop-count-large {
     font-size: 20px;
     font-weight: 700;

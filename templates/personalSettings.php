@@ -106,6 +106,16 @@ $ciClassLabels = [
 			</p>
 		</div>
 
+		<!-- Search Settings -->
+		<div class="field search-section">
+			<h4><?php p($l->t('Search Settings')); ?></h4>
+			<div class="field">
+				<input id="itop-search-enabled" type="checkbox" <?php echo $_['search_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+				<label for="itop-search-enabled"><?php p($l->t('Enable unified search')); ?></label>
+				<p class="hint"><?php p($l->t('Search your %s tickets from the search bar (tickets you created or are assigned to you)',[$_['display_name']])); ?></p>
+			</div>
+		</div>
+
 		<!-- Notification Settings (3-State System) -->
 		<div class="field notification-section">
 			<h4><?php p($l->t('Notification Settings')); ?></h4>
@@ -117,93 +127,106 @@ $ciClassLabels = [
 				<p class="hint"><?php p($l->t('Receive notifications about ticket updates and changes')); ?></p>
 			</div>
 			
-			<!-- Notification check interval -->
-			<div class="notification-interval-field" style="margin-left: 24px; margin-top: 12px;">
-				<label for="notification-check-interval"><?php p($l->t('Check for new notifications every')); ?></label>
-				<input id="notification-check-interval" type="number" min="5" max="1440" 
-					value="<?php p($_['notification_check_interval'] ?? 60); ?>" 
-					style="width: 80px; margin: 0 8px;"
-					<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?> />
-				<span><?php p($l->t('minutes')); ?></span>
-				<p class="hint"><?php p($l->t('Default: %d minutes (set by administrator)', [$_['admin_default_interval'] ?? 60])); ?></p>
-			</div>
-			
-			<!-- Forced notifications info -->
-			<?php if (!empty($_['forced_portal_notifications']) || !empty($_['forced_agent_notifications'])): ?>
-			<div class="notification-forced-info" style="margin: 16px 0; padding: 12px; background: #f0f9ff; border-left: 4px solid #0ea5e9; border-radius: 4px;">
-				<strong style="color: #0c4a6e;">ℹ️ <?php p($l->t('Mandatory Notifications')); ?></strong>
-				<p style="margin: 8px 0 0 0; color: #0c4a6e; font-size: 0.9em;">
-					<?php p($l->t('Your administrator has enabled the following mandatory notifications that cannot be disabled:')); ?>
-				</p>
-				<ul style="margin: 8px 0 0 20px; color: #0c4a6e; font-size: 0.9em;">
-					<?php foreach ($_['forced_portal_notifications'] as $type): ?>
-						<li><?php p($l->t('notification_' . $type)); ?></li>
-					<?php endforeach; ?>
-					<?php foreach ($_['forced_agent_notifications'] as $type): ?>
-						<li><?php p($l->t('notification_' . $type)); ?></li>
-					<?php endforeach; ?>
-				</ul>
-			</div>
-			<?php endif; ?>
-			
-			<!-- Portal notification types (user_choice only) -->
-			<?php if (!empty($_['user_choice_portal_notifications'])): ?>
-			<div class="notification-types" style="margin-left: 24px; <?php echo !$_['notification_enabled'] ? 'opacity: 0.5;' : ''; ?>">
-				<h5><?php p($l->t('My Tickets (Portal Notifications)')); ?></h5>
-				<?php 
-				$disabledPortal = $_['disabled_portal_notifications'];
-				$allPortalDisabled = $disabledPortal === 'all';
-				?>
-				<?php foreach ($_['user_choice_portal_notifications'] as $type): ?>
-				<div class="notification-type-item">
-					<?php 
-					$isDisabled = $allPortalDisabled || (is_array($disabledPortal) && in_array($type, $disabledPortal));
-					$isChecked = !$isDisabled;
-					?>
-					<input id="notify-portal-<?php p($type); ?>" 
-						type="checkbox" 
-						data-notification-type="portal"
-						data-notification="<?php p($type); ?>"
-						<?php echo $isChecked ? 'checked' : ''; ?>
-						<?php echo !$_['has_application_token'] || !$_['notification_enabled'] ? 'disabled' : ''; ?>>
-					<label for="notify-portal-<?php p($type); ?>"><?php p($l->t('notification_' . $type)); ?></label>
+			<div id="notification-settings-content" style="<?php echo !$_['notification_enabled'] ? 'display: none;' : ''; ?>">
+				<!-- Notification check interval -->
+				<div class="notification-interval-field" style="margin-left: 24px; margin-top: 12px;">
+					<label for="notification-check-interval"><?php p($l->t('Check for new notifications every')); ?></label>
+					<input id="notification-check-interval" type="number" min="5" max="1440" 
+						value="<?php p($_['notification_check_interval'] ?? 60); ?>" 
+						style="width: 80px; margin: 0 8px;"
+						<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?> />
+					<span><?php p($l->t('minutes')); ?></span>
+					<p class="hint"><?php p($l->t('Default: %d minutes (set by administrator)', [$_['admin_default_interval'] ?? 60])); ?></p>
 				</div>
-				<?php endforeach; ?>
-			</div>
-			<?php endif; ?>
-			
-			<!-- Agent notification types (user_choice only) -->
-			<?php if (!empty($_['user_choice_agent_notifications'])): ?>
-			<div class="notification-types" style="margin-left: 24px; margin-top: 16px; <?php echo !$_['notification_enabled'] ? 'opacity: 0.5;' : ''; ?>">
-				<h5><?php p($l->t('Agent Tickets (Agent Notifications)')); ?></h5>
-				<?php 
-				$disabledAgent = $_['disabled_agent_notifications'];
-				$allAgentDisabled = $disabledAgent === 'all';
-				?>
-				<?php foreach ($_['user_choice_agent_notifications'] as $type): ?>
-				<div class="notification-type-item">
-					<?php 
-					$isDisabled = $allAgentDisabled || (is_array($disabledAgent) && in_array($type, $disabledAgent));
-					$isChecked = !$isDisabled;
-					?>
-					<input id="notify-agent-<?php p($type); ?>" 
-						type="checkbox" 
-						data-notification-type="agent"
-						data-notification="<?php p($type); ?>"
-						<?php echo $isChecked ? 'checked' : ''; ?>
-						<?php echo !$_['has_application_token'] || !$_['notification_enabled'] ? 'disabled' : ''; ?>>
-					<label for="notify-agent-<?php p($type); ?>"><?php p($l->t('notification_' . $type)); ?></label>
+				
+				<!-- Forced notifications info -->
+				<?php if (!empty($_['forced_portal_notifications']) || !empty($_['forced_agent_notifications'])): ?>
+				<div class="notification-forced-info" style="margin: 16px 0 16px 24px; padding: 12px; background: #f0f9ff; border-left: 4px solid #0ea5e9; border-radius: 4px;">
+					<strong style="color: #0c4a6e;">ℹ️ <?php p($l->t('Mandatory Notifications')); ?></strong>
+					<p style="margin: 8px 0 0 0; color: #0c4a6e; font-size: 0.9em;">
+						<?php p($l->t('Your administrator has enabled the following mandatory notifications that cannot be disabled:')); ?>
+					</p>
+					<ul style="margin: 8px 0 0 20px; color: #0c4a6e; font-size: 0.9em;">
+						<?php foreach ($_['forced_portal_notifications'] as $type): ?>
+							<li><?php p($l->t('notification_' . $type)); ?></li>
+						<?php endforeach; ?>
+						<?php foreach ($_['forced_agent_notifications'] as $type): ?>
+							<li><?php p($l->t('notification_' . $type)); ?></li>
+						<?php endforeach; ?>
+					</ul>
 				</div>
-				<?php endforeach; ?>
+				<?php endif; ?>
+				
+				<!-- Portal notification types (user_choice only) -->
+				<?php if (!empty($_['user_choice_portal_notifications'])): ?>
+				<div class="notification-types" style="margin-left: 24px;">
+					<h5><?php p($l->t('My Tickets (Portal Notifications)')); ?></h5>
+					<?php 
+					$disabledPortal = $_['disabled_portal_notifications'];
+					$allPortalDisabled = $disabledPortal === 'all';
+					$iconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', 'notification.svg');
+					?>
+					<div class="notification-user-list">
+						<?php foreach ($_['user_choice_portal_notifications'] as $type): ?>
+						<?php 
+						$isDisabled = $allPortalDisabled || (is_array($disabledPortal) && in_array($type, $disabledPortal));
+						$isChecked = !$isDisabled;
+						?>
+						<div class="notification-user-toggle">
+							<input id="notify-portal-<?php p($type); ?>" 
+								type="checkbox" 
+								data-notification-type="portal"
+								data-notification="<?php p($type); ?>"
+								<?php echo $isChecked ? 'checked' : ''; ?>
+								<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+							<label for="notify-portal-<?php p($type); ?>" class="notification-user-label-container">
+								<span class="notification-user-icon">
+									<img src="<?php p($iconPath); ?>" alt="notification" width="24" height="24" />
+								</span>
+								<span class="notification-user-label"><?php p($l->t('notification_' . $type)); ?></span>
+							</label>
+						</div>
+						<?php endforeach; ?>
+					</div>
+				</div>
+				<?php endif; ?>
+				
+				<!-- Agent notification types (user_choice only) -->
+				<?php if (!empty($_['user_choice_agent_notifications'])): ?>
+				<div class="notification-types" style="margin-left: 24px; margin-top: 16px;">
+					<h5><?php p($l->t('Agent Tickets (Agent Notifications)')); ?></h5>
+					<?php 
+					$disabledAgent = $_['disabled_agent_notifications'];
+					$allAgentDisabled = $disabledAgent === 'all';
+					$iconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', 'notification.svg');
+					?>
+					<div class="notification-user-list">
+						<?php foreach ($_['user_choice_agent_notifications'] as $type): ?>
+						<?php 
+						$isDisabled = $allAgentDisabled || (is_array($disabledAgent) && in_array($type, $disabledAgent));
+						$isChecked = !$isDisabled;
+						?>
+						<div class="notification-user-toggle">
+							<input id="notify-agent-<?php p($type); ?>" 
+								type="checkbox" 
+								data-notification-type="agent"
+								data-notification="<?php p($type); ?>"
+								<?php echo $isChecked ? 'checked' : ''; ?>
+								<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+							<label for="notify-agent-<?php p($type); ?>" class="notification-user-label-container">
+								<span class="notification-user-icon">
+									<img src="<?php p($iconPath); ?>" alt="notification" width="24" height="24" />
+								</span>
+								<span class="notification-user-label"><?php p($l->t('notification_' . $type)); ?></span>
+							</label>
+						</div>
+						<?php endforeach; ?>
+					</div>
+				</div>
+				<?php endif; ?>
 			</div>
-			<?php endif; ?>
 		</div>
 
-		<div class="field">
-			<input id="itop-search-enabled" type="checkbox" <?php echo $_['search_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
-			<label for="itop-search-enabled"><?php p($l->t('Enable unified search')); ?></label>
-			<p class="hint"><?php p($l->t('Search your %s tickets from the search bar (tickets you created or are assigned to you)',[$_['display_name']])); ?></p>
-		</div>
 
 		<?php if (!empty($_['user_choice_ci_classes'])): ?>
 		<div class="field ci-class-preferences">

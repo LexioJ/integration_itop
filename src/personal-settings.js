@@ -21,6 +21,20 @@
 			return
 		}
 
+		// Handle notification master toggle
+		if (notificationEnabledField) {
+			notificationEnabledField.addEventListener('change', function() {
+				const notificationContent = document.getElementById('notification-settings-content')
+				if (notificationContent) {
+					if (notificationEnabledField.checked) {
+						notificationContent.style.display = ''
+					} else {
+						notificationContent.style.display = 'none'
+					}
+				}
+			})
+		}
+
 		// Check if user is configured and load data if so (use CSS class, not translated text)
 		const connectionStatusCard = document.getElementById('itop-personal-connection-status')
 		if (connectionStatusCard && connectionStatusCard.classList.contains('success')) {
@@ -258,37 +272,43 @@
 			}
 
 			// Collect notification preferences (3-state system)
-			const notificationCheckboxes = document.querySelectorAll('input[data-notification-type]')
-			if (notificationCheckboxes.length > 0) {
-				const disabledPortalNotifications = []
-				const disabledAgentNotifications = []
+			// If master notification toggle is OFF, store 'all' for both portal and agent
+			if (notificationEnabled === '0') {
+				params.disabled_portal_notifications = 'all'
+				params.disabled_agent_notifications = 'all'
+			} else {
+				const notificationCheckboxes = document.querySelectorAll('input[data-notification-type]')
+				if (notificationCheckboxes.length > 0) {
+					const disabledPortalNotifications = []
+					const disabledAgentNotifications = []
 
-				notificationCheckboxes.forEach(function(checkbox) {
-					if (!checkbox.checked) {
-						const notificationType = checkbox.dataset.notificationType
-						const notificationName = checkbox.dataset.notification
+					notificationCheckboxes.forEach(function(checkbox) {
+						if (!checkbox.checked) {
+							const notificationType = checkbox.dataset.notificationType
+							const notificationName = checkbox.dataset.notification
 
-						if (notificationType === 'portal') {
-							disabledPortalNotifications.push(notificationName)
-						} else if (notificationType === 'agent') {
-							disabledAgentNotifications.push(notificationName)
+							if (notificationType === 'portal') {
+								disabledPortalNotifications.push(notificationName)
+							} else if (notificationType === 'agent') {
+								disabledAgentNotifications.push(notificationName)
+							}
 						}
+					})
+
+					// Send disabled notification arrays to backend
+					if (disabledPortalNotifications.length > 0) {
+						params.disabled_portal_notifications = disabledPortalNotifications
+					} else {
+						// Empty array = enable all user_choice types
+						params.disabled_portal_notifications = []
 					}
-				})
 
-				// Send disabled notification arrays to backend
-				if (disabledPortalNotifications.length > 0) {
-					params.disabled_portal_notifications = disabledPortalNotifications
-				} else {
-					// Empty array = enable all user_choice types
-					params.disabled_portal_notifications = []
-				}
-
-				if (disabledAgentNotifications.length > 0) {
-					params.disabled_agent_notifications = disabledAgentNotifications
-				} else {
-					// Empty array = enable all user_choice types
-					params.disabled_agent_notifications = []
+					if (disabledAgentNotifications.length > 0) {
+						params.disabled_agent_notifications = disabledAgentNotifications
+					} else {
+						// Empty array = enable all user_choice types
+						params.disabled_agent_notifications = []
+					}
 				}
 			}
 
