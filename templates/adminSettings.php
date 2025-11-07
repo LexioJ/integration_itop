@@ -268,10 +268,18 @@ $ciClassLabels = [
 						'ticket_resolved' => $l->t('Ticket resolved'),
 						'agent_assigned' => $l->t('Agent assignment changed')
 					];
-					$iconPath = \OC::$server->getURLGenerator()->imagePath($appId, 'notification.svg');
+					// Icon mapping for portal notifications
+					$portalNotificationIcons = [
+						'ticket_status_changed' => 'user-request-deadline.svg',
+						'agent_responded' => 'discussion-forum.svg',
+						'ticket_resolved' => 'checkmark.svg',
+						'agent_assigned' => 'customer.svg'
+					];
 				foreach ($_['portal_notification_types'] as $notificationType): 
 						$currentState = $_['portal_notification_config'][$notificationType] ?? 'user_choice';
 						$label = $portalNotificationLabels[$notificationType] ?? $notificationType;
+						$iconFile = isset($portalNotificationIcons[$notificationType]) ? $portalNotificationIcons[$notificationType] : 'notification.svg';
+						$iconPath = \OC::$server->getURLGenerator()->imagePath($appId, $iconFile);
 					?>
 					<div class="notification-config-row">
 						<div class="notification-info">
@@ -314,10 +322,22 @@ $ciClassLabels = [
 						'ticket_priority_critical' => $l->t('Priority escalated to critical'),
 						'ticket_comment' => $l->t('New comment on ticket')
 					];
-					$iconPath = \OC::$server->getURLGenerator()->imagePath($appId, 'notification.svg');
+					// Icon mapping for agent notifications
+					$agentNotificationIcons = [
+						'ticket_assigned' => 'security-pass.svg',
+						'team_unassigned_new' => 'team.svg',
+						'ticket_reassigned' => 'change-normal.svg',
+						'ticket_comment' => 'discussion-forum.svg',
+						'ticket_ttr_warning' => 'user-request-deadline.svg',
+						'ticket_tto_warning' => 'user-request-deadline.svg',
+						'ticket_sla_breach' => 'incident-escalated.svg',
+						'ticket_priority_critical' => 'notification.svg'
+					];
 					foreach ($_['agent_notification_types'] as $notificationType): 
 						$currentState = $_['agent_notification_config'][$notificationType] ?? 'user_choice';
 						$label = $agentNotificationLabels[$notificationType] ?? $notificationType;
+						$iconFile = isset($agentNotificationIcons[$notificationType]) ? $agentNotificationIcons[$notificationType] : 'notification.svg';
+						$iconPath = \OC::$server->getURLGenerator()->imagePath($appId, $iconFile);
 					?>
 					<div class="notification-config-row">
 						<div class="notification-info">
