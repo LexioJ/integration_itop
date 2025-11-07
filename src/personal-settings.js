@@ -244,6 +244,7 @@
 
 			const personalToken = personalTokenField.value.trim()
 			const notificationEnabled = notificationEnabledField.checked ? '1' : '0'
+			const searchEnabled = document.getElementById('itop-search-enabled')
 
 			saveButton.disabled = true
 			const originalButtonText = saveButton.innerHTML
@@ -251,6 +252,7 @@
 
 			const params = {
 				notification_enabled: notificationEnabled,
+				search_enabled: searchEnabled && searchEnabled.checked ? '1' : '0',
 			}
 
 			// Send personal_token if provided (used for identity verification only)
