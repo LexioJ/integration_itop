@@ -449,5 +449,6 @@
   "Configure which notifications IT agents can receive (Assignments, SLA, Priority)": "Configure which notifications IT agents can receive (Assignments, SLA, Priority)",
   "Notification not available (hidden from users)": "Notification not available (hidden from users)",
   "Mandatory for all users (cannot be disabled)": "Mandatory for all users (cannot be disabled)",
-  "Enabled by default, users can opt-out": "Enabled by default, users can opt-out"
+  "Enabled by default, users can opt-out": "Enabled by default, users can opt-out",
+  "CI class not available (hidden from users)": "CI class not available (hidden from users)"
 }

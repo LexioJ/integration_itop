@@ -530,9 +530,9 @@ $ciClassLabels = [
 
 				<div class="form-info-box" style="margin-top: 16px;">
 					<strong><?php p($l->t('🎯 Configuration States')); ?>:</strong><br>
-					<strong style="color: #e53e3e;">🚫 <?php p($l->t('Disable')); ?></strong> - <?php p($l->t('Choose which Configuration Item types to enable for search and previews')); ?><br>
-					<strong style="color: #38a169;">✓ <?php p($l->t('All')); ?></strong> - <?php p($l->t('Force Enable')); ?><br>
-					<strong style="color: #3182ce;">⚙️ <?php p($l->t('User Choice')); ?></strong> - <?php p($l->t('Advanced')); ?>
+					<strong style="color: #e53e3e;">🚫 <?php p($l->t('Disable')); ?></strong> - <?php p($l->t('CI class not available (hidden from users)')); ?><br>
+					<strong style="color: #38a169;">✓ <?php p($l->t('Force Enable')); ?></strong> - <?php p($l->t('Mandatory for all users (cannot be disabled)')); ?><br>
+					<strong style="color: #3182ce;">⚙️ <?php p($l->t('User Choice')); ?></strong> - <?php p($l->t('Enabled by default, users can opt-out')); ?>
 				</div>
 
 				<div class="form-actions">

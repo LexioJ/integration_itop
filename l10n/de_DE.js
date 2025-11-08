@@ -444,6 +444,7 @@ OC.L10N.register(
     "Configure which notifications IT agents can receive (Assignments, SLA, Priority)": "Konfigurieren Sie, welche Benachrichtigungen IT-Agents erhalten können (Zuweisungen, SLA, Priorität)",
     "Notification not available (hidden from users)": "Benachrichtigung nicht verfügbar (für Benutzer ausgeblendet)",
     "Mandatory for all users (cannot be disabled)": "Verpflichtend für alle Benutzer (kann nicht deaktiviert werden)",
-    "Enabled by default, users can opt-out": "Standardmäßig aktiviert, Benutzer können sich abmelden"
+    "Enabled by default, users can opt-out": "Standardmäßig aktiviert, Benutzer können sich abmelden",
+    "CI class not available (hidden from users)": "CI-Klasse nicht verfügbar (für Benutzer ausgeblendet)"
 },
     "nplurals=2; plural=(n != 1);");
