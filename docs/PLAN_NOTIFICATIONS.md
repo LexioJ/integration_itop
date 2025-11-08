@@ -943,29 +943,66 @@ $this->logger->info('Portal notification check completed', [
 ## Migration Path
 
 ### Phase 1: Portal Notifications (Priority 1) ✅ **COMPLETE**
-**Actual Time**: 12 hours
+**Actual Time**: 14 hours
+**Branch**: `feature/notification-system` (30 commits)
 
-- ✅ Admin settings for `portal_notification_interval` (5-1440 min, default 15)
-- ✅ Personal settings UI (portal section with 3 toggles + master)
-- ✅ `CheckPortalTicketUpdates` background job (runs every 5 min)
-- ✅ ItopAPIService: `getChangeOps()`, `getCaseLogChanges()`, `getUserTicketIds()`, `resolveUserNames()`
-- ✅ Notifier: 4 portal notification types (status_changed, agent_responded, ticket_resolved, agent_assigned)
-- ✅ Timezone handling (uses Nextcloud's default_timezone config)
-- ✅ Self-notification filtering (no notifications for own comments)
-- ✅ Agent name resolution with 24-hour caching
-- ✅ OQL limitation workaround (PHP-side timestamp filtering)
-- ✅ OCC command: `itop:notifications:test-user` with reset functionality
-- ✅ Manual testing with OrbStack dev environment
+#### Implementation Summary
+- ✅ **3-State Admin Configuration** (disabled/forced/user_choice) with visual grid layout matching CI class configuration
+- ✅ **Admin settings** for portal & agent notifications with default interval (5-1440 min, default 15)
+- ✅ **Personal settings UI** with master toggle, granular per-notification-type checkboxes, custom intervals
+- ✅ **Custom notification icons** (user-request-deadline.svg, discussion-forum.svg, checkmark.svg, customer.svg)
+- ✅ **Section structure** with emojis (🔔 Notification Settings, 🔎 Search Settings, 🎯 CI Classes)
+- ✅ **Master toggle behavior** hides/shows notification settings when enabled/disabled
+- ✅ **Client-side validation** for notification check interval (5-1440 minutes)
+- ✅ **Background job** `CheckPortalTicketUpdates` (runs every 5 min, respects user intervals)
+- ✅ **ItopAPIService methods**: `getChangeOps()`, `getCaseLogChanges()`, `getUserTicketIds()`, `resolveUserNames()`
+- ✅ **Notifier**: 4 portal notification types (ticket_status_changed, agent_responded, ticket_resolved, agent_assigned)
+- ✅ **Timezone handling** (uses Nextcloud's default_timezone config)
+- ✅ **Self-notification filtering** (no notifications for own comments)
+- ✅ **Agent name resolution** with 24-hour caching
+- ✅ **Unix timestamp filtering fix** (is_numeric() check before strtotime())
+- ✅ **Unique notification object keys** (ticket_id|subject|timestamp_hash) prevent duplicates
+- ✅ **Query optimization** - skips API calls when notification types disabled
+- ✅ **OCC command**: `itop:notifications:test-user` with portal/agent flags
+- ✅ **Translations**: EN, DE (informal + formal), FR
+- ✅ **Manual testing** with OrbStack dev environment
+
+#### Technical Highlights
+1. **3-State Configuration System**:
+   - Admin: `portal_notification_config`, `agent_notification_config` (JSON)
+   - States: `disabled` (hidden), `forced` (always on), `user_choice` (user decides)
+   - User: `disabled_portal_notifications`, `disabled_agent_notifications` (JSON arrays)
+   - Special case: `notification_enabled = '0'` acts as master toggle
+
+2. **Query Optimization**:
+   - Early exit if all notifications disabled (no API calls)
+   - Skip `getCaseLogChanges()` if `agent_responded` disabled
+   - Skip `getChangeOps()` if all status/agent/resolved notifications disabled
+   - Only queries for enabled notification types
+
+3. **Timestamp Handling**:
+   - Storage: Unix timestamps (integer strings)
+   - Filtering: Proper is_numeric() check before strtotime() conversion
+   - Comparison: `strtotime($changeDate) > $sinceTimestamp`
+
+4. **Deduplication**:
+   - Unique object keys: `ticket_id|subject|timestamp_hash`
+   - Nextcloud's notification system handles duplicate object_id prevention
+   - Timestamp filtering prevents re-processing old changes
 
 **Acceptance Criteria**: ✅ ALL MET
 - ✅ Portal users receive notifications for status changes, agent responses, resolutions, agent assignments
-- ✅ No duplicate notifications (timestamp-based deduplication)
-- ✅ Master toggle works
-- ✅ Granular toggles respected
+- ✅ No duplicate notifications (unique object keys + timestamp filtering)
+- ✅ Master toggle works (notification_enabled)
+- ✅ Granular toggles respected (disabled_portal_notifications array)
 - ✅ Correct timezone handling (Europe/Vienna)
-- ✅ No self-notifications
+- ✅ No self-notifications (user_id filtering in agent_responded)
 - ✅ Rate limiting (max 20 per run)
-- ✅ Resolved ticket detection works
+- ✅ Resolved ticket detection works (include_resolved parameter)
+- ✅ Query optimization (zero API calls when all disabled)
+- ✅ Client-side validation (5-1440 minute range)
+- ✅ Custom icons per notification type
+- ✅ Visual consistency with CI class configuration
 
 ### Phase 2: Agent Notifications (Priority 2)
 **Estimated Time**: 12-16 hours
