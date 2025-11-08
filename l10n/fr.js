@@ -426,6 +426,16 @@ OC.L10N.register(
     "Invalid portal notification configuration format": "Format de configuration de notification portail invalide",
     "Invalid agent notification configuration format": "Format de configuration de notification agent invalide",
     "Invalid portal notification state for type: %s": "État de notification portail invalide pour le type : %s",
-    "Invalid agent notification state for type: %s": "État de notification agent invalide pour le type : %s"
+    "Invalid agent notification state for type: %s": "État de notification agent invalide pour le type : %s",
+    "Agent responded to ticket": "L'agent a répondu au ticket",
+    "Agent assignment changed": "Attribution de l'agent modifiée",
+    "Ticket assigned to me": "Ticket qui m'a été attribué",
+    "Ticket reassigned to me": "Ticket qui m'a été réattribué",
+    "New unassigned ticket in team": "Nouveau ticket non attribué dans l'équipe",
+    "TTO SLA warning": "Avertissement TTO SLA",
+    "TTR SLA warning": "Avertissement TTR SLA",
+    "SLA breach": "Violation du SLA",
+    "Priority escalated to critical": "Priorité escaladée à critique",
+    "New comment on ticket": "Nouveau commentaire sur le ticket"
 },
     "nplurals=2; plural=(n > 1);");
