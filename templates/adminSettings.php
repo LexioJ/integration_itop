@@ -234,7 +234,7 @@ $ciClassLabels = [
 		<!-- Notification Configuration Section -->
 		<div class="settings-section">
 			<div class="section-header">
-				<h3><?php p($l->t('🔔 Notification Configuration')); ?></h3>
+				<h3>🔔 <?php p($l->t('Notification Configuration')); ?></h3>
 				<p class="section-description"><?php p($l->t('Configure which notifications are available to users and set default check interval')); ?></p>
 			</div>
 

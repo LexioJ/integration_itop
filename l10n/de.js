@@ -436,6 +436,14 @@ OC.L10N.register(
     "TTR SLA warning": "TTR SLA-Warnung",
     "SLA breach": "SLA-Verletzung",
     "Priority escalated to critical": "Priorität auf kritisch eskaliert",
-    "New comment on ticket": "Neuer Kommentar zum Ticket"
+    "New comment on ticket": "Neuer Kommentar zum Ticket",
+    "Configure which notifications are available to users and set default check interval": "Konfigurieren Sie, welche Benachrichtigungen für Benutzer verfügbar sind und legen Sie das Standard-Prüfintervall fest",
+    "Default Notification Check Interval (minutes)": "Standard-Benachrichtigungsprüfintervall (Minuten)",
+    "Default interval for all users (5-1440 minutes). Users can customize their own interval in personal settings": "Standardintervall für alle Benutzer (5-1440 Minuten). Benutzer können ihr eigenes Intervall in den persönlichen Einstellungen anpassen",
+    "Configure which notifications portal users can receive (My Tickets)": "Konfigurieren Sie, welche Benachrichtigungen Portalbenutzer erhalten können (Meine Tickets)",
+    "Configure which notifications IT agents can receive (Assignments, SLA, Priority)": "Konfigurieren Sie, welche Benachrichtigungen IT-Agents erhalten können (Zuweisungen, SLA, Priorität)",
+    "Notification not available (hidden from users)": "Benachrichtigung nicht verfügbar (für Benutzer ausgeblendet)",
+    "Mandatory for all users (cannot be disabled)": "Verpflichtend für alle Benutzer (kann nicht deaktiviert werden)",
+    "Enabled by default, users can opt-out": "Standardmäßig aktiviert, Benutzer können sich abmelden"
 },
     "nplurals=2; plural=(n != 1);");

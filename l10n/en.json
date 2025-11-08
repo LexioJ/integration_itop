@@ -440,5 +440,14 @@
   "TTR SLA warning": "TTR SLA warning",
   "SLA breach": "SLA breach",
   "Priority escalated to critical": "Priority escalated to critical",
-  "New comment on ticket": "New comment on ticket"
+  "New comment on ticket": "New comment on ticket",
+  "Notification Configuration": "Notification Configuration",
+  "Configure which notifications are available to users and set default check interval": "Configure which notifications are available to users and set default check interval",
+  "Default Notification Check Interval (minutes)": "Default Notification Check Interval (minutes)",
+  "Default interval for all users (5-1440 minutes). Users can customize their own interval in personal settings": "Default interval for all users (5-1440 minutes). Users can customize their own interval in personal settings",
+  "Configure which notifications portal users can receive (My Tickets)": "Configure which notifications portal users can receive (My Tickets)",
+  "Configure which notifications IT agents can receive (Assignments, SLA, Priority)": "Configure which notifications IT agents can receive (Assignments, SLA, Priority)",
+  "Notification not available (hidden from users)": "Notification not available (hidden from users)",
+  "Mandatory for all users (cannot be disabled)": "Mandatory for all users (cannot be disabled)",
+  "Enabled by default, users can opt-out": "Enabled by default, users can opt-out"
 }
