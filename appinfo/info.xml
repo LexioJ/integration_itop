@@ -7,7 +7,7 @@
 	  xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>integration_itop</id>
 	<name>iTop Integration</name>
-	<summary><![CDATA[🎟️ Transform your ITSM workflow with seamless iTop integration - rich link previews, unified search, and smart content insertion!]]></summary>
+	<summary><![CDATA[🎟️ Transform your ITSM workflow with seamless iTop integration - rich link previews, unified search, and dashboard widgets!]]></summary>
 	<description><![CDATA[### 🚀 Complete iTop ITSM Integration for Nextcloud
 
 Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Management system. This comprehensive integration brings ITSM functionality directly into your daily workflow without leaving Nextcloud.
