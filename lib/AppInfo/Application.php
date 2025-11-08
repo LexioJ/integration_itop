@@ -514,9 +514,6 @@ class Application extends App implements IBootstrap {
 
 		$context->registerReferenceProvider(ItopReferenceProvider::class);
 		$context->registerEventListener(RenderReferenceEvent::class, ItopReferenceListener::class);
-		
-		// Register background jobs
-		$context->registerBackgroundJob(\OCA\Itop\BackgroundJob\CheckPortalTicketUpdates::class);
 	}
 
 	public function boot(IBootContext $context): void {
