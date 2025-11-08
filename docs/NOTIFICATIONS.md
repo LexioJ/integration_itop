@@ -128,27 +128,12 @@ Each notification type can be configured with one of three states:
 
 ### Background Jobs
 
-The notification system uses two background jobs that run every 5 minutes:
+The notification system uses two background jobs that run automatically every 5 minutes:
 
 - **CheckPortalTicketUpdates** - Processes portal notifications
 - **CheckAgentTicketUpdates** - Processes agent notifications
 
-#### Manual Initialization (First Time Setup)
-
-After installing or enabling the app, manually trigger each job once to initialize:
-
-```bash
-# Find job IDs
-occ background-job:list | grep -E "(CheckPortal|CheckAgent)"
-
-# Initialize portal job
-occ background-job:execute <portal-job-id> --force-execute
-
-# Initialize agent job  
-occ background-job:execute <agent-job-id> --force-execute
-```
-
-After initialization, cron will automatically execute the jobs every 5 minutes.
+Background jobs are automatically registered and will start processing with the next cron run after app installation.
 
 ### Performance Tuning
 

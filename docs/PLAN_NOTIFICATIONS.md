@@ -1065,22 +1065,23 @@ $this->logger->info('Portal notification check completed', [
 - ✅ Query optimization (skips API calls when types disabled)
 - ✅ Portal-only users correctly excluded from agent notifications
 
-**Known Limitation**:
-- Background jobs require manual initialization after app installation (run once via OCC to set timestamps, then cron auto-executes every 5 minutes)
-
-### Phase 3: Newsroom Mirroring (Priority 3, Opt-In)
+### Phase 3: Newsroom Mirroring (Priority 3, Opt-In) ⏳ **DEFERRED**
+**Status**: Feature request documented in [GitHub Issue #3](https://github.com/LexioJ/integration_itop/issues/3)  
 **Estimated Time**: 6-8 hours
 
-- ✅ Implement per `docs/PLAN_NEWSROOM_MIRRORING.md`
-- ✅ `NewsroomPollJob`, `NewsroomService`, `NewsroomController`
-- ✅ Personal setting: `notify_newsroom_enabled`
-- ✅ Notifier: `newsroom_item` case
-- ✅ Mark-as-read bidirectional sync
+**Planned Features**:
+- ⏳ Implement per `docs/PLAN_NEWSROOM_MIRRORING.md`
+- ⏳ `NewsroomPollJob`, `NewsroomService`, `NewsroomController`
+- ⏳ Personal setting: `notify_newsroom_enabled`
+- ⏳ Notifier: `newsroom_item` case
+- ⏳ Mark-as-read bidirectional sync
 
 **Acceptance Criteria**:
 - Users who opt-in receive iTop newsroom notifications
 - Mark-as-read syncs to iTop
 - Independent from ticket notifications
+
+**Note**: This is a nice-to-have enhancement scheduled for a future release (v1.4.0 or later).
 
 ### Phase 4: Polish & Documentation (Priority 4) ✅ **COMPLETE**
 **Actual Time**: 3 hours
