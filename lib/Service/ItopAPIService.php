@@ -1745,6 +1745,11 @@ class ItopAPIService {
 			}
 		}
 
+		// Sort by date descending (newest first) to prioritize recent changes before rate limiting
+		usort($changes, function($a, $b) {
+			return strtotime($b['date']) <=> strtotime($a['date']);
+		});
+
 		return $changes;
 	}
 
@@ -1820,6 +1825,11 @@ class ItopAPIService {
 				];
 			}
 		}
+
+		// Sort by date descending (newest first) to prioritize recent changes before rate limiting
+		usort($changes, function($a, $b) {
+			return strtotime($b['date']) <=> strtotime($a['date']);
+		});
 
 		return $changes;
 	}
@@ -1976,12 +1986,6 @@ class ItopAPIService {
 			];
 
 			$contactLinkResult = $this->request($userId, $contactLinkParams, 'POST', false);
-			$this->logger->info('Contact link query result', [
-				'app' => 'integration_itop',
-				'userId' => $userId,
-				'personId' => $personId,
-				'contactLinkCount' => isset($contactLinkResult['objects']) ? count($contactLinkResult['objects']) : 0
-			]);
 			if (isset($contactLinkResult['objects'])) {
 				// Extract ticket IDs from contact links
 				$contactTicketIds = [];
@@ -2014,16 +2018,7 @@ class ItopAPIService {
 			}
 		}
 
-		$uniqueTicketIds = array_unique($ticketIds);
-		$this->logger->info('getUserTicketIds final result', [
-			'app' => 'integration_itop',
-			'userId' => $userId,
-			'personId' => $personId,
-			'portalOnly' => $portalOnly,
-			'ticketCount' => count($uniqueTicketIds),
-			'ticketIds' => $uniqueTicketIds
-		]);
-		return $uniqueTicketIds;
+		return array_unique($ticketIds);
 	}
 
 }
