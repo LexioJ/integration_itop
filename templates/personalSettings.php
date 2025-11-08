@@ -106,22 +106,205 @@ $ciClassLabels = [
 			</p>
 		</div>
 
-		<div class="field">
-			<input id="itop-notification-enabled" type="checkbox" <?php echo $_['notification_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
-			<label for="itop-notification-enabled"><?php p($l->t('Enable notifications')); ?></label>
-			<p class="hint"><?php p($l->t('Get notified when new tickets are assigned to you')); ?></p>
-		</div>
-
-		<div class="field">
-			<input id="itop-search-enabled" type="checkbox" <?php echo $_['search_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
-			<label for="itop-search-enabled"><?php p($l->t('Enable unified search')); ?></label>
+		<!-- Search Settings -->
+		<div class="field search-section">
+			<h4>🔎 <?php p($l->t('Search Settings')); ?></h4>
 			<p class="hint"><?php p($l->t('Search your %s tickets from the search bar (tickets you created or are assigned to you)',[$_['display_name']])); ?></p>
+			<div class="notification-user-list">
+				<div class="notification-user-toggle">
+					<input id="itop-search-enabled" type="checkbox" <?php echo $_['search_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+					<label for="itop-search-enabled" class="notification-user-label-container">
+						<span class="notification-user-label"><?php p($l->t('Enable unified search')); ?></span>
+					</label>
+				</div>
+			</div>
 		</div>
 
-		<?php if (!empty($_['user_choice_ci_classes'])): ?>
+		<!-- Notification Settings -->
+		<div class="field notification-section">
+			<h4>🔔 <?php p($l->t('Notification Settings')); ?></h4>
+			<p class="hint"><?php p($l->t('Receive notifications about ticket updates and changes')); ?></p>
+			
+			<!-- Master toggle for all notifications -->
+			<div class="notification-user-list">
+				<div class="notification-user-toggle">
+					<input id="itop-notification-enabled" type="checkbox" <?php echo $_['notification_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+					<label for="itop-notification-enabled" class="notification-user-label-container">
+						<span class="notification-user-label"><strong><?php p($l->t('Enable iTop Notifications')); ?></strong></span>
+					</label>
+				</div>
+			</div>
+			
+			<div id="notification-settings-content" style="<?php echo !$_['notification_enabled'] ? 'display: none;' : ''; ?>">
+				<!-- Notification check interval -->
+				<div class="notification-interval-field" style="margin-left: 24px; margin-top: 12px;">
+					<label for="notification-check-interval"><?php p($l->t('Check for new notifications every')); ?></label>
+					<input id="notification-check-interval" type="number" min="5" max="1440" 
+						value="<?php p($_['notification_check_interval'] ?? 60); ?>" 
+						style="width: 80px; margin: 0 8px;"
+						<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?> />
+					<span><?php p($l->t('minutes')); ?></span>
+					<p class="hint" style="margin-bottom: 10px;"><?php p($l->t('Default: %d minutes (set by administrator)', [$_['admin_default_interval'] ?? 60])); ?></p>
+				</div>
+				
+				<!-- Forced notifications info -->
+				<?php if (!empty($_['forced_portal_notifications']) || !empty($_['forced_agent_notifications'])): ?>
+				<div class="notification-forced-info" style="margin: 16px 0 16px 24px; padding: 12px; background: #f0f9ff; border-left: 4px solid #0ea5e9; border-radius: 4px;">
+					<strong style="color: #0c4a6e;">ℹ️ <?php p($l->t('Mandatory Notifications')); ?></strong>
+					<p style="margin: 8px 0 0 0; color: #0c4a6e; font-size: 0.9em;">
+						<?php p($l->t('Your administrator has enabled the following mandatory notifications that cannot be disabled:')); ?>
+					</p>
+					<ul style="margin: 8px 0 0 20px; color: #0c4a6e; font-size: 0.9em;">
+						<?php foreach ($_['forced_portal_notifications'] as $type): ?>
+							<li><?php p($l->t('notification_' . $type)); ?></li>
+						<?php endforeach; ?>
+						<?php foreach ($_['forced_agent_notifications'] as $type): ?>
+							<li><?php p($l->t('notification_' . $type)); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
+				<?php endif; ?>
+				
+				<!-- Portal notification types (user_choice only) -->
+				<?php if (!empty($_['user_choice_portal_notifications'])): ?>
+				<div class="notification-types" style="margin-left: 24px;">
+					<h5><?php p($l->t('My Ticket Notifications')); ?></h5>
+					<?php 
+					$disabledPortal = $_['disabled_portal_notifications'];
+					$allPortalDisabled = $disabledPortal === 'all';
+					// Icon mapping for portal notifications
+					$portalNotificationIcons = [
+						'ticket_status_changed' => 'user-request-deadline.svg',
+						'agent_responded' => 'discussion-forum.svg',
+						'ticket_resolved' => 'checkmark.svg',
+						'agent_assigned' => 'customer.svg'
+					];
+					?>
+					<div class="notification-user-list">
+						<?php foreach ($_['user_choice_portal_notifications'] as $type): ?>
+						<?php 
+						$isDisabled = $allPortalDisabled || (is_array($disabledPortal) && in_array($type, $disabledPortal));
+						$isChecked = !$isDisabled;
+						$iconFile = isset($portalNotificationIcons[$type]) ? $portalNotificationIcons[$type] : 'notification.svg';
+						$iconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', $iconFile);
+						?>
+						<div class="notification-user-toggle">
+							<input id="notify-portal-<?php p($type); ?>" 
+								type="checkbox" 
+								data-notification-type="portal"
+								data-notification="<?php p($type); ?>"
+								<?php echo $isChecked ? 'checked' : ''; ?>
+								<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+							<label for="notify-portal-<?php p($type); ?>" class="notification-user-label-container">
+								<span class="notification-user-icon">
+									<img src="<?php p($iconPath); ?>" alt="notification" width="24" height="24" />
+								</span>
+								<span class="notification-user-label"><?php p($l->t('notification_' . $type)); ?></span>
+							</label>
+						</div>
+						<?php endforeach; ?>
+					</div>
+				</div>
+				<?php endif; ?>
+				
+				<!-- Agent notification types (user_choice only) -->
+				<?php if (!empty($_['user_choice_agent_notifications'])): ?>
+				<div class="notification-types" style="margin-left: 24px; margin-top: 16px;">
+					<h5><?php p($l->t('Agent Notifications')); ?></h5>
+					<?php 
+					$disabledAgent = $_['disabled_agent_notifications'];
+					$allAgentDisabled = $disabledAgent === 'all';
+					
+					// Icon mapping for agent notifications
+					$agentNotificationIcons = [
+						'ticket_assigned' => 'security-pass.svg',
+						'team_unassigned_new' => 'team.svg',
+						'ticket_reassigned' => 'change-normal.svg',
+						'ticket_comment' => 'discussion-forum.svg',
+						'ticket_ttr_warning' => 'user-request-deadline.svg',
+						'ticket_tto_warning' => 'user-request-deadline.svg',
+						'ticket_sla_breach' => 'incident-escalated.svg',
+						'ticket_priority_critical' => 'notification.svg'
+					];
+					
+					// Desired display order for agent notifications
+					$agentNotificationOrder = [
+						'ticket_assigned',
+						'team_unassigned_new',
+						'ticket_reassigned',
+						'ticket_comment',
+						'ticket_ttr_warning',
+						'ticket_tto_warning',
+						'ticket_sla_breach',
+						'ticket_priority_critical'
+					];
+					
+					// Filter and sort agent notifications by desired order
+					$orderedAgentNotifications = [];
+					foreach ($agentNotificationOrder as $type) {
+						if (in_array($type, $_['user_choice_agent_notifications'])) {
+							$orderedAgentNotifications[] = $type;
+						}
+					}
+					// Add any remaining types not in the order list
+					foreach ($_['user_choice_agent_notifications'] as $type) {
+						if (!in_array($type, $orderedAgentNotifications)) {
+							$orderedAgentNotifications[] = $type;
+						}
+					}
+					?>
+					<div class="notification-user-list">
+						<?php foreach ($orderedAgentNotifications as $type): ?>
+						<?php 
+						$isDisabled = $allAgentDisabled || (is_array($disabledAgent) && in_array($type, $disabledAgent));
+						$isChecked = !$isDisabled;
+						$iconFile = isset($agentNotificationIcons[$type]) ? $agentNotificationIcons[$type] : 'notification.svg';
+						$iconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', $iconFile);
+						?>
+						<div class="notification-user-toggle">
+							<input id="notify-agent-<?php p($type); ?>" 
+								type="checkbox" 
+								data-notification-type="agent"
+								data-notification="<?php p($type); ?>"
+								<?php echo $isChecked ? 'checked' : ''; ?>
+								<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+							<label for="notify-agent-<?php p($type); ?>" class="notification-user-label-container">
+								<span class="notification-user-icon">
+									<img src="<?php p($iconPath); ?>" alt="notification" width="24" height="24" />
+								</span>
+								<span class="notification-user-label"><?php p($l->t('notification_' . $type)); ?></span>
+							</label>
+						</div>
+						<?php endforeach; ?>
+					</div>
+				</div>
+				<?php endif; ?>
+			</div>
+		</div>
+
+
+		<!-- CI Class Preferences Section -->
+		<?php if (!empty($_['forced_ci_classes']) || !empty($_['user_choice_ci_classes'])): ?>
 		<div class="field ci-class-preferences">
-			<h4><?php p($l->t('Configuration Item Classes')); ?></h4>
+			<h4>🎯 <?php p($l->t('Configuration Item Classes')); ?></h4>
 			<p class="hint"><?php p($l->t('Choose which CI types you want to see in search, smart picker, and previews')); ?></p>
+			
+			<!-- Forced CI classes info -->
+			<?php if (!empty($_['forced_ci_classes'])): ?>
+			<div class="notification-forced-info" style="margin: 16px 0; padding: 12px; background: #f0f9ff; border-left: 4px solid #0ea5e9; border-radius: 4px;">
+				<strong style="color: #0c4a6e;">ℹ️ <?php p($l->t('Mandatory Configuration Items')); ?></strong>
+				<p style="margin: 8px 0 0 0; color: #0c4a6e; font-size: 0.9em;">
+					<?php p($l->t('Your administrator has enabled the following mandatory CI classes that cannot be disabled:')); ?>
+				</p>
+				<ul style="margin: 8px 0 0 20px; color: #0c4a6e; font-size: 0.9em;">
+					<?php foreach ($_['forced_ci_classes'] as $className): ?>
+						<li><?php p(isset($ciClassLabels[$className]) ? $ciClassLabels[$className] : $className); ?></li>
+					<?php endforeach; ?>
+				</ul>
+			</div>
+			<?php endif; ?>
+			
+			<?php if (!empty($_['user_choice_ci_classes'])): ?>
 			<div id="ci-class-user-toggles" class="ci-class-user-list">
 				<?php foreach ($_['user_choice_ci_classes'] as $className): ?>
 				<div class="ci-class-user-toggle">
@@ -139,9 +322,10 @@ $ciClassLabels = [
 						</span>
 						<span class="ci-class-user-label"><?php p(isset($ciClassLabels[$className]) ? $ciClassLabels[$className] : $className); ?></span>
 					</label>
-				</div>
-				<?php endforeach; ?>
 			</div>
+			<?php endforeach; ?>
+			</div>
+			<?php endif; ?>
 		</div>
 		<?php endif; ?>
 

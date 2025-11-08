@@ -46,6 +46,11 @@ class Personal implements ISettings {
 		$navigationEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'navigation_enabled', '0') === '1';
 		$notificationEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'notification_enabled', '0') === '1';
 		$searchEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'search_enabled', '1') === '1'; // Default: enabled (opt-out)
+		
+		// Get portal notification preferences (default: enabled)
+		$notifyTicketStatusChanged = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_ticket_status_changed', '1') === '1';
+		$notifyAgentResponded = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_agent_responded', '1') === '1';
+		$notifyTicketResolved = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_ticket_resolved', '1') === '1';
 
 		// Get admin-configured display name and URL
 		$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
@@ -56,6 +61,7 @@ class Personal implements ISettings {
 		
 		// Get CI classes that users can configure (user_choice state)
 		$userChoiceCIClasses = Application::getUserChoiceCIClasses($this->config);
+		$forcedCIClasses = Application::getForcedCIClasses($this->config);
 		
 		// Get user's disabled CI classes
 		$userDisabledJson = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
@@ -66,6 +72,41 @@ class Personal implements ISettings {
 				$userDisabledClasses = [];
 			}
 		}
+		
+		// Get notification configuration (3-state system)
+		$userChoicePortalNotifications = Application::getUserChoicePortalNotifications($this->config);
+		$userChoiceAgentNotifications = Application::getUserChoiceAgentNotifications($this->config);
+		$forcedPortalNotifications = Application::getForcedPortalNotifications($this->config);
+		$forcedAgentNotifications = Application::getForcedAgentNotifications($this->config);
+		
+		// Get user's disabled notifications
+		$userDisabledPortalNotifications = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications', '');
+		$userDisabledAgentNotifications = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications', '');
+		
+		// Parse disabled notification arrays
+		$disabledPortalArray = [];
+		if ($userDisabledPortalNotifications === 'all') {
+			$disabledPortalArray = 'all';
+		} elseif ($userDisabledPortalNotifications !== '') {
+			$parsed = json_decode($userDisabledPortalNotifications, true);
+			if (is_array($parsed)) {
+				$disabledPortalArray = $parsed;
+			}
+		}
+		
+		$disabledAgentArray = [];
+		if ($userDisabledAgentNotifications === 'all') {
+			$disabledAgentArray = 'all';
+		} elseif ($userDisabledAgentNotifications !== '') {
+			$parsed = json_decode($userDisabledAgentNotifications, true);
+			if (is_array($parsed)) {
+				$disabledAgentArray = $parsed;
+			}
+		}
+		
+		// Get user's notification check interval (fallback to admin default)
+		$adminDefaultInterval = (int)$this->config->getAppValue(Application::APP_ID, 'default_notification_interval', '60');
+		$userNotificationInterval = (int)$this->config->getUserValue($this->userId, Application::APP_ID, 'notification_check_interval', (string)$adminDefaultInterval);
 
 		$parameters = [
 			'display_name' => $displayName,
@@ -76,8 +117,21 @@ class Personal implements ISettings {
 			'navigation_enabled' => $navigationEnabled,
 			'notification_enabled' => $notificationEnabled,
 			'search_enabled' => $searchEnabled,
+			'notify_ticket_status_changed' => $notifyTicketStatusChanged,
+			'notify_agent_responded' => $notifyAgentResponded,
+			'notify_ticket_resolved' => $notifyTicketResolved,
 			'user_choice_ci_classes' => $userChoiceCIClasses,
+			'forced_ci_classes' => $forcedCIClasses,
 			'user_disabled_ci_classes' => $userDisabledClasses,
+			// 3-state notification configuration
+			'user_choice_portal_notifications' => $userChoicePortalNotifications,
+			'user_choice_agent_notifications' => $userChoiceAgentNotifications,
+			'forced_portal_notifications' => $forcedPortalNotifications,
+			'forced_agent_notifications' => $forcedAgentNotifications,
+			'disabled_portal_notifications' => $disabledPortalArray,
+			'disabled_agent_notifications' => $disabledAgentArray,
+			'notification_check_interval' => $userNotificationInterval,
+			'admin_default_interval' => $adminDefaultInterval,
 			'version' => Application::getVersion($this->appManager),
 		];
 

@@ -51,6 +51,37 @@ class Application extends App implements IBootstrap {
 	public const CI_CLASS_STATE_FORCED = 'forced';          // Enabled for all users (no opt-out)
 	public const CI_CLASS_STATE_USER_CHOICE = 'user_choice'; // Enabled but users can opt-out
 
+	/**
+	 * Notification configuration states (same as CI classes)
+	 */
+	public const NOTIFICATION_STATE_DISABLED = 'disabled';      // Not available, never sent
+	public const NOTIFICATION_STATE_FORCED = 'forced';          // Mandatory for all users (no opt-out)
+	public const NOTIFICATION_STATE_USER_CHOICE = 'user_choice'; // Enabled but users can opt-out
+
+	/**
+	 * Portal notification types (shortened values without notify_ prefix)
+	 */
+	public const PORTAL_NOTIFICATION_TYPES = [
+		'ticket_status_changed',
+		'agent_responded',
+		'ticket_resolved',
+		'agent_assigned'
+	];
+
+	/**
+	 * Agent notification types (shortened values without notify_ prefix)
+	 */
+	public const AGENT_NOTIFICATION_TYPES = [
+		'ticket_assigned',
+		'ticket_reassigned',
+		'team_unassigned_new',
+		'ticket_tto_warning',
+		'ticket_ttr_warning',
+		'ticket_sla_breach',
+		'ticket_priority_critical',
+		'ticket_comment'
+	];
+
 	private IConfig $config;
 
 	/**
@@ -141,6 +172,25 @@ class Application extends App implements IBootstrap {
 	}
 
 	/**
+	 * Get list of forced CI classes (mandatory, user cannot disable)
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @return array List of CI class names with forced state
+	 */
+	public static function getForcedCIClasses(IConfig $config): array {
+		$classConfig = self::getCIClassConfig($config);
+		$forced = [];
+
+		foreach ($classConfig as $class => $state) {
+			if ($state === self::CI_CLASS_STATE_FORCED) {
+				$forced[] = $class;
+			}
+		}
+
+		return $forced;
+	}
+
+	/**
 	 * Get effective enabled CI classes for a specific user
 	 * Forced classes: always included
 	 * User-choice classes: included unless user disabled them
@@ -171,6 +221,264 @@ class Application extends App implements IBootstrap {
 				// User-choice classes: enabled unless user disabled it
 				if (!in_array($class, $userDisabled, true)) {
 					$effective[] = $class;
+				}
+			}
+			// disabled state: skip
+		}
+
+		return $effective;
+	}
+
+	/**
+	 * Get portal notification configuration from admin settings
+	 * Returns array mapping notification types to their state (disabled/forced/user_choice)
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @return array Map of notification type => state
+	 */
+	public static function getPortalNotificationConfig(IConfig $config): array {
+		$configJson = $config->getAppValue(self::APP_ID, 'portal_notification_config', '');
+
+		if ($configJson === '') {
+			// Default: all types enabled as user_choice
+			$defaultConfig = [];
+			foreach (self::PORTAL_NOTIFICATION_TYPES as $type) {
+				$defaultConfig[$type] = self::NOTIFICATION_STATE_USER_CHOICE;
+			}
+			return $defaultConfig;
+		}
+
+		$notificationConfig = json_decode($configJson, true);
+		if (!is_array($notificationConfig)) {
+			// Fallback on invalid JSON
+			$defaultConfig = [];
+			foreach (self::PORTAL_NOTIFICATION_TYPES as $type) {
+				$defaultConfig[$type] = self::NOTIFICATION_STATE_USER_CHOICE;
+			}
+			return $defaultConfig;
+		}
+
+		// Ensure all supported types have a state
+		foreach (self::PORTAL_NOTIFICATION_TYPES as $type) {
+			if (!isset($notificationConfig[$type])) {
+				$notificationConfig[$type] = self::NOTIFICATION_STATE_USER_CHOICE;
+			}
+		}
+
+		return $notificationConfig;
+	}
+
+	/**
+	 * Get agent notification configuration from admin settings
+	 * Returns array mapping notification types to their state (disabled/forced/user_choice)
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @return array Map of notification type => state
+	 */
+	public static function getAgentNotificationConfig(IConfig $config): array {
+		$configJson = $config->getAppValue(self::APP_ID, 'agent_notification_config', '');
+
+		if ($configJson === '') {
+			// Default: most types user_choice, SLA breach/critical forced
+			$defaultConfig = [];
+			foreach (self::AGENT_NOTIFICATION_TYPES as $type) {
+				if (in_array($type, ['ticket_sla_breach', 'ticket_priority_critical'])) {
+					$defaultConfig[$type] = self::NOTIFICATION_STATE_FORCED;
+				} else {
+					$defaultConfig[$type] = self::NOTIFICATION_STATE_USER_CHOICE;
+				}
+			}
+			return $defaultConfig;
+		}
+
+		$notificationConfig = json_decode($configJson, true);
+		if (!is_array($notificationConfig)) {
+			// Fallback on invalid JSON
+			$defaultConfig = [];
+			foreach (self::AGENT_NOTIFICATION_TYPES as $type) {
+				if (in_array($type, ['ticket_sla_breach', 'ticket_priority_critical'])) {
+					$defaultConfig[$type] = self::NOTIFICATION_STATE_FORCED;
+				} else {
+					$defaultConfig[$type] = self::NOTIFICATION_STATE_USER_CHOICE;
+				}
+			}
+			return $defaultConfig;
+		}
+
+		// Ensure all supported types have a state
+		foreach (self::AGENT_NOTIFICATION_TYPES as $type) {
+			if (!isset($notificationConfig[$type])) {
+				if (in_array($type, ['ticket_sla_breach', 'ticket_priority_critical'])) {
+					$notificationConfig[$type] = self::NOTIFICATION_STATE_FORCED;
+				} else {
+					$notificationConfig[$type] = self::NOTIFICATION_STATE_USER_CHOICE;
+				}
+			}
+		}
+
+		return $notificationConfig;
+	}
+
+	/**
+	 * Get list of portal notification types where users can opt-out
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @return array List of notification types with user_choice state
+	 */
+	public static function getUserChoicePortalNotifications(IConfig $config): array {
+		$notificationConfig = self::getPortalNotificationConfig($config);
+		$userChoice = [];
+
+		foreach ($notificationConfig as $type => $state) {
+			if ($state === self::NOTIFICATION_STATE_USER_CHOICE) {
+				$userChoice[] = $type;
+			}
+		}
+
+		return $userChoice;
+	}
+
+	/**
+	 * Get list of agent notification types where users can opt-out
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @return array List of notification types with user_choice state
+	 */
+	public static function getUserChoiceAgentNotifications(IConfig $config): array {
+		$notificationConfig = self::getAgentNotificationConfig($config);
+		$userChoice = [];
+
+		foreach ($notificationConfig as $type => $state) {
+			if ($state === self::NOTIFICATION_STATE_USER_CHOICE) {
+				$userChoice[] = $type;
+			}
+		}
+
+		return $userChoice;
+	}
+
+	/**
+	 * Get list of forced (mandatory) portal notifications
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @return array List of notification types with forced state
+	 */
+	public static function getForcedPortalNotifications(IConfig $config): array {
+		$notificationConfig = self::getPortalNotificationConfig($config);
+		$forced = [];
+
+		foreach ($notificationConfig as $type => $state) {
+			if ($state === self::NOTIFICATION_STATE_FORCED) {
+				$forced[] = $type;
+			}
+		}
+
+		return $forced;
+	}
+
+	/**
+	 * Get list of forced (mandatory) agent notifications
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @return array List of notification types with forced state
+	 */
+	public static function getForcedAgentNotifications(IConfig $config): array {
+		$notificationConfig = self::getAgentNotificationConfig($config);
+		$forced = [];
+
+		foreach ($notificationConfig as $type => $state) {
+			if ($state === self::NOTIFICATION_STATE_FORCED) {
+				$forced[] = $type;
+			}
+		}
+
+		return $forced;
+	}
+
+	/**
+	 * Get effective enabled portal notifications for a specific user
+	 * Forced notifications: always included
+	 * User-choice notifications: included unless user disabled them
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @param string $userId Nextcloud user ID
+	 * @return array List of effective enabled notification types for this user
+	 */
+	public static function getEffectiveEnabledPortalNotifications(IConfig $config, string $userId): array {
+		$notificationConfig = self::getPortalNotificationConfig($config);
+		$effective = [];
+
+		// Get user-disabled notifications
+		$userDisabledJson = $config->getUserValue($userId, self::APP_ID, 'disabled_portal_notifications', '');
+		
+		// Check for master toggle off
+		if ($userDisabledJson === 'all') {
+			// Only forced notifications are active
+			return self::getForcedPortalNotifications($config);
+		}
+		
+		$userDisabled = [];
+		if ($userDisabledJson !== '') {
+			$userDisabled = json_decode($userDisabledJson, true);
+			if (!is_array($userDisabled)) {
+				$userDisabled = [];
+			}
+		}
+
+		foreach ($notificationConfig as $type => $state) {
+			if ($state === self::NOTIFICATION_STATE_FORCED) {
+				// Forced notifications: always enabled, user can't opt-out
+				$effective[] = $type;
+			} elseif ($state === self::NOTIFICATION_STATE_USER_CHOICE) {
+				// User-choice notifications: enabled unless user disabled it
+				if (!in_array($type, $userDisabled, true)) {
+					$effective[] = $type;
+				}
+			}
+			// disabled state: skip
+		}
+
+		return $effective;
+	}
+
+	/**
+	 * Get effective enabled agent notifications for a specific user
+	 * Forced notifications: always included
+	 * User-choice notifications: included unless user disabled them
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @param string $userId Nextcloud user ID
+	 * @return array List of effective enabled notification types for this user
+	 */
+	public static function getEffectiveEnabledAgentNotifications(IConfig $config, string $userId): array {
+		$notificationConfig = self::getAgentNotificationConfig($config);
+		$effective = [];
+
+		// Get user-disabled notifications
+		$userDisabledJson = $config->getUserValue($userId, self::APP_ID, 'disabled_agent_notifications', '');
+		
+		// Check for master toggle off
+		if ($userDisabledJson === 'all') {
+			// Only forced notifications are active
+			return self::getForcedAgentNotifications($config);
+		}
+		
+		$userDisabled = [];
+		if ($userDisabledJson !== '') {
+			$userDisabled = json_decode($userDisabledJson, true);
+			if (!is_array($userDisabled)) {
+				$userDisabled = [];
+			}
+		}
+
+		foreach ($notificationConfig as $type => $state) {
+			if ($state === self::NOTIFICATION_STATE_FORCED) {
+				// Forced notifications: always enabled, user can't opt-out
+				$effective[] = $type;
+			} elseif ($state === self::NOTIFICATION_STATE_USER_CHOICE) {
+				// User-choice notifications: enabled unless user disabled it
+				if (!in_array($type, $userDisabled, true)) {
+					$effective[] = $type;
 				}
 			}
 			// disabled state: skip

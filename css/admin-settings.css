@@ -598,14 +598,13 @@ input.password-style {
 
 .ci-class-config-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
     background: var(--color-background-hover);
     border: 1px solid var(--color-border);
     border-radius: 8px;
     transition: all 0.2s;
-    min-height: 50px;
 }
 
 .ci-class-config-row:hover {
@@ -617,7 +616,70 @@ input.password-style {
     display: flex;
     align-items: center;
     gap: 12px;
-    flex: 1;
+}
+
+.ci-class-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 25px;
+    height: 25px;
+}
+
+.ci-class-label {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--color-main-text);
+}
+
+/* Notification Configuration Grid (same structure as CI) */
+.notification-config-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+    .notification-config-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.notification-config-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    background: var(--color-background-hover);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.notification-config-row:hover {
+    background: var(--color-background-dark);
+    border-color: var(--color-primary-element);
+}
+
+.notification-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.notification-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 25px;
+    height: 25px;
+}
+
+.notification-label {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--color-main-text);
 }
 
 /* Toggle Switch Group - Modern Button-Based Selection */

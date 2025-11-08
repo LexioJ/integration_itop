@@ -85,9 +85,20 @@ class ConfigController extends Controller {
 		$values = $input;
 
 		// Save non-token settings first
+		$allowedKeys = [
+			'navigation_enabled',
+			'notification_enabled',
+			'search_enabled',
+			'notify_ticket_status_changed',
+			'notify_agent_responded',
+			'notify_ticket_resolved'
+		];
+		
 		foreach ($values as $key => $value) {
-			if ($key !== 'token' && $key !== 'personal_token' && $key !== 'disabled_ci_classes') {
-				$this->config->setUserValue($this->userId, Application::APP_ID, $key, $value);
+			if (in_array($key, $allowedKeys)) {
+				// Boolean values should be '0' or '1'
+				$boolValue = $value ? '1' : '0';
+				$this->config->setUserValue($this->userId, Application::APP_ID, $key, $boolValue);
 			}
 		}
 		
@@ -100,6 +111,55 @@ class ConfigController extends Controller {
 				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes');
 			} else {
 				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', json_encode($validDisabled));
+			}
+		}
+		
+		// Handle disabled portal notifications (3-state system)
+		if (isset($values['disabled_portal_notifications'])) {
+			if ($values['disabled_portal_notifications'] === 'all') {
+				// Master toggle: disable all portal notifications
+				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications', 'all');
+			} elseif (is_array($values['disabled_portal_notifications'])) {
+				$disabledPortal = array_values(array_unique($values['disabled_portal_notifications']));
+				// Validate against PORTAL_NOTIFICATION_TYPES
+				$validDisabledPortal = array_intersect($disabledPortal, Application::PORTAL_NOTIFICATION_TYPES);
+				if (empty($validDisabledPortal)) {
+					$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications');
+				} else {
+					$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications', json_encode($validDisabledPortal));
+				}
+			} else {
+				// Empty or invalid: clear disabled array (enable all)
+				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications');
+			}
+		}
+		
+		// Handle disabled agent notifications (3-state system)
+		if (isset($values['disabled_agent_notifications'])) {
+			if ($values['disabled_agent_notifications'] === 'all') {
+				// Master toggle: disable all agent notifications
+				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications', 'all');
+			} elseif (is_array($values['disabled_agent_notifications'])) {
+				$disabledAgent = array_values(array_unique($values['disabled_agent_notifications']));
+				// Validate against AGENT_NOTIFICATION_TYPES
+				$validDisabledAgent = array_intersect($disabledAgent, Application::AGENT_NOTIFICATION_TYPES);
+				if (empty($validDisabledAgent)) {
+					$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications');
+				} else {
+					$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications', json_encode($validDisabledAgent));
+				}
+			} else {
+				// Empty or invalid: clear disabled array (enable all)
+				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications');
+			}
+		}
+		
+		// Handle notification check interval
+		if (isset($values['notification_check_interval'])) {
+			$interval = (int)$values['notification_check_interval'];
+			// Validate range: 5-1440 minutes
+			if ($interval >= 5 && $interval <= 1440) {
+				$this->config->setUserValue($this->userId, Application::APP_ID, 'notification_check_interval', (string)$interval);
 			}
 		}
 
@@ -638,6 +698,116 @@ class ConfigController extends Controller {
 		$result['message'] = $this->l10n->t('Admin configuration saved');
 
 		return new DataResponse($result);
+	}
+
+	/**
+	 * Save notification interval settings with validation
+	 *
+	 * @param int $portalInterval Portal notification check interval in minutes (5-1440)
+	 * @return DataResponse
+	 */
+	public function saveNotificationSettings(int $portalInterval): DataResponse {
+		// Validation: 5 minutes to 24 hours
+		$minInterval = 5;
+		$maxInterval = 1440;
+
+		if ($portalInterval < $minInterval || $portalInterval > $maxInterval) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Portal notification interval must be between %d and %d minutes', [$minInterval, $maxInterval])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Save validated value
+		$this->config->setAppValue(Application::APP_ID, 'portal_notification_interval', (string)$portalInterval);
+
+		$this->logger->info('Notification interval settings updated', [
+			'app' => Application::APP_ID,
+			'portal_interval' => $portalInterval
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('Notification settings saved successfully'),
+			'portal_notification_interval' => $portalInterval
+		]);
+	}
+
+	/**
+	 * Save 3-state notification configuration
+	 *
+	 * @param int $defaultInterval Default notification check interval in minutes (5-1440)
+	 * @param string $portalConfig JSON-encoded portal notification configuration
+	 * @param string $agentConfig JSON-encoded agent notification configuration
+	 * @return DataResponse
+	 */
+	public function saveNotificationConfig(int $defaultInterval, string $portalConfig, string $agentConfig): DataResponse {
+		// Validate interval
+		$minInterval = 5;
+		$maxInterval = 1440;
+
+		if ($defaultInterval < $minInterval || $defaultInterval > $maxInterval) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Default notification interval must be between %d and %d minutes', [$minInterval, $maxInterval])
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Decode and validate portal config
+		$portalConfigArray = json_decode($portalConfig, true);
+		if (!is_array($portalConfigArray)) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Invalid portal notification configuration format')
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Decode and validate agent config
+		$agentConfigArray = json_decode($agentConfig, true);
+		if (!is_array($agentConfigArray)) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Invalid agent notification configuration format')
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Validate portal notification types and states
+		$validStates = [
+			Application::NOTIFICATION_STATE_DISABLED,
+			Application::NOTIFICATION_STATE_FORCED,
+			Application::NOTIFICATION_STATE_USER_CHOICE
+		];
+
+		foreach (Application::PORTAL_NOTIFICATION_TYPES as $type) {
+			if (!isset($portalConfigArray[$type]) || !in_array($portalConfigArray[$type], $validStates)) {
+				return new DataResponse([
+					'message' => $this->l10n->t('Invalid portal notification state for type: %s', [$type])
+				], Http::STATUS_BAD_REQUEST);
+			}
+		}
+
+		// Validate agent notification types and states
+		foreach (Application::AGENT_NOTIFICATION_TYPES as $type) {
+			if (!isset($agentConfigArray[$type]) || !in_array($agentConfigArray[$type], $validStates)) {
+				return new DataResponse([
+					'message' => $this->l10n->t('Invalid agent notification state for type: %s', [$type])
+				], Http::STATUS_BAD_REQUEST);
+			}
+		}
+
+		// Save all validated values
+		$this->config->setAppValue(Application::APP_ID, 'default_notification_interval', (string)$defaultInterval);
+		$this->config->setAppValue(Application::APP_ID, 'portal_notification_config', $portalConfig);
+		$this->config->setAppValue(Application::APP_ID, 'agent_notification_config', $agentConfig);
+
+		$this->logger->info('Notification configuration updated', [
+			'app' => Application::APP_ID,
+			'default_interval' => $defaultInterval,
+			'portal_config_keys' => array_keys($portalConfigArray),
+			'agent_config_keys' => array_keys($agentConfigArray)
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('Notification configuration saved successfully'),
+			'default_notification_interval' => $defaultInterval,
+			'portal_notification_config' => $portalConfigArray,
+			'agent_notification_config' => $agentConfigArray
+		]);
 	}
 
 	/**

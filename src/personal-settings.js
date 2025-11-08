@@ -21,6 +21,20 @@
 			return
 		}
 
+		// Handle notification master toggle
+		if (notificationEnabledField) {
+			notificationEnabledField.addEventListener('change', function() {
+				const notificationContent = document.getElementById('notification-settings-content')
+				if (notificationContent) {
+					if (notificationEnabledField.checked) {
+						notificationContent.style.display = ''
+					} else {
+						notificationContent.style.display = 'none'
+					}
+				}
+			})
+		}
+
 		// Check if user is configured and load data if so (use CSS class, not translated text)
 		const connectionStatusCard = document.getElementById('itop-personal-connection-status')
 		if (connectionStatusCard && connectionStatusCard.classList.contains('success')) {
@@ -230,6 +244,7 @@
 
 			const personalToken = personalTokenField.value.trim()
 			const notificationEnabled = notificationEnabledField.checked ? '1' : '0'
+			const searchEnabled = document.getElementById('itop-search-enabled')
 
 			saveButton.disabled = true
 			const originalButtonText = saveButton.innerHTML
@@ -237,6 +252,7 @@
 
 			const params = {
 				notification_enabled: notificationEnabled,
+				search_enabled: searchEnabled && searchEnabled.checked ? '1' : '0',
 			}
 
 			// Send personal_token if provided (used for identity verification only)
@@ -255,6 +271,68 @@
 				})
 				// Send disabled classes to backend
 				params.disabled_ci_classes = disabledClasses
+			}
+
+			// Collect notification preferences (3-state system)
+			// notification_enabled is used as master toggle - no need to store 'all'
+			const notificationCheckboxes = document.querySelectorAll('input[data-notification-type]')
+			if (notificationCheckboxes.length > 0) {
+				const disabledPortalNotifications = []
+				const disabledAgentNotifications = []
+
+				notificationCheckboxes.forEach(function(checkbox) {
+					if (!checkbox.checked) {
+						const notificationType = checkbox.dataset.notificationType
+						const notificationName = checkbox.dataset.notification
+
+						if (notificationType === 'portal') {
+							disabledPortalNotifications.push(notificationName)
+						} else if (notificationType === 'agent') {
+							disabledAgentNotifications.push(notificationName)
+						}
+					}
+				})
+
+				// Send disabled notification arrays to backend
+				if (disabledPortalNotifications.length > 0) {
+					params.disabled_portal_notifications = disabledPortalNotifications
+				} else {
+					// Empty array = enable all user_choice types
+					params.disabled_portal_notifications = []
+				}
+
+				if (disabledAgentNotifications.length > 0) {
+					params.disabled_agent_notifications = disabledAgentNotifications
+				} else {
+					// Empty array = enable all user_choice types
+					params.disabled_agent_notifications = []
+				}
+			}
+
+			// Collect notification check interval with validation
+			const intervalField = document.getElementById('notification-check-interval')
+			if (intervalField) {
+				const interval = parseInt(intervalField.value)
+
+				// Validate interval range
+				if (isNaN(interval) || interval < 5 || interval > 1440) {
+					saveButton.disabled = false
+					saveButton.innerHTML = originalButtonText
+
+					let errorMsg = 'Invalid notification check interval. '
+					if (isNaN(interval)) {
+						errorMsg += 'Please enter a valid number.'
+					} else if (interval < 5) {
+						errorMsg += 'Minimum value is 5 minutes.'
+					} else {
+						errorMsg += 'Maximum value is 1440 minutes (24 hours).'
+					}
+
+					showResult(errorMsg, true)
+					return
+				}
+
+				params.notification_check_interval = interval
 			}
 
 			const req = new XMLHttpRequest()

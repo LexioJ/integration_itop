@@ -123,74 +123,6 @@ class ItopAPIService {
 	}
 
 	/**
-	 * triggered by a cron job
-	 * notifies user of their number of new assigned tickets
-	 *
-	 * @return void
-	 */
-	public function checkOpenTickets(): void {
-		$this->userManager->callForAllUsers(function (IUser $user) {
-			$this->checkOpenTicketsForUser($user->getUID());
-		});
-	}
-
-	/**
-	 * Check open tickets for a user and send notifications
-	 *
-	 * @param string $userId
-	 * @return void
-	 * @throws PreConditionNotMetException
-	 */
-	private function checkOpenTicketsForUser(string $userId): void {
-		// Check if user has configured their person_id
-		$personId = $this->getPersonId($userId);
-		$notificationEnabled = ($this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0') === '1');
-
-		if ($personId && $notificationEnabled) {
-			$itopUrl = $this->getItopUrl($userId);
-			if ($itopUrl) {
-				$lastNotificationCheck = $this->config->getUserValue($userId, Application::APP_ID, 'last_open_check');
-				$lastNotificationCheck = $lastNotificationCheck === '' ? null : $lastNotificationCheck;
-
-				// Get tickets created by user that are open
-				$tickets = $this->getUserCreatedTickets($userId, $lastNotificationCheck);
-				if (!isset($tickets['error']) && count($tickets) > 0) {
-					$this->config->setUserValue($userId, Application::APP_ID, 'last_open_check', date('Y-m-d H:i:s'));
-					$nbOpen = count($tickets);
-					if ($nbOpen > 0) {
-						$this->sendNCNotification($userId, 'new_open_tickets', [
-							'nbOpen' => $nbOpen,
-							'link' => $itopUrl
-						]);
-					}
-				} elseif (isset($tickets['error-code']) && $tickets['error-code'] === Http::STATUS_UNAUTHORIZED) {
-					// Application token invalid - admin needs to reconfigure
-					$this->logger->warning('Application token appears invalid, notifications disabled', ['app' => Application::APP_ID]);
-				}
-			}
-		}
-	}
-
-	/**
-	 * @param string $userId
-	 * @param string $subject
-	 * @param array $params
-	 * @return void
-	 */
-	private function sendNCNotification(string $userId, string $subject, array $params): void {
-		$manager = $this->notificationManager;
-		$notification = $manager->createNotification();
-
-		$notification->setApp(Application::APP_ID)
-			->setUser($userId)
-			->setDateTime(new DateTime())
-			->setObject('dum', 'dum')
-			->setSubject($subject, $params);
-
-		$manager->notify($notification);
-	}
-
-	/**
 	 * Get tickets created by the current user (UserRequest + Incident)
 	 *
 	 * @param string $userId
@@ -1734,7 +1666,694 @@ class ItopAPIService {
 			}
 		}
 
-		return ['tto' => $ttoCount, 'ttr' => $ttrCount];
+	return ['tto' => $ttoCount, 'ttr' => $ttrCount];
+	}
+
+	/**
+	 * ==========================================
+	 * NOTIFICATION CHANGE DETECTION METHODS
+	 * ==========================================
+	 * Methods for detecting ticket changes via CMDBChangeOp
+	 */
+
+	/**
+	 * Convert iTop date string to Unix timestamp
+	 * iTop returns dates in server's configured timezone (from Nextcloud config)
+	 *
+	 * @param string $dateString Date string from iTop (e.g., '2024-11-08 01:45:54')
+	 * @return int Unix timestamp
+	 */
+	private function itopDateToTimestamp(string $dateString): int {
+		if (empty($dateString)) {
+			return 0;
+		}
+
+		// Get Nextcloud's configured timezone (iTop should match this)
+		$timezoneStr = $this->config->getSystemValue('default_timezone', 'UTC');
+		try {
+			$timezone = new \DateTimeZone($timezoneStr);
+		} catch (\Exception $e) {
+			// Fallback to UTC if timezone is invalid
+			$timezone = new \DateTimeZone('UTC');
+		}
+
+		$dateTime = \DateTime::createFromFormat('Y-m-d H:i:s', $dateString, $timezone);
+		if ($dateTime === false) {
+			// Fallback to strtotime if format doesn't match
+			return strtotime($dateString);
+		}
+
+		return $dateTime->getTimestamp();
+	}
+
+	/**
+	 * Get scalar attribute changes (status, priority, agent_id, SLA flags) since timestamp
+	 *
+	 * NOTE: iTop OQL does not support comparison operators on external key attributes like change->date
+	 * We fetch all changes and filter by timestamp in PHP
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param array $ticketIds Array of ticket IDs to filter (optional)
+	 * @param string|int $since Unix timestamp (integer or string) or ISO 8601 timestamp (e.g., '2025-11-05 20:00:00') - parsed by strtotime()
+	 * @param array $attcodes Attribute codes to filter (['status', 'agent_id', 'priority', 'sla_tto_passed', 'sla_ttr_passed'])
+	 * @return array Array of change operations with fields: objclass, objkey, attcode, oldvalue, newvalue, date, userinfo, user_id
+	 */
+	public function getChangeOps(string $userId, array $ticketIds, string $since, array $attcodes): array {
+		// Build ticket filter
+		$ticketFilter = '';
+		if (!empty($ticketIds)) {
+			$ticketFilter = ' AND objkey IN (' . implode(',', $ticketIds) . ')';
+		}
+
+		// Build attcode filter
+		$attcodeFilter = '';
+		if (!empty($attcodes)) {
+			$attcodeList = implode("','", $attcodes);
+			$attcodeFilter = " AND attcode IN ('$attcodeList')";
+		}
+
+		// NOTE: Cannot use "AND change->date > '$since'" - OQL syntax doesn't support comparison on external keys
+		// We filter by timestamp in PHP instead
+		$oql = "SELECT CMDBChangeOpSetAttributeScalar 
+				WHERE objclass IN ('UserRequest','Incident')
+				  $ticketFilter
+				  $attcodeFilter";
+
+		$params = [
+			'operation' => 'core/get',
+			'class' => 'CMDBChangeOpSetAttributeScalar',
+			'key' => $oql,
+			'output_fields' => '*'
+		];
+
+		$result = $this->request($userId, $params, 'POST', false); // No cache for change ops
+
+		if (!isset($result['objects'])) {
+			return [];
+		}
+
+		// Filter by timestamp in PHP (since OQL doesn't support change->date comparisons)
+		// Handle both Unix timestamps and date strings
+		$sinceTimestamp = is_numeric($since) ? (int)$since : strtotime($since);
+		$changes = [];
+		foreach ($result['objects'] as $changeOp) {
+			$fields = $changeOp['fields'] ?? [];
+			$changeDate = $fields['date'] ?? '';
+			
+			// Filter out changes before the 'since' timestamp
+			// Use timezone-aware conversion since iTop dates are in server timezone
+			if (!empty($changeDate) && $this->itopDateToTimestamp($changeDate) > $sinceTimestamp) {
+				$changes[] = [
+					'objclass' => $fields['objclass'] ?? '',
+					'objkey' => $fields['objkey'] ?? '',
+					'attcode' => $fields['attcode'] ?? '',
+					'oldvalue' => $fields['oldvalue'] ?? '',
+					'newvalue' => $fields['newvalue'] ?? '',
+					'date' => $changeDate,
+					'userinfo' => $fields['userinfo'] ?? '',
+					'user_id' => $fields['user_id'] ?? ''
+				];
+			}
+		}
+
+		// Sort by date descending (newest first) to prioritize recent changes before rate limiting
+		usort($changes, function($a, $b) {
+			return $this->itopDateToTimestamp($b['date']) <=> $this->itopDateToTimestamp($a['date']);
+		});
+
+		return $changes;
+	}
+
+	/**
+	 * Get case log changes (public_log, private_log) since timestamp
+	 *
+	 * IMPORTANT: Uses CMDBChangeOpSetAttributeCaseLog class (different from scalar changes)
+	 * NOTE: iTop OQL does not support comparison operators on external key attributes like change->date
+	 * We fetch all log changes and filter by timestamp in PHP
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param array $ticketIds Array of ticket IDs to filter
+	 * @param string|int $since Unix timestamp (integer or string) or ISO 8601 timestamp - parsed by strtotime()
+	 * @param array $logAttributes ['public_log', 'private_log']
+	 * @return array Array of log changes with fields: objclass, objkey, attcode, lastentry, date, userinfo, user_id
+	 */
+	public function getCaseLogChanges(string $userId, array $ticketIds, string $since, array $logAttributes): array {
+		if (empty($ticketIds)) {
+			return [];
+		}
+
+		$ticketIdList = implode(',', $ticketIds);
+		$logAttrList = implode("','", $logAttributes);
+
+		// NOTE: Cannot use "AND change->date > '$since'" - OQL syntax doesn't support comparison on external keys
+		// We filter by timestamp in PHP instead
+		$oql = "SELECT CMDBChangeOpSetAttributeCaseLog 
+				WHERE objclass IN ('UserRequest','Incident')
+				  AND objkey IN ($ticketIdList)
+				  AND attcode IN ('$logAttrList')
+				  AND user_id != ''";
+
+		$params = [
+			'operation' => 'core/get',
+			'class' => 'CMDBChangeOpSetAttributeCaseLog',
+			'key' => $oql,
+			'output_fields' => '*'
+		];
+
+		$result = $this->request($userId, $params, 'POST', false); // No cache
+
+		$this->logger->debug('getCaseLogChanges API result', [
+			'app' => Application::APP_ID,
+			'since' => $since,
+			'ticketCount' => count($ticketIds),
+			'resultCode' => $result['code'] ?? 'missing',
+			'objectCount' => isset($result['objects']) ? count($result['objects']) : 0,
+			'oql' => $oql
+		]);
+
+		if (!isset($result['objects'])) {
+			return [];
+		}
+
+		// Filter by timestamp in PHP (since OQL doesn't support change->date comparisons)
+		// Handle both Unix timestamps and date strings
+		$sinceTimestamp = is_numeric($since) ? (int)$since : strtotime($since);
+		$changes = [];
+		foreach ($result['objects'] as $changeOp) {
+			$fields = $changeOp['fields'] ?? [];
+			$changeDate = $fields['date'] ?? '';
+			
+			// Filter out changes before the 'since' timestamp
+			// Use timezone-aware conversion since iTop dates are in server timezone
+			if (!empty($changeDate) && $this->itopDateToTimestamp($changeDate) > $sinceTimestamp) {
+				$changes[] = [
+					'objclass' => $fields['objclass'] ?? '',
+					'objkey' => $fields['objkey'] ?? '',
+					'attcode' => $fields['attcode'] ?? '',
+					'lastentry' => $fields['lastentry'] ?? '',
+					'date' => $changeDate,
+					'userinfo' => $fields['userinfo'] ?? '',
+					'user_id' => $fields['user_id'] ?? ''
+				];
+			}
+		}
+
+		// Sort by date descending (newest first) to prioritize recent changes before rate limiting
+		usort($changes, function($a, $b) {
+			return $this->itopDateToTimestamp($b['date']) <=> $this->itopDateToTimestamp($a['date']);
+		});
+
+		return $changes;
+	}
+
+	/**
+	 * Resolve User IDs to friendly names
+	 * Uses 24-hour cache to minimize API calls
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param array $userIds Array of iTop User IDs to resolve
+	 * @return array Associative array mapping user_id => friendlyname
+	 */
+	public function resolveUserNames(string $userId, array $userIds): array {
+		if (empty($userIds)) {
+			return [];
+		}
+
+		// Filter out invalid IDs (0, empty, etc.)
+		$validIds = array_filter($userIds, function($id) {
+			return !empty($id) && $id != '0';
+		});
+
+		if (empty($validIds)) {
+			return [];
+		}
+
+		$mapping = [];
+		$uncachedIds = [];
+
+		// Check cache for each user ID
+		foreach ($validIds as $id) {
+			$cacheKey = 'user_name_' . $id;
+			$cachedName = $this->cache->get($cacheKey);
+			if ($cachedName !== null) {
+				$mapping[$id] = $cachedName;
+			} else {
+				$uncachedIds[] = $id;
+			}
+		}
+
+		// Fetch uncached names from API
+		// Note: agent_id typically references Person, not User
+		if (!empty($uncachedIds)) {
+			$idList = implode(',', $uncachedIds);
+			$params = [
+				'operation' => 'core/get',
+				'class' => 'Person',
+				'key' => "SELECT Person WHERE id IN ($idList)",
+				'output_fields' => 'id,friendlyname'
+			];
+
+			$result = $this->request($userId, $params, 'POST', false);
+			
+			$this->logger->debug('Resolved person names', [
+				'app' => Application::APP_ID,
+				'requestedIds' => $uncachedIds,
+				'resultCode' => $result['code'] ?? 'missing',
+				'objectCount' => isset($result['objects']) ? count($result['objects']) : 0
+			]);
+			
+			if (isset($result['objects'])) {
+				foreach ($result['objects'] as $user) {
+					$id = $user['fields']['id'] ?? $user['key'];
+					$name = $user['fields']['friendlyname'] ?? '';
+					if ($id && $name) {
+						$mapping[$id] = $name;
+						// Cache for 24 hours (86400 seconds)
+						$this->cache->set('user_name_' . $id, $name, 86400);
+					}
+				}
+			}
+		}
+
+		return $mapping;
+	}
+
+	/**
+	 * Get user's ticket IDs (for filtering change operations)
+	 *
+	 * Includes:
+	 * - Portal: tickets where user is caller OR linked as contact with role_code IN ('manual', 'computed')
+	 * - Agent: tickets where user is caller, assigned, OR linked as contact
+	 * - Excludes: contacts with role_code = 'do_not_notify'
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param bool $portalOnly If true, only return tickets where user is caller/contact; if false, include assigned tickets
+	 * @param bool $includeResolved If true, also include recently resolved tickets (for detecting resolution notifications)
+	 * @return array Array of ticket IDs
+	 */
+	public function getUserTicketIds(string $userId, bool $portalOnly = true, bool $includeResolved = false): array {
+		$personId = $this->getPersonId($userId);
+		if (!$personId) {
+			return [];
+		}
+
+		$ticketIds = [];
+
+		// Build status filter
+		$statusFilter = $includeResolved 
+			? "operational_status IN ('ongoing','resolved')" 
+			: "operational_status = 'ongoing'";
+
+		// Get UserRequest IDs where user is caller
+		if ($portalOnly) {
+			$userRequestOql = "SELECT UserRequest WHERE caller_id = '$personId' AND $statusFilter";
+		} else {
+			// Agent: tickets where caller OR assigned
+			$userRequestOql = "SELECT UserRequest WHERE (caller_id = '$personId' OR agent_id = '$personId') AND $statusFilter";
+		}
+
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => $userRequestOql,
+			'output_fields' => 'id'
+		];
+
+		$userRequestResult = $this->request($userId, $userRequestParams, 'POST', false);
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $ticket) {
+				$ticketIds[] = $ticket['fields']['id'] ?? $ticket['key'];
+			}
+		}
+
+		// Get Incident IDs where user is caller
+		if ($portalOnly) {
+			$incidentOql = "SELECT Incident WHERE caller_id = '$personId' AND $statusFilter";
+		} else {
+			// Agent: tickets where caller OR assigned
+			$incidentOql = "SELECT Incident WHERE (caller_id = '$personId' OR agent_id = '$personId') AND $statusFilter";
+		}
+
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => $incidentOql,
+			'output_fields' => 'id'
+		];
+
+		$incidentResult = $this->request($userId, $incidentParams, 'POST', false);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $ticket) {
+				$ticketIds[] = $ticket['fields']['id'] ?? $ticket['key'];
+			}
+		}
+
+		// Portal only: Also get tickets where user is linked as contact (not 'do_not_notify')
+		if ($portalOnly) {
+			$contactLinkParams = [
+				'operation' => 'core/get',
+				'class' => 'lnkContactToTicket',
+				'key' => "SELECT lnkContactToTicket WHERE contact_id = '$personId' AND role_code IN ('manual', 'computed')",
+				'output_fields' => 'ticket_id'
+			];
+
+			$contactLinkResult = $this->request($userId, $contactLinkParams, 'POST', false);
+			if (isset($contactLinkResult['objects'])) {
+				// Extract ticket IDs from contact links
+				$contactTicketIds = [];
+				foreach ($contactLinkResult['objects'] as $link) {
+					$ticketId = $link['fields']['ticket_id'] ?? null;
+					if ($ticketId) {
+						$contactTicketIds[] = $ticketId;
+					}
+				}
+
+				// Filter these ticket IDs by status (only keep ongoing/resolved based on $includeResolved)
+				if (!empty($contactTicketIds)) {
+					$contactTicketIdList = implode(',', $contactTicketIds);
+					
+					// Query Ticket class (parent of UserRequest and Incident) to check status
+					$ticketStatusParams = [
+						'operation' => 'core/get',
+						'class' => 'Ticket',
+						'key' => "SELECT Ticket WHERE id IN ($contactTicketIdList) AND $statusFilter",
+						'output_fields' => 'id'
+					];
+
+					$ticketStatusResult = $this->request($userId, $ticketStatusParams, 'POST', false);
+					if (isset($ticketStatusResult['objects'])) {
+						foreach ($ticketStatusResult['objects'] as $ticket) {
+							$ticketIds[] = $ticket['fields']['id'] ?? $ticket['key'];
+						}
+					}
+				}
+			}
+		}
+
+	return array_unique($ticketIds);
+	}
+
+	/**
+	 * Get agent ticket IDs (tickets assigned to this agent)
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param bool $includeResolved If true, also include recently resolved tickets
+	 * @return array Array of ticket IDs
+	 */
+	public function getAgentTicketIds(string $userId, bool $includeResolved = false): array {
+		$personId = $this->getPersonId($userId);
+		if (!$personId) {
+			return [];
+		}
+
+		$ticketIds = [];
+
+		// Build status filter
+		$statusFilter = $includeResolved 
+			? "operational_status IN ('ongoing','resolved')" 
+			: "operational_status = 'ongoing'";
+
+		// Get UserRequest IDs where user is assigned agent
+		$userRequestOql = "SELECT UserRequest WHERE agent_id = '$personId' AND $statusFilter";
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => $userRequestOql,
+			'output_fields' => 'id'
+		];
+
+		$userRequestResult = $this->request($userId, $userRequestParams, 'POST', false);
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $ticket) {
+				$ticketIds[] = $ticket['fields']['id'] ?? $ticket['key'];
+			}
+		}
+
+		// Get Incident IDs where user is assigned agent
+		$incidentOql = "SELECT Incident WHERE agent_id = '$personId' AND $statusFilter";
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => $incidentOql,
+			'output_fields' => 'id'
+		];
+
+		$incidentResult = $this->request($userId, $incidentParams, 'POST', false);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $ticket) {
+				$ticketIds[] = $ticket['fields']['id'] ?? $ticket['key'];
+			}
+		}
+
+	return array_unique($ticketIds);
+	}
+
+	/**
+	 * Get tickets approaching SLA deadlines using crossing-time algorithm
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param string $type 'tto' or 'ttr'
+	 * @param string $scope 'my' (assigned to me) or 'team_unassigned' (team tickets without agent)
+	 * @param int $lastCheck Last check Unix timestamp
+	 * @param int $now Current Unix timestamp
+	 * @return array Array of tickets with crossed thresholds, format: [['ticket_id' => 123, 'ticket_class' => 'UserRequest', 'level' => 24, 'deadline' => '2025-11-10 12:00:00'], ...]
+	 */
+	public function getTicketsApproachingDeadline(
+		string $userId,
+		string $type, // 'tto' or 'ttr'
+		string $scope, // 'my' or 'team_unassigned'
+		int $lastCheck,
+		int $now
+	): array {
+		$personId = $this->getPersonId($userId);
+		if (!$personId) {
+			return [];
+		}
+
+		$deadlineField = $type === 'tto' ? 'tto_escalation_deadline' : 'ttr_escalation_deadline';
+		$tickets = [];
+
+		// Build OQL based on scope
+		if ($scope === 'my') {
+			// My assigned tickets
+			$userRequestOql = "SELECT UserRequest WHERE agent_id = '$personId' AND operational_status = 'ongoing' AND $deadlineField != ''";
+			$incidentOql = "SELECT Incident WHERE agent_id = '$personId' AND operational_status = 'ongoing' AND $deadlineField != ''";
+		} elseif ($scope === 'team_unassigned') {
+			// Team tickets without agent assignment
+			$teams = $this->getUserTeams($userId);
+			if (empty($teams)) {
+				return [];
+			}
+			// Extract team IDs
+			$teamIds = array_column($teams, 'id');
+			$teamIdList = implode(',', $teamIds);
+			$userRequestOql = "SELECT UserRequest WHERE team_id IN ($teamIdList) AND (agent_id = 0 OR agent_id IS NULL) AND operational_status = 'ongoing' AND $deadlineField != ''";
+			$incidentOql = "SELECT Incident WHERE team_id IN ($teamIdList) AND (agent_id = 0 OR agent_id IS NULL) AND operational_status = 'ongoing' AND $deadlineField != ''";
+		} else {
+			return [];
+		}
+
+		// Query UserRequest tickets
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => $userRequestOql,
+			'output_fields' => "id,$deadlineField"
+		];
+
+		$userRequestResult = $this->request($userId, $userRequestParams, 'POST', false);
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $ticket) {
+				$ticketId = $ticket['fields']['id'] ?? $ticket['key'];
+				$deadline = $ticket['fields'][$deadlineField] ?? '';
+				if (!empty($deadline)) {
+					$tickets[] = [
+						'ticket_id' => $ticketId,
+						'ticket_class' => 'UserRequest',
+						'deadline' => $deadline
+					];
+				}
+			}
+		}
+
+		// Query Incident tickets
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => $incidentOql,
+			'output_fields' => "id,$deadlineField"
+		];
+
+		$incidentResult = $this->request($userId, $incidentParams, 'POST', false);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $ticket) {
+				$ticketId = $ticket['fields']['id'] ?? $ticket['key'];
+				$deadline = $ticket['fields'][$deadlineField] ?? '';
+				if (!empty($deadline)) {
+					$tickets[] = [
+						'ticket_id' => $ticketId,
+						'ticket_class' => 'Incident',
+						'deadline' => $deadline
+					];
+				}
+			}
+		}
+
+		// Apply crossing-time algorithm to detect which thresholds were crossed
+		return $this->applyCrossingTimeAlgorithm($tickets, $lastCheck, $now);
+	}
+
+	/**
+	 * Apply crossing-time algorithm to detect which SLA thresholds were crossed
+	 * Weekend-aware: Friday uses 72h for 24h threshold, Saturday uses 48h
+	 *
+	 * @param array $tickets Array of tickets with deadline field
+	 * @param int $lastCheck Last check Unix timestamp
+	 * @param int $now Current Unix timestamp
+	 * @return array Array of tickets with crossed threshold levels
+	 */
+	private function applyCrossingTimeAlgorithm(array $tickets, int $lastCheck, int $now): array {
+		$results = [];
+
+		// Get day of week for weekend-aware thresholds (1=Mon, 5=Fri, 6=Sat, 7=Sun)
+		$dayOfWeek = (int)date('N', $now);
+
+		// Base thresholds in seconds: 24h, 12h, 4h, 1h
+		$thresholds = [24 * 3600, 12 * 3600, 4 * 3600, 1 * 3600];
+
+		// Weekend expansion for 24h threshold
+		if ($dayOfWeek === 5) {
+			// Friday: expand 24h to 72h (catches Monday/Tuesday breaches)
+			$thresholds[0] = 72 * 3600;
+		} elseif ($dayOfWeek === 6) {
+			// Saturday: expand 24h to 48h (catches Sunday/Monday breaches)
+			$thresholds[0] = 48 * 3600;
+		}
+
+		foreach ($tickets as $ticket) {
+			$deadlineTimestamp = $this->itopDateToTimestamp($ticket['deadline']);
+			if ($deadlineTimestamp <= 0) {
+				continue;
+			}
+
+			// Find the most urgent threshold that was crossed (smallest threshold)
+			$crossedLevel = null;
+
+			foreach ($thresholds as $threshold) {
+				$crossingTime = $deadlineTimestamp - $threshold;
+
+				// Check if this threshold was crossed since last check
+				if ($lastCheck < $crossingTime && $crossingTime <= $now) {
+					// This threshold was crossed - convert back to hours for notification
+					$levelHours = (int)($threshold / 3600);
+					
+					// Only keep the most urgent (smallest) threshold
+					if ($crossedLevel === null || $levelHours < $crossedLevel) {
+						$crossedLevel = $levelHours;
+					}
+				}
+			}
+
+			// If a threshold was crossed, add to results
+			if ($crossedLevel !== null) {
+				$results[] = [
+					'ticket_id' => $ticket['ticket_id'],
+					'ticket_class' => $ticket['ticket_class'],
+					'level' => $crossedLevel,
+					'deadline' => $ticket['deadline']
+				];
+			}
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Get tickets that were newly assigned to teams (without an agent) since last check
+	 * 
+	 * @param string $userId Nextcloud user ID
+	 * @param array $teamIds Array of team IDs to monitor
+	 * @param int $lastCheckTimestamp Last check Unix timestamp
+	 * @return array Array of team assignment changes: [['ticket_id' => 123, 'ticket_class' => 'UserRequest', 'team_id' => 5, 'timestamp' => '2025-11-08 12:00:00'], ...]
+	 */
+	public function getTeamAssignmentChanges(string $userId, array $teamIds, int $lastCheckTimestamp): array {
+		if (empty($teamIds)) {
+			return [];
+		}
+
+		$results = [];
+		$teamIdList = implode(',', $teamIds);
+
+		// Strategy: Query for team_id changes where tickets became assigned to user's teams
+		// AND agent_id is still NULL/0 (unassigned)
+		$changes = $this->getChangeOps($userId, [], $lastCheckTimestamp, ['team_id']);
+
+		if (empty($changes)) {
+			return [];
+		}
+
+		// Filter for changes where ticket was assigned to one of user's teams
+		$relevantTicketIds = [];
+		foreach ($changes as $change) {
+			if ($change['attcode'] !== 'team_id') {
+				continue;
+			}
+
+			// Check if new team_id is one of user's teams
+			if (in_array($change['newvalue'], $teamIds)) {
+				$relevantTicketIds[$change['objkey']] = [
+					'ticket_id' => $change['objkey'],
+					'ticket_class' => $change['objclass'],
+					'team_id' => $change['newvalue'],
+					'timestamp' => $change['date']
+				];
+			}
+		}
+
+		if (empty($relevantTicketIds)) {
+			return [];
+		}
+
+		// Now verify these tickets are still unassigned (agent_id = NULL or 0)
+		$ticketIdList = implode(',', array_keys($relevantTicketIds));
+
+		// Query UserRequests
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => "SELECT UserRequest WHERE id IN ($ticketIdList) AND (agent_id = 0 OR agent_id IS NULL) AND operational_status = 'ongoing'",
+			'output_fields' => 'id,team_id'
+		];
+
+		$userRequestResult = $this->request($userId, $userRequestParams, 'POST', false);
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $ticket) {
+				$ticketId = $ticket['fields']['id'] ?? $ticket['key'];
+				if (isset($relevantTicketIds[$ticketId])) {
+					$results[] = $relevantTicketIds[$ticketId];
+				}
+			}
+		}
+
+		// Query Incidents
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => "SELECT Incident WHERE id IN ($ticketIdList) AND (agent_id = 0 OR agent_id IS NULL) AND operational_status = 'ongoing'",
+			'output_fields' => 'id,team_id'
+		];
+
+		$incidentResult = $this->request($userId, $incidentParams, 'POST', false);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $ticket) {
+				$ticketId = $ticket['fields']['id'] ?? $ticket['key'];
+				if (isset($relevantTicketIds[$ticketId])) {
+					$results[] = $relevantTicketIds[$ticketId];
+				}
+			}
+		}
+
+		return $results;
 	}
 
 }

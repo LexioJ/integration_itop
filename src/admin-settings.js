@@ -92,6 +92,26 @@
 			}
 		})
 
+		// Notification settings (legacy)
+		const saveNotificationButton = document.getElementById('save-notification-settings')
+
+		if (saveNotificationButton) {
+			saveNotificationButton.addEventListener('click', function(e) {
+				e.preventDefault()
+				saveNotificationSettings()
+			})
+		}
+
+		// Notification configuration (3-state)
+		const saveNotificationConfigButton = document.getElementById('save-notification-config')
+
+		if (saveNotificationConfigButton) {
+			saveNotificationConfigButton.addEventListener('click', function(e) {
+				e.preventDefault()
+				saveNotificationConfig()
+			})
+		}
+
 		// Cache settings
 		const saveCacheButton = document.getElementById('save-cache-settings')
 		const clearCacheButton = document.getElementById('clear-all-cache')
@@ -125,6 +145,16 @@
 			toggleAllButton.addEventListener('click', function(e) {
 				e.preventDefault()
 				toggleAllCIClasses()
+			})
+		}
+
+		// Notification toggle all button
+		const toggleAllNotificationsButton = document.getElementById('toggle-all-notifications')
+
+		if (toggleAllNotificationsButton) {
+			toggleAllNotificationsButton.addEventListener('click', function(e) {
+				e.preventDefault()
+				toggleAllNotifications()
 			})
 		}
 
@@ -382,6 +412,102 @@
 	}
 
 	/**
+	 * Save notification settings (legacy)
+	 */
+	function saveNotificationSettings() {
+
+		const saveButton = document.getElementById('save-notification-settings')
+		const portalInterval = parseInt(document.getElementById('portal-notification-interval').value)
+
+		saveButton.disabled = true
+		const originalText = saveButton.innerHTML
+		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
+
+		fetch(OC.generateUrl('/apps/integration_itop/notification-settings'), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				requesttoken: OC.requestToken,
+			},
+			body: JSON.stringify({ portalInterval }),
+		})
+			.then(response => {
+				if (!response.ok) throw new Error('Server error')
+				return response.json()
+			})
+			.then(data => {
+				showNotification(t('integration_itop', 'Notification settings saved'), false)
+			})
+			.catch(() => {
+				showNotification(t('integration_itop', 'Error saving notification settings'), true)
+			})
+			.finally(() => {
+				saveButton.disabled = false
+				saveButton.innerHTML = originalText
+			})
+	}
+
+	/**
+	 * Save notification configuration (3-state)
+	 */
+	function saveNotificationConfig() {
+
+		const saveButton = document.getElementById('save-notification-config')
+		const defaultInterval = parseInt(document.getElementById('default-notification-interval').value)
+
+		// Collect portal notification states
+		const portalConfig = {}
+		document.querySelectorAll('.state-toggle-group[data-notification-type="portal"]').forEach(group => {
+			const notificationType = group.dataset.notification
+			const activeButton = group.querySelector('.state-button.active')
+			if (activeButton) {
+				portalConfig[notificationType] = activeButton.dataset.state
+			}
+		})
+
+		// Collect agent notification states
+		const agentConfig = {}
+		document.querySelectorAll('.state-toggle-group[data-notification-type="agent"]').forEach(group => {
+			const notificationType = group.dataset.notification
+			const activeButton = group.querySelector('.state-button.active')
+			if (activeButton) {
+				agentConfig[notificationType] = activeButton.dataset.state
+			}
+		})
+
+		saveButton.disabled = true
+		const originalText = saveButton.innerHTML
+		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
+
+		fetch(OC.generateUrl('/apps/integration_itop/notification-config'), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				requesttoken: OC.requestToken,
+			},
+			body: JSON.stringify({
+				defaultInterval,
+				portalConfig: JSON.stringify(portalConfig),
+				agentConfig: JSON.stringify(agentConfig)
+			}),
+		})
+			.then(response => {
+				if (!response.ok) throw new Error('Server error')
+				return response.json()
+			})
+			.then(data => {
+				showNotification(t('integration_itop', 'Notification configuration saved'), false)
+			})
+			.catch(() => {
+				showNotification(t('integration_itop', 'Error saving notification configuration'), true)
+			})
+			.finally(() => {
+				saveButton.disabled = false
+				saveButton.innerHTML = originalText
+			})
+	}
+
+	/**
 	 * Save cache settings
 	 */
 	function saveCacheSettings() {
@@ -464,8 +590,8 @@
 		const saveButton = document.getElementById('save-ci-classes')
 		const config = {}
 
-		// Collect current state from all toggle groups
-		document.querySelectorAll('.state-toggle-group').forEach(group => {
+		// Collect current state from CI class toggle groups only
+		document.querySelectorAll('.state-toggle-group[data-class]').forEach(group => {
 			const className = group.dataset.class
 			const activeButton = group.querySelector('.state-button.active')
 			if (activeButton) {
@@ -477,13 +603,13 @@
 		const originalText = saveButton.innerHTML
 		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config'), {
-			method: 'PUT',
+		fetch(OC.generateUrl('/apps/integration_itop/ci-class-config'), {
+			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				requesttoken: OC.requestToken,
 			},
-			body: JSON.stringify({ values: { ci_class_config: config } }),
+			body: JSON.stringify({ classConfig: config }),
 		})
 			.then(response => {
 				if (!response.ok) throw new Error('Server error')
@@ -509,7 +635,8 @@
 		// Check current state - if any are disabled, enable all to 'forced'
 		// If all are forced, toggle to 'user_choice'
 		// If all are user_choice, toggle to 'disabled'
-		const groups = document.querySelectorAll('.state-toggle-group')
+		// Only select CI class toggle groups (those with data-class attribute)
+		const groups = document.querySelectorAll('.state-toggle-group[data-class]')
 		const states = []
 		groups.forEach(group => {
 			const activeButton = group.querySelector('.state-button.active')
@@ -526,7 +653,42 @@
 			targetState = 'disabled'
 		}
 
-		// Update all groups
+		// Update all CI class groups only
+		groups.forEach(group => {
+			group.querySelectorAll('.state-button').forEach(btn => {
+				btn.classList.remove('active')
+				if (btn.dataset.state === targetState) {
+					btn.classList.add('active')
+				}
+			})
+		})
+	}
+
+	/**
+	 * Toggle all notifications (Portal + Agent) to next state
+	 */
+	function toggleAllNotifications() {
+
+		// Get all notification toggle groups (both portal and agent)
+		const groups = document.querySelectorAll('.state-toggle-group[data-notification-type]')
+		const states = []
+		groups.forEach(group => {
+			const activeButton = group.querySelector('.state-button.active')
+			if (activeButton) {
+				states.push(activeButton.dataset.state)
+			}
+		})
+
+		// Determine target state using same cycle as CI classes
+		// disabled -> forced -> user_choice -> disabled
+		let targetState = 'forced'
+		if (states.every(s => s === 'forced')) {
+			targetState = 'user_choice'
+		} else if (states.every(s => s === 'user_choice')) {
+			targetState = 'disabled'
+		}
+
+		// Update all notification groups
 		groups.forEach(group => {
 			group.querySelectorAll('.state-button').forEach(btn => {
 				btn.classList.remove('active')
