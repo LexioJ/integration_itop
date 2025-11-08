@@ -108,7 +108,7 @@ $ciClassLabels = [
 
 		<!-- Search Settings -->
 		<div class="field search-section">
-			<h4><?php p($l->t('🔎 Search Settings')); ?></h4>
+			<h4>🔎 <?php p($l->t('Search Settings')); ?></h4>
 			<p class="hint"><?php p($l->t('Search your %s tickets from the search bar (tickets you created or are assigned to you)',[$_['display_name']])); ?></p>
 			<div class="notification-user-list">
 				<div class="notification-user-toggle">
@@ -120,9 +120,9 @@ $ciClassLabels = [
 			</div>
 		</div>
 
-		<!-- Notification Settings (3-State System) -->
+		<!-- Notification Settings -->
 		<div class="field notification-section">
-			<h4><?php p($l->t('🔔 Notification Settings')); ?></h4>
+			<h4>🔔 <?php p($l->t('Notification Settings')); ?></h4>
 			<p class="hint"><?php p($l->t('Receive notifications about ticket updates and changes')); ?></p>
 			
 			<!-- Master toggle for all notifications -->
@@ -285,7 +285,7 @@ $ciClassLabels = [
 
 		<?php if (!empty($_['user_choice_ci_classes'])): ?>
 		<div class="field ci-class-preferences">
-			<h4><?php p($l->t('🎯 Configuration Item Classes')); ?></h4>
+			<h4>🎯 <?php p($l->t('Configuration Item Classes')); ?></h4>
 			<p class="hint"><?php p($l->t('Choose which CI types you want to see in search, smart picker, and previews')); ?></p>
 			<div id="ci-class-user-toggles" class="ci-class-user-list">
 				<?php foreach ($_['user_choice_ci_classes'] as $className): ?>

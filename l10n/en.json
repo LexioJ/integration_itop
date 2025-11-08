@@ -272,6 +272,7 @@
     "Search Results Cache TTL (seconds)": "Search Results Cache TTL (seconds)",
     "Search cache TTL must be between %d and %d seconds": "Search cache TTL must be between %d and %d seconds",
     "Search tickets and CIs from Nextcloud search": "Search tickets and CIs from Nextcloud search",
+    "Search Settings": "Search Settings",
     "Search your %s tickets from the search bar (tickets you created or are assigned to you)": "Search your %s tickets from the search bar (tickets you created or are assigned to you)",
     "Security:": "Security:",
     "Server URL": "Server URL",
