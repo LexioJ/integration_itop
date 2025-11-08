@@ -1976,6 +1976,12 @@ class ItopAPIService {
 			];
 
 			$contactLinkResult = $this->request($userId, $contactLinkParams, 'POST', false);
+			$this->logger->debug('Contact link query result', [
+				'app' => 'integration_itop',
+				'userId' => $userId,
+				'personId' => $personId,
+				'result' => $contactLinkResult
+			]);
 			if (isset($contactLinkResult['objects'])) {
 				// Extract ticket IDs from contact links
 				$contactTicketIds = [];
