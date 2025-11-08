@@ -1976,11 +1976,11 @@ class ItopAPIService {
 			];
 
 			$contactLinkResult = $this->request($userId, $contactLinkParams, 'POST', false);
-			$this->logger->debug('Contact link query result', [
+			$this->logger->info('Contact link query result', [
 				'app' => 'integration_itop',
 				'userId' => $userId,
 				'personId' => $personId,
-				'result' => $contactLinkResult
+				'contactLinkCount' => isset($contactLinkResult['objects']) ? count($contactLinkResult['objects']) : 0
 			]);
 			if (isset($contactLinkResult['objects'])) {
 				// Extract ticket IDs from contact links
@@ -2014,7 +2014,16 @@ class ItopAPIService {
 			}
 		}
 
-		return array_unique($ticketIds);
+		$uniqueTicketIds = array_unique($ticketIds);
+		$this->logger->info('getUserTicketIds final result', [
+			'app' => 'integration_itop',
+			'userId' => $userId,
+			'personId' => $personId,
+			'portalOnly' => $portalOnly,
+			'ticketCount' => count($uniqueTicketIds),
+			'ticketIds' => $uniqueTicketIds
+		]);
+		return $uniqueTicketIds;
 	}
 
 }
