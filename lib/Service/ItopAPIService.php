@@ -1899,8 +1899,13 @@ class ItopAPIService {
 	/**
 	 * Get user's ticket IDs (for filtering change operations)
 	 *
+	 * Includes:
+	 * - Portal: tickets where user is caller OR linked as contact with role_code IN ('manual', 'computed')
+	 * - Agent: tickets where user is caller, assigned, OR linked as contact
+	 * - Excludes: contacts with role_code = 'do_not_notify'
+	 *
 	 * @param string $userId Nextcloud user ID
-	 * @param bool $portalOnly If true, only return tickets where user is caller; if false, include assigned tickets
+	 * @param bool $portalOnly If true, only return tickets where user is caller/contact; if false, include assigned tickets
 	 * @param bool $includeResolved If true, also include recently resolved tickets (for detecting resolution notifications)
 	 * @return array Array of ticket IDs
 	 */
@@ -1917,7 +1922,7 @@ class ItopAPIService {
 			? "operational_status IN ('ongoing','resolved')" 
 			: "operational_status = 'ongoing'";
 
-		// Get UserRequest IDs
+		// Get UserRequest IDs where user is caller
 		if ($portalOnly) {
 			$userRequestOql = "SELECT UserRequest WHERE caller_id = '$personId' AND $statusFilter";
 		} else {
@@ -1939,7 +1944,7 @@ class ItopAPIService {
 			}
 		}
 
-		// Get Incident IDs
+		// Get Incident IDs where user is caller
 		if ($portalOnly) {
 			$incidentOql = "SELECT Incident WHERE caller_id = '$personId' AND $statusFilter";
 		} else {
@@ -1961,7 +1966,49 @@ class ItopAPIService {
 			}
 		}
 
-		return $ticketIds;
+		// Portal only: Also get tickets where user is linked as contact (not 'do_not_notify')
+		if ($portalOnly) {
+			$contactLinkParams = [
+				'operation' => 'core/get',
+				'class' => 'lnkContactToTicket',
+				'key' => "SELECT lnkContactToTicket WHERE contact_id = '$personId' AND role_code IN ('manual', 'computed')",
+				'output_fields' => 'ticket_id'
+			];
+
+			$contactLinkResult = $this->request($userId, $contactLinkParams, 'POST', false);
+			if (isset($contactLinkResult['objects'])) {
+				// Extract ticket IDs from contact links
+				$contactTicketIds = [];
+				foreach ($contactLinkResult['objects'] as $link) {
+					$ticketId = $link['fields']['ticket_id'] ?? null;
+					if ($ticketId) {
+						$contactTicketIds[] = $ticketId;
+					}
+				}
+
+				// Filter these ticket IDs by status (only keep ongoing/resolved based on $includeResolved)
+				if (!empty($contactTicketIds)) {
+					$contactTicketIdList = implode(',', $contactTicketIds);
+					
+					// Query Ticket class (parent of UserRequest and Incident) to check status
+					$ticketStatusParams = [
+						'operation' => 'core/get',
+						'class' => 'Ticket',
+						'key' => "SELECT Ticket WHERE id IN ($contactTicketIdList) AND $statusFilter",
+						'output_fields' => 'id'
+					];
+
+					$ticketStatusResult = $this->request($userId, $ticketStatusParams, 'POST', false);
+					if (isset($ticketStatusResult['objects'])) {
+						foreach ($ticketStatusResult['objects'] as $ticket) {
+							$ticketIds[] = $ticket['fields']['id'] ?? $ticket['key'];
+						}
+					}
+				}
+			}
+		}
+
+		return array_unique($ticketIds);
 	}
 
 }
