@@ -46,6 +46,7 @@ class CheckPortalTicketUpdates extends TimedJob {
 		// Run every 5 minutes
 		$this->setInterval(5 * 60);
 		$this->setTimeSensitivity(self::TIME_INSENSITIVE);
+		$this->setAllowParallelRuns(false);
 	}
 
 	/**
