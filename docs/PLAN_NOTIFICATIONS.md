@@ -942,28 +942,9 @@ $this->logger->info('Portal notification check completed', [
 
 ## Migration Path
 
-### Phase 1: Portal Notifications (Priority 1) ⚠️ **NEARLY COMPLETE**
-**Actual Time**: 14 hours (+ 2-3h for contact filtering)
-**Branch**: `feature/notification-system` (30 commits)
-
-#### Outstanding Task
-❌ **Contact Role Filtering** - Portal notifications should be sent to:
-- Users who are the direct **caller** (`caller_id`)
-- Users linked via **contacts_list** with `role_code IN ('manual', 'computed')`
-- **Exclude** users with `role_code = 'do_not_notify'`
-
-**Current Implementation**: Only queries tickets where `caller_id = person_id`
-
-**Required Changes**:
-1. Update `getUserTicketIds()` to include tickets where user is in `contacts_list`
-2. Query: `SELECT Ticket WHERE caller_id = :person_id OR id IN (SELECT ticket_id FROM lnkContactToTicket WHERE contact_id = :person_id AND role_code IN ('manual', 'computed'))`
-3. Respect `role_code = 'do_not_notify'` exclusion
-
-**Technical Details**:
-- `lnkContactToTicket` class links contacts to tickets
-- `role_code` enum values: `manual`, `computed`, `do_not_notify`
-- See screenshot: Agatha Christie linked to I-000003 with role "Do not notify" → should NOT receive notifications
-- AttributeLinkedSetIndirect relationship via `contacts_list`
+### Phase 1: Portal Notifications (Priority 1) ✅ **COMPLETE**
+**Actual Time**: 16 hours
+**Branch**: `feature/notification-system` (33 commits)
 
 #### Implementation Summary
 - ✅ **3-State Admin Configuration** (disabled/forced/user_choice) with visual grid layout matching CI class configuration
@@ -976,6 +957,7 @@ $this->logger->info('Portal notification check completed', [
 - ✅ **Background job** `CheckPortalTicketUpdates` (runs every 5 min, respects user intervals)
 - ✅ **ItopAPIService methods**: `getChangeOps()`, `getCaseLogChanges()`, `getUserTicketIds()`, `resolveUserNames()`
 - ✅ **Notifier**: 4 portal notification types (ticket_status_changed, agent_responded, ticket_resolved, agent_assigned)
+- ✅ **Contact role filtering** - notifications sent to direct callers AND contacts with role_code IN ('manual', 'computed')
 - ✅ **Timezone handling** (uses Nextcloud's default_timezone config)
 - ✅ **Self-notification filtering** (no notifications for own comments)
 - ✅ **Agent name resolution** with 24-hour caching
@@ -993,24 +975,33 @@ $this->logger->info('Portal notification check completed', [
    - User: `disabled_portal_notifications`, `disabled_agent_notifications` (JSON arrays)
    - Special case: `notification_enabled = '0'` acts as master toggle
 
-2. **Query Optimization**:
+2. **Contact Role Filtering** (Three-query approach):
+   - Query 1: Direct UserRequest/Incident tickets (`caller_id = person_id`)
+   - Query 2: Contact-linked tickets (`lnkContactToTicket WHERE contact_id = person_id AND role_code IN ('manual', 'computed')`)
+   - Query 3: Status filtering on contact-linked tickets (query Ticket parent class)
+   - Excludes: `role_code = 'do_not_notify'`
+   - Deduplication: `array_unique()` on final ticket ID list
+
+3. **Query Optimization**:
    - Early exit if all notifications disabled (no API calls)
    - Skip `getCaseLogChanges()` if `agent_responded` disabled
    - Skip `getChangeOps()` if all status/agent/resolved notifications disabled
    - Only queries for enabled notification types
 
-3. **Timestamp Handling**:
+4. **Timestamp Handling**:
    - Storage: Unix timestamps (integer strings)
    - Filtering: Proper is_numeric() check before strtotime() conversion
    - Comparison: `strtotime($changeDate) > $sinceTimestamp`
 
-4. **Deduplication**:
+5. **Deduplication**:
    - Unique object keys: `ticket_id|subject|timestamp_hash`
    - Nextcloud's notification system handles duplicate object_id prevention
    - Timestamp filtering prevents re-processing old changes
 
 **Acceptance Criteria**: ✅ ALL MET
 - ✅ Portal users receive notifications for status changes, agent responses, resolutions, agent assignments
+- ✅ Notifications sent to direct callers AND contacts (role_code IN ('manual', 'computed'))
+- ✅ Users with role_code = 'do_not_notify' excluded from notifications
 - ✅ No duplicate notifications (unique object keys + timestamp filtering)
 - ✅ Master toggle works (notification_enabled)
 - ✅ Granular toggles respected (disabled_portal_notifications array)
