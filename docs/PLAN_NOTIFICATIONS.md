@@ -942,9 +942,28 @@ $this->logger->info('Portal notification check completed', [
 
 ## Migration Path
 
-### Phase 1: Portal Notifications (Priority 1) ✅ **COMPLETE**
-**Actual Time**: 14 hours
+### Phase 1: Portal Notifications (Priority 1) ⚠️ **NEARLY COMPLETE**
+**Actual Time**: 14 hours (+ 2-3h for contact filtering)
 **Branch**: `feature/notification-system` (30 commits)
+
+#### Outstanding Task
+❌ **Contact Role Filtering** - Portal notifications should be sent to:
+- Users who are the direct **caller** (`caller_id`)
+- Users linked via **contacts_list** with `role_code IN ('manual', 'computed')`
+- **Exclude** users with `role_code = 'do_not_notify'`
+
+**Current Implementation**: Only queries tickets where `caller_id = person_id`
+
+**Required Changes**:
+1. Update `getUserTicketIds()` to include tickets where user is in `contacts_list`
+2. Query: `SELECT Ticket WHERE caller_id = :person_id OR id IN (SELECT ticket_id FROM lnkContactToTicket WHERE contact_id = :person_id AND role_code IN ('manual', 'computed'))`
+3. Respect `role_code = 'do_not_notify'` exclusion
+
+**Technical Details**:
+- `lnkContactToTicket` class links contacts to tickets
+- `role_code` enum values: `manual`, `computed`, `do_not_notify`
+- See screenshot: Agatha Christie linked to I-000003 with role "Do not notify" → should NOT receive notifications
+- AttributeLinkedSetIndirect relationship via `contacts_list`
 
 #### Implementation Summary
 - ✅ **3-State Admin Configuration** (disabled/forced/user_choice) with visual grid layout matching CI class configuration
