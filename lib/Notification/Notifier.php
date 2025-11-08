@@ -166,6 +166,159 @@ class Notifier implements INotifier {
 
 				return $notification;
 
+			// Agent notifications
+			case 'ticket_assigned':
+				$p = $notification->getSubjectParameters();
+				$ticketId = $p['ticket_id'] ?? '';
+				$ticketClass = $p['ticket_class'] ?? 'UserRequest';
+
+				$notification->setParsedSubject($l->t('Ticket assigned to you'));
+				$notification->setParsedMessage($l->t('A new ticket has been assigned to you'));
+				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
+				
+				if ($ticketId) {
+					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
+					$notification->setLink($ticketUrl);
+				}
+
+				return $notification;
+
+			case 'ticket_reassigned':
+				$p = $notification->getSubjectParameters();
+				$ticketId = $p['ticket_id'] ?? '';
+				$ticketClass = $p['ticket_class'] ?? 'UserRequest';
+
+				$notification->setParsedSubject($l->t('Ticket reassigned to you'));
+				$notification->setParsedMessage($l->t('A ticket has been reassigned to you'));
+				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
+				
+				if ($ticketId) {
+					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
+					$notification->setLink($ticketUrl);
+				}
+
+				return $notification;
+
+			case 'team_unassigned_new':
+				$p = $notification->getSubjectParameters();
+				$ticketId = $p['ticket_id'] ?? '';
+				$ticketClass = $p['ticket_class'] ?? 'UserRequest';
+				$teamName = $p['team_name'] ?? $l->t('Your team');
+
+				$notification->setParsedSubject($l->t('New unassigned ticket in %s', [$teamName]));
+				$notification->setParsedMessage($l->t('A new ticket needs assignment in %s', [$teamName]));
+				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
+				
+				if ($ticketId) {
+					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
+					$notification->setLink($ticketUrl);
+				}
+
+				return $notification;
+
+			case 'ticket_tto_warning':
+				$p = $notification->getSubjectParameters();
+				$ticketId = $p['ticket_id'] ?? '';
+				$ticketClass = $p['ticket_class'] ?? 'UserRequest';
+				$level = $p['level'] ?? 24; // hours
+
+				$icon = match($level) {
+					24 => '⏰',
+					12 => '⚠️',
+					4 => '🟠',
+					1 => '🔴',
+					default => '⚠️'
+				};
+
+				$notification->setParsedSubject($icon . ' ' . $l->t('TTO SLA warning: %dh remaining', [$level]));
+				$notification->setParsedMessage($l->t('Ticket needs assignment within %d hours', [$level]));
+				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
+				
+				if ($ticketId) {
+					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
+					$notification->setLink($ticketUrl);
+				}
+
+				return $notification;
+
+			case 'ticket_ttr_warning':
+				$p = $notification->getSubjectParameters();
+				$ticketId = $p['ticket_id'] ?? '';
+				$ticketClass = $p['ticket_class'] ?? 'UserRequest';
+				$level = $p['level'] ?? 24; // hours
+
+				$icon = match($level) {
+					24 => '⏰',
+					12 => '⚠️',
+					4 => '🟠',
+					1 => '🔴',
+					default => '⚠️'
+				};
+
+				$notification->setParsedSubject($icon . ' ' . $l->t('TTR SLA warning: %dh remaining', [$level]));
+				$notification->setParsedMessage($l->t('Ticket needs resolution within %d hours', [$level]));
+				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
+				
+				if ($ticketId) {
+					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
+					$notification->setLink($ticketUrl);
+				}
+
+				return $notification;
+
+			case 'ticket_sla_breach':
+				$p = $notification->getSubjectParameters();
+				$ticketId = $p['ticket_id'] ?? '';
+				$ticketClass = $p['ticket_class'] ?? 'UserRequest';
+				$slaType = $p['sla_type'] ?? 'SLA';
+
+				$notification->setParsedSubject('🚨 ' . $l->t('%s SLA breached', [$slaType]));
+				$notification->setParsedMessage($l->t('Ticket has breached %s SLA deadline', [$slaType]));
+				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
+				
+				if ($ticketId) {
+					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
+					$notification->setLink($ticketUrl);
+				}
+
+				return $notification;
+
+			case 'ticket_priority_critical':
+				$p = $notification->getSubjectParameters();
+				$ticketId = $p['ticket_id'] ?? '';
+				$ticketClass = $p['ticket_class'] ?? 'UserRequest';
+
+				$notification->setParsedSubject('🔴 ' . $l->t('Ticket escalated to CRITICAL'));
+				$notification->setParsedMessage($l->t('Ticket priority changed to critical'));
+				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
+				
+				if ($ticketId) {
+					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
+					$notification->setLink($ticketUrl);
+				}
+
+				return $notification;
+
+			case 'ticket_comment':
+				$p = $notification->getSubjectParameters();
+				$ticketId = $p['ticket_id'] ?? '';
+				$ticketClass = $p['ticket_class'] ?? 'UserRequest';
+				$commenterName = $p['commenter_name'] ?? $l->t('Someone');
+				$logType = $p['log_type'] ?? 'public';
+
+				$typeLabel = $logType === 'private' ? $l->t('private note') : $l->t('comment');
+
+				$notification->setParsedSubject($l->t('New %s on your ticket', [$typeLabel]));
+				$notification->setParsedMessage($l->t('%s added a %s', [$commenterName, $typeLabel]));
+				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
+				
+				if ($ticketId) {
+					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
+					$notification->setLink($ticketUrl);
+				}
+
+				return $notification;
+
 			default:
 				// Unknown subject => Unknown notification => throw
 				throw new InvalidArgumentException();

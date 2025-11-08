@@ -2,7 +2,7 @@
 
 🎟️ **Complete iTop ITSM & CMDB Integration** - Seamlessly access tickets, incidents, and Configuration Items from your Nextcloud environment
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/lexioj/integration_itop/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](https://github.com/lexioj/integration_itop/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 [![Nextcloud](https://img.shields.io/badge/Nextcloud-30+-blue)](https://nextcloud.com)
 
@@ -17,7 +17,7 @@ A comprehensive Nextcloud integration that brings iTop IT Service Management and
 - 🔗 **Rich Previews** - Paste iTop links anywhere for interactive previews
 - 💬 **Smart Suggestions** - Get CI/ticket recommendations while typing in Talk or Text
 - 📊 **Dashboard Widgets** - Portal widget for personal tickets + Agent widget for operational metrics
-- 🔔 **Notifications** - Get alerted when tickets are assigned to you
+- 🔔 **Smart Notifications** - 12 notification types with weekend-aware SLA warnings (Portal + Agent tracks)
 
 ### **For IT Teams**
 - 🏗️ **CMDB Access** - Browse Configuration Items (PCs, phones, printers, software)
@@ -140,6 +140,32 @@ Quick access to tickets and CIs when creating documents or chatting.
 - **Power Users**: Full CMDB access within iTop ACL permissions
 - **Configurable**: Admins control which CI classes are searchable
 
+### 🔔 Intelligent Notification System
+**NEW in v1.3.0** - Comprehensive notification system with 12 types across Portal and Agent tracks.
+
+**Portal Notifications** (4 types for all users):
+- `ticket_status_changed` - Track ticket lifecycle from new to resolved
+- `ticket_resolved` - Resolution notifications
+- `agent_assigned` - When an agent is assigned to your ticket
+- `agent_responded` - New public comments from IT agents
+
+**Agent Notifications** (8 types for IT staff):
+- `team_unassigned_new` - New unassigned tickets in your team's queue
+- `ticket_assigned` / `ticket_reassigned` - Ticket assignment changes
+- `ticket_tto_warning` / `ticket_ttr_warning` - SLA warnings with escalating urgency (⏰ 24h → ⚠️ 12h → 🟠 4h → 🔴 1h)
+- `ticket_sla_breach` - SLA deadline exceeded alerts
+- `ticket_priority_critical` - Critical priority escalations
+- `ticket_comment` - All comments on your tickets (public + private)
+
+**Smart Features:**
+- **Weekend-Aware**: Friday uses 72h threshold, Saturday 48h to catch Monday/Tuesday breaches
+- **Zero Duplicates**: Crossing-time algorithm prevents repeated warnings for same SLA level
+- **Configurable Intervals**: Check frequency from 5-1440 minutes (default: 15 min)
+- **3-State Control**: Admin can set notifications as Disabled/Forced/User Choice
+- **Profile-Based**: Portal users see only portal notifications; agents get both tracks
+
+See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) for complete setup and troubleshooting guide.
+
 ### ⚙️ Personal Settings Dashboard
 Professional user configuration with real-time status monitoring.
 
@@ -150,7 +176,8 @@ Professional user configuration with real-time status monitoring.
 - **User Profile**: See your iTop identity (name, email, organization, profiles)
 - **Ticket Counter**: Open incidents and user requests at a glance
 - **Secure Setup**: Token-based authentication with one-time personal token validation
-- **Feature Toggles**: Enable/disable search and notifications individually
+- **Feature Toggles**: Enable/disable search, portal notifications, and agent notifications individually
+- **Granular Control**: Per-notification-type toggles for User Choice notifications
 - **Clean Interface**: Professional theme-aware design
 
 ### 🛠️ Admin Configuration Panel
@@ -159,11 +186,16 @@ Comprehensive administration interface for system-wide configuration.
 ![Admin Settings - Connection Status](docs/images/admin-settings1.png)
 ![Admin Settings - Connection Configurations](docs/images/admin-settings2.png)
 ![Admin Settings - Class Configurations](docs/images/admin-settings3.png)
-![Admin Settings - Cache Settings](docs/images/admin-settings4.png)
+![Admin Settings - Notification Configurations](docs/images/admin-settings4.png)
+![Admin Settings - Cache Settings](docs/images/admin-settings5.png)
 **Administrative Features:**
 - **Connection Management**: iTop URL, display name, application token (encrypted)
 - **CI Class Configuration**: Enable/disable CI classes with 3-state control:
   - **Disabled**: CI class hidden from all users
+  - **Forced**: Enabled for all users (no opt-out)
+  - **User Choice**: Enabled but users can opt-out in personal settings
+- **Notification Configuration**: Enable/disable Notifications with 3-state control:
+  - **Disabled**: Notification is hidden from all users
   - **Forced**: Enabled for all users (no opt-out)
   - **User Choice**: Enabled but users can opt-out in personal settings
 - **Cache Performance Tuning**: Configurable TTLs for all cache types
@@ -304,8 +336,11 @@ lib/
 ├── Settings/
 │   ├── Admin.php                    # Admin configuration panel
 │   └── Personal.php                 # User settings interface
-└── Notification/
-    └── Notifier.php                 # Notification system
+├── Notification/
+│   └── Notifier.php                 # Notification system (12 types)
+└── BackgroundJob/
+    ├── CheckPortalTicketUpdates.php # Portal notification processor
+    └── CheckAgentTicketUpdates.php  # Agent notification processor
 
 src/
 └── views/
@@ -383,24 +418,36 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
 
 ---
 
-## 📋 What's New in v1.2.0
+## 📋 What's New in v1.3.0
 
-**Major New Feature: Dual Dashboard System** 🎉
+**Major New Feature: Intelligent Notification System** 🎉
 
 ### Added
-- **Portal Widget**: Personal ticket tracking for all users with status overview, recent ticket feed, and quick actions
-- **Agent Widget**: Comprehensive operational dashboard for IT agents with workload metrics, SLA tracking, and change management
-- **Profile-Based Display**: Automatic widget selection based on iTop user profiles (Portal vs Agent)
-- **Enhanced Ticket Display**: State-specific SVG icons, status/priority emojis, and rich hover details
-- **Dashboard Backend**: New API endpoints for SLA warnings, team queue, and change management
-- **Mobile Optimization**: Responsive design with adaptive layouts for all screen sizes
-- **Dashboard Caching**: Separate cache layer for dashboard data (default: 2min TTL)
+- **12 Notification Types**: 4 Portal + 8 Agent notification types for comprehensive ticket tracking
+- **Weekend-Aware SLA Warnings**: Friday uses 72h, Saturday 48h thresholds to prevent Monday breach surprises
+- **Crossing-Time Algorithm**: Zero duplicate warnings with smart threshold detection (24h/12h/4h/1h)
+- **Dual Background Jobs**: Independent Portal and Agent notification processors (5-min intervals)
+- **3-State Admin Control**: Configure each notification type as Disabled/Forced/User Choice
+- **Granular User Control**: Per-type toggles in personal settings with master enable/disable
+- **Team Queue Detection**: Agent notifications for new unassigned tickets in team queues
+- **SLA Breach Alerts**: Critical alerts when TTO/TTR deadlines exceeded
+- **Priority Escalation**: Automatic notifications when tickets reach critical priority
+- **OCC Testing**: Enhanced `itop:notifications:test-user` with --agent/--portal/--reset flags
+- **Comprehensive Documentation**: New [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) with setup, FAQ, and troubleshooting
 
 ### Changed
-- **Dashboard Performance**: Optimized OQL queries for faster dashboard loading
-- **Visual Hierarchy**: Improved status differentiation and metric indicators
-- **Error Handling**: Graceful fallback when API unavailable
-- **Translation Coverage**: Added 45 new strings for dashboard widgets in all supported languages
+- **Notification Display**: Escalating emoji icons based on urgency (⏰ → ⚠️ → 🟠 → 🔴 → 🚨)
+- **Personal Settings**: Agent notification section (only visible to non-portal users)
+- **Query Optimization**: Up to 100% API call reduction when notification types disabled
+- **Rate Limiting**: Max 20 notifications per user per run prevents notification spam
+- **Translation Coverage**: Added 16 new strings for agent notifications in all supported languages
+
+### Previous Release: v1.2.0 - Dual Dashboard System
+
+**Highlights:**
+- Portal Widget for personal ticket tracking
+- Agent Widget with SLA tracking and change management
+- Profile-based display with mobile optimization
 
 ### Previous Release: v1.1.0 - Configuration Item (CI) Browsing
 
@@ -433,6 +480,12 @@ See [CHANGELOG.md](CHANGELOG.md) for complete details.
 - ✅ Ensure person_id is configured (check personal settings)
 - ✅ Verify search is enabled in personal settings
 - ✅ Check CI classes are enabled in admin settings
+
+**Notifications not working**
+- ✅ Initialize background jobs after app installation (see [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md))
+- ✅ Verify cron.php is running every 5 minutes
+- ✅ Check notification types are not disabled in admin settings
+- ✅ Ensure personal settings have notifications enabled
 
 **Links not previewing**
 - ✅ Clear browser cache and Nextcloud cache
@@ -473,14 +526,19 @@ curl -X POST https://itop.company.com/webservices/rest.php \
 - [x] Dual dashboard system (Portal + Agent widgets)
 - [x] SLA tracking and team metrics
 
-### v1.3.0 (Next Release)
+### v1.3.0 (Released 2025-11-08) ✅
+- [x] Notification system with 12 types (Portal + Agent)
+- [x] Weekend-aware SLA warnings
+- [x] Background jobs for automated notification delivery
+
+### v1.4.0 (Next Release)
 - [ ] Advanced search filters (date ranges, custom fields)
-- [ ] Notification system
+- [ ] Newsroom mirroring for broadcast notifications
 
 ### Future
 - [ ] Ticket creation from Nextcloud
 - [ ] CI relationship browser (dependencies, impacts)
-- [ ] Enhanced notification system with email digest
+- [ ] Email digest for notifications
 - [ ] Additional CI classes (Server, VirtualMachine, Network Device)
 - [ ] API rate limiting improvements
 - [ ] More languages (Spanish, Italian, Dutch, Portuguese)

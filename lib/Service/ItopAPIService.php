@@ -2050,7 +2050,310 @@ class ItopAPIService {
 			}
 		}
 
-		return array_unique($ticketIds);
+	return array_unique($ticketIds);
+	}
+
+	/**
+	 * Get agent ticket IDs (tickets assigned to this agent)
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param bool $includeResolved If true, also include recently resolved tickets
+	 * @return array Array of ticket IDs
+	 */
+	public function getAgentTicketIds(string $userId, bool $includeResolved = false): array {
+		$personId = $this->getPersonId($userId);
+		if (!$personId) {
+			return [];
+		}
+
+		$ticketIds = [];
+
+		// Build status filter
+		$statusFilter = $includeResolved 
+			? "operational_status IN ('ongoing','resolved')" 
+			: "operational_status = 'ongoing'";
+
+		// Get UserRequest IDs where user is assigned agent
+		$userRequestOql = "SELECT UserRequest WHERE agent_id = '$personId' AND $statusFilter";
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => $userRequestOql,
+			'output_fields' => 'id'
+		];
+
+		$userRequestResult = $this->request($userId, $userRequestParams, 'POST', false);
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $ticket) {
+				$ticketIds[] = $ticket['fields']['id'] ?? $ticket['key'];
+			}
+		}
+
+		// Get Incident IDs where user is assigned agent
+		$incidentOql = "SELECT Incident WHERE agent_id = '$personId' AND $statusFilter";
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => $incidentOql,
+			'output_fields' => 'id'
+		];
+
+		$incidentResult = $this->request($userId, $incidentParams, 'POST', false);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $ticket) {
+				$ticketIds[] = $ticket['fields']['id'] ?? $ticket['key'];
+			}
+		}
+
+	return array_unique($ticketIds);
+	}
+
+	/**
+	 * Get tickets approaching SLA deadlines using crossing-time algorithm
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param string $type 'tto' or 'ttr'
+	 * @param string $scope 'my' (assigned to me) or 'team_unassigned' (team tickets without agent)
+	 * @param int $lastCheck Last check Unix timestamp
+	 * @param int $now Current Unix timestamp
+	 * @return array Array of tickets with crossed thresholds, format: [['ticket_id' => 123, 'ticket_class' => 'UserRequest', 'level' => 24, 'deadline' => '2025-11-10 12:00:00'], ...]
+	 */
+	public function getTicketsApproachingDeadline(
+		string $userId,
+		string $type, // 'tto' or 'ttr'
+		string $scope, // 'my' or 'team_unassigned'
+		int $lastCheck,
+		int $now
+	): array {
+		$personId = $this->getPersonId($userId);
+		if (!$personId) {
+			return [];
+		}
+
+		$deadlineField = $type === 'tto' ? 'tto_escalation_deadline' : 'ttr_escalation_deadline';
+		$tickets = [];
+
+		// Build OQL based on scope
+		if ($scope === 'my') {
+			// My assigned tickets
+			$userRequestOql = "SELECT UserRequest WHERE agent_id = '$personId' AND operational_status = 'ongoing' AND $deadlineField != ''";
+			$incidentOql = "SELECT Incident WHERE agent_id = '$personId' AND operational_status = 'ongoing' AND $deadlineField != ''";
+		} elseif ($scope === 'team_unassigned') {
+			// Team tickets without agent assignment
+			$teams = $this->getUserTeams($userId);
+			if (empty($teams)) {
+				return [];
+			}
+			// Extract team IDs
+			$teamIds = array_column($teams, 'id');
+			$teamIdList = implode(',', $teamIds);
+			$userRequestOql = "SELECT UserRequest WHERE team_id IN ($teamIdList) AND (agent_id = 0 OR agent_id IS NULL) AND operational_status = 'ongoing' AND $deadlineField != ''";
+			$incidentOql = "SELECT Incident WHERE team_id IN ($teamIdList) AND (agent_id = 0 OR agent_id IS NULL) AND operational_status = 'ongoing' AND $deadlineField != ''";
+		} else {
+			return [];
+		}
+
+		// Query UserRequest tickets
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => $userRequestOql,
+			'output_fields' => "id,$deadlineField"
+		];
+
+		$userRequestResult = $this->request($userId, $userRequestParams, 'POST', false);
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $ticket) {
+				$ticketId = $ticket['fields']['id'] ?? $ticket['key'];
+				$deadline = $ticket['fields'][$deadlineField] ?? '';
+				if (!empty($deadline)) {
+					$tickets[] = [
+						'ticket_id' => $ticketId,
+						'ticket_class' => 'UserRequest',
+						'deadline' => $deadline
+					];
+				}
+			}
+		}
+
+		// Query Incident tickets
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => $incidentOql,
+			'output_fields' => "id,$deadlineField"
+		];
+
+		$incidentResult = $this->request($userId, $incidentParams, 'POST', false);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $ticket) {
+				$ticketId = $ticket['fields']['id'] ?? $ticket['key'];
+				$deadline = $ticket['fields'][$deadlineField] ?? '';
+				if (!empty($deadline)) {
+					$tickets[] = [
+						'ticket_id' => $ticketId,
+						'ticket_class' => 'Incident',
+						'deadline' => $deadline
+					];
+				}
+			}
+		}
+
+		// Apply crossing-time algorithm to detect which thresholds were crossed
+		return $this->applyCrossingTimeAlgorithm($tickets, $lastCheck, $now);
+	}
+
+	/**
+	 * Apply crossing-time algorithm to detect which SLA thresholds were crossed
+	 * Weekend-aware: Friday uses 72h for 24h threshold, Saturday uses 48h
+	 *
+	 * @param array $tickets Array of tickets with deadline field
+	 * @param int $lastCheck Last check Unix timestamp
+	 * @param int $now Current Unix timestamp
+	 * @return array Array of tickets with crossed threshold levels
+	 */
+	private function applyCrossingTimeAlgorithm(array $tickets, int $lastCheck, int $now): array {
+		$results = [];
+
+		// Get day of week for weekend-aware thresholds (1=Mon, 5=Fri, 6=Sat, 7=Sun)
+		$dayOfWeek = (int)date('N', $now);
+
+		// Base thresholds in seconds: 24h, 12h, 4h, 1h
+		$thresholds = [24 * 3600, 12 * 3600, 4 * 3600, 1 * 3600];
+
+		// Weekend expansion for 24h threshold
+		if ($dayOfWeek === 5) {
+			// Friday: expand 24h to 72h (catches Monday/Tuesday breaches)
+			$thresholds[0] = 72 * 3600;
+		} elseif ($dayOfWeek === 6) {
+			// Saturday: expand 24h to 48h (catches Sunday/Monday breaches)
+			$thresholds[0] = 48 * 3600;
+		}
+
+		foreach ($tickets as $ticket) {
+			$deadlineTimestamp = $this->itopDateToTimestamp($ticket['deadline']);
+			if ($deadlineTimestamp <= 0) {
+				continue;
+			}
+
+			// Find the most urgent threshold that was crossed (smallest threshold)
+			$crossedLevel = null;
+
+			foreach ($thresholds as $threshold) {
+				$crossingTime = $deadlineTimestamp - $threshold;
+
+				// Check if this threshold was crossed since last check
+				if ($lastCheck < $crossingTime && $crossingTime <= $now) {
+					// This threshold was crossed - convert back to hours for notification
+					$levelHours = (int)($threshold / 3600);
+					
+					// Only keep the most urgent (smallest) threshold
+					if ($crossedLevel === null || $levelHours < $crossedLevel) {
+						$crossedLevel = $levelHours;
+					}
+				}
+			}
+
+			// If a threshold was crossed, add to results
+			if ($crossedLevel !== null) {
+				$results[] = [
+					'ticket_id' => $ticket['ticket_id'],
+					'ticket_class' => $ticket['ticket_class'],
+					'level' => $crossedLevel,
+					'deadline' => $ticket['deadline']
+				];
+			}
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Get tickets that were newly assigned to teams (without an agent) since last check
+	 * 
+	 * @param string $userId Nextcloud user ID
+	 * @param array $teamIds Array of team IDs to monitor
+	 * @param int $lastCheckTimestamp Last check Unix timestamp
+	 * @return array Array of team assignment changes: [['ticket_id' => 123, 'ticket_class' => 'UserRequest', 'team_id' => 5, 'timestamp' => '2025-11-08 12:00:00'], ...]
+	 */
+	public function getTeamAssignmentChanges(string $userId, array $teamIds, int $lastCheckTimestamp): array {
+		if (empty($teamIds)) {
+			return [];
+		}
+
+		$results = [];
+		$teamIdList = implode(',', $teamIds);
+
+		// Strategy: Query for team_id changes where tickets became assigned to user's teams
+		// AND agent_id is still NULL/0 (unassigned)
+		$changes = $this->getChangeOps($userId, [], $lastCheckTimestamp, ['team_id']);
+
+		if (empty($changes)) {
+			return [];
+		}
+
+		// Filter for changes where ticket was assigned to one of user's teams
+		$relevantTicketIds = [];
+		foreach ($changes as $change) {
+			if ($change['attcode'] !== 'team_id') {
+				continue;
+			}
+
+			// Check if new team_id is one of user's teams
+			if (in_array($change['newvalue'], $teamIds)) {
+				$relevantTicketIds[$change['objkey']] = [
+					'ticket_id' => $change['objkey'],
+					'ticket_class' => $change['objclass'],
+					'team_id' => $change['newvalue'],
+					'timestamp' => $change['date']
+				];
+			}
+		}
+
+		if (empty($relevantTicketIds)) {
+			return [];
+		}
+
+		// Now verify these tickets are still unassigned (agent_id = NULL or 0)
+		$ticketIdList = implode(',', array_keys($relevantTicketIds));
+
+		// Query UserRequests
+		$userRequestParams = [
+			'operation' => 'core/get',
+			'class' => 'UserRequest',
+			'key' => "SELECT UserRequest WHERE id IN ($ticketIdList) AND (agent_id = 0 OR agent_id IS NULL) AND operational_status = 'ongoing'",
+			'output_fields' => 'id,team_id'
+		];
+
+		$userRequestResult = $this->request($userId, $userRequestParams, 'POST', false);
+		if (isset($userRequestResult['objects'])) {
+			foreach ($userRequestResult['objects'] as $ticket) {
+				$ticketId = $ticket['fields']['id'] ?? $ticket['key'];
+				if (isset($relevantTicketIds[$ticketId])) {
+					$results[] = $relevantTicketIds[$ticketId];
+				}
+			}
+		}
+
+		// Query Incidents
+		$incidentParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => "SELECT Incident WHERE id IN ($ticketIdList) AND (agent_id = 0 OR agent_id IS NULL) AND operational_status = 'ongoing'",
+			'output_fields' => 'id,team_id'
+		];
+
+		$incidentResult = $this->request($userId, $incidentParams, 'POST', false);
+		if (isset($incidentResult['objects'])) {
+			foreach ($incidentResult['objects'] as $ticket) {
+				$ticketId = $ticket['fields']['id'] ?? $ticket['key'];
+				if (isset($relevantTicketIds[$ticketId])) {
+					$results[] = $relevantTicketIds[$ticketId];
+				}
+			}
+		}
+
+		return $results;
 	}
 
 }

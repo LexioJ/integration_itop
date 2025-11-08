@@ -279,12 +279,10 @@ class Application extends App implements IBootstrap {
 		$configJson = $config->getAppValue(self::APP_ID, 'agent_notification_config', '');
 
 		if ($configJson === '') {
-			// Default: most types user_choice, some disabled, SLA breach/critical forced
+			// Default: most types user_choice, SLA breach/critical forced
 			$defaultConfig = [];
 			foreach (self::AGENT_NOTIFICATION_TYPES as $type) {
-				if ($type === 'team_unassigned_new') {
-					$defaultConfig[$type] = self::NOTIFICATION_STATE_DISABLED;
-				} elseif (in_array($type, ['ticket_sla_breach', 'ticket_priority_critical'])) {
+				if (in_array($type, ['ticket_sla_breach', 'ticket_priority_critical'])) {
 					$defaultConfig[$type] = self::NOTIFICATION_STATE_FORCED;
 				} else {
 					$defaultConfig[$type] = self::NOTIFICATION_STATE_USER_CHOICE;
@@ -298,9 +296,7 @@ class Application extends App implements IBootstrap {
 			// Fallback on invalid JSON
 			$defaultConfig = [];
 			foreach (self::AGENT_NOTIFICATION_TYPES as $type) {
-				if ($type === 'team_unassigned_new') {
-					$defaultConfig[$type] = self::NOTIFICATION_STATE_DISABLED;
-				} elseif (in_array($type, ['ticket_sla_breach', 'ticket_priority_critical'])) {
+				if (in_array($type, ['ticket_sla_breach', 'ticket_priority_critical'])) {
 					$defaultConfig[$type] = self::NOTIFICATION_STATE_FORCED;
 				} else {
 					$defaultConfig[$type] = self::NOTIFICATION_STATE_USER_CHOICE;
@@ -312,9 +308,7 @@ class Application extends App implements IBootstrap {
 		// Ensure all supported types have a state
 		foreach (self::AGENT_NOTIFICATION_TYPES as $type) {
 			if (!isset($notificationConfig[$type])) {
-				if ($type === 'team_unassigned_new') {
-					$notificationConfig[$type] = self::NOTIFICATION_STATE_DISABLED;
-				} elseif (in_array($type, ['ticket_sla_breach', 'ticket_priority_critical'])) {
+				if (in_array($type, ['ticket_sla_breach', 'ticket_priority_critical'])) {
 					$notificationConfig[$type] = self::NOTIFICATION_STATE_FORCED;
 				} else {
 					$notificationConfig[$type] = self::NOTIFICATION_STATE_USER_CHOICE;

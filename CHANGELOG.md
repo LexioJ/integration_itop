@@ -7,6 +7,157 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2025-11-08
+
+### ✨ Major New Feature: Agent Notifications System
+
+Version 1.3.0 introduces a comprehensive notification system with **12 notification types** across two independent tracks: Portal (4 types) and Agent (8 types). The system provides smart, event-driven notifications with weekend-aware SLA warnings and zero duplicate detection.
+
+### Added
+
+#### Agent Notification System (8 Types)
+- **Ticket Assignment Tracking**:
+  - `ticket_assigned`: New tickets assigned to you from unassigned state
+  - `ticket_reassigned`: Tickets reassigned to you from another agent
+  - `team_unassigned_new`: New unassigned tickets appearing in your team's queue
+
+- **SLA Management**:
+  - `ticket_tto_warning`: Time To Own SLA warnings with escalating urgency (⏰ 24h → ⚠️ 12h → 🟠 4h → 🔴 1h)
+  - `ticket_ttr_warning`: Time To Resolve SLA warnings with same escalation pattern
+  - `ticket_sla_breach`: SLA deadline exceeded alerts (🚨 icon)
+  - **Weekend-Aware Logic**: Friday uses 72h threshold, Saturday uses 48h threshold to catch Monday/Tuesday breaches
+
+- **Priority & Comments**:
+  - `ticket_priority_critical`: Automatic alerts when tickets escalate to critical priority (🔴 icon)
+  - `ticket_comment`: New comments on your tickets (both public and private log types)
+
+#### Portal Notification Enhancements
+- Portal notifications (from v1.2.2) now fully integrated with agent system:
+  - `ticket_status_changed`: Status transitions
+  - `agent_responded`: Public comments from agents
+  - `ticket_resolved`: Resolution notifications
+  - `agent_assigned`: Agent assignment changes
+
+#### Background Job Infrastructure
+- **CheckAgentTicketUpdates**: New background job running every 5 minutes
+  - Processes all 8 agent notification types
+  - Portal-only filtering (skips users with `is_portal_only='1'`)
+  - Per-user interval checking (5-1440 minutes configurable)
+  - Query optimization (skips API calls when notification types disabled)
+  - Rate limiting (max 20 notifications per user per run)
+
+- **CheckPortalTicketUpdates**: Existing job (enhanced)
+  - Improved query optimization
+  - Better timestamp handling
+  - Contact role filtering support
+
+#### Admin Configuration
+- **3-State Notification Control**: Configure each notification type independently
+  - **Disabled**: Not available to users (hidden)
+  - **Forced**: Mandatory for all users (no opt-out)
+  - **User Choice**: Enabled by default, users can opt-out
+
+- **Default Configuration**:
+  - Portal: All 4 types set to "User Choice"
+  - Agent: 6 types "User Choice", 2 types "Forced" (SLA breach, priority critical)
+
+- **Configurable Intervals**:
+  - Admin default: 5-1440 minutes (recommended: 15 minutes)
+  - Per-user override available in personal settings
+
+#### OCC Commands
+- **Enhanced `itop:notifications:test-user`**:
+  - New `--agent` flag for testing agent notifications
+  - New `--portal` flag for testing portal notifications (default)
+  - `--reset` flag to clear timestamps and force full re-check
+  - Displays user configuration, enabled notifications, and next execution time
+
+#### API & Services
+- **New ItopAPIService Methods**:
+  - `getAgentTicketIds()`: Get tickets assigned to agent
+  - `getTicketsApproachingDeadline()`: SLA warning detection with crossing-time algorithm
+  - `getTeamAssignmentChanges()`: Detect new unassigned team tickets
+  - `applyCrossingTimeAlgorithm()`: Weekend-aware threshold calculation (private)
+
+- **Team Detection**:
+  - Leverages existing `getUserTeams()` method
+  - Tracks `team_id` changes via CMDBChangeOp
+  - Verifies tickets remain unassigned (`agent_id = NULL/0`)
+
+#### Documentation
+- **New docs/NOTIFICATIONS.md**: Comprehensive 345-line user & admin guide
+  - Complete notification type reference with examples
+  - Setup instructions for users and administrators
+  - Troubleshooting section with common issues
+  - FAQ with 12 frequently asked questions
+  - Technical architecture details
+
+### Changed
+
+#### Notification Algorithm Improvements
+- **SLA Crossing-Time Algorithm**: Detects threshold crossings without storing per-ticket state
+  - Eliminates duplicate warnings for same SLA level
+  - Dynamically calculates when each threshold (24h/12h/4h/1h) will be crossed
+  - Only notifies most urgent level if multiple thresholds crossed
+  - Weekend expansion: Friday (72h), Saturday (48h) for 24h threshold
+
+- **Notification Deduplication**:
+  - Unique object keys: `ticket_id|subject|timestamp_hash`
+  - Timestamp filtering prevents re-processing old changes
+  - Leverages Nextcloud's native duplicate prevention
+
+#### User Experience
+- **Personal Settings UI**: Agent notifications section (only visible to non-portal users)
+  - Master toggle for agent notifications
+  - Granular per-type checkboxes (only "User Choice" types shown)
+  - Info box listing "Forced" notifications that cannot be disabled
+  - Integrated with existing portal notification settings
+
+- **Notification Display**:
+  - Escalating emoji icons based on urgency (SLA warnings)
+  - Clear differentiation between public and private comments
+  - Team name included in team ticket notifications
+  - Clickable links route to appropriate iTop interface (portal vs admin UI)
+
+### Technical Details
+
+#### New Configuration Keys (oc_appconfig)
+- `agent_notification_config`: JSON map of notification type → state (disabled/forced/user_choice)
+- `default_notification_interval`: Default check interval for all users (minutes, default: 15)
+
+#### New User Preferences (oc_preferences)
+- `notification_last_agent_check`: Unix timestamp of last agent notification check
+- `disabled_agent_notifications`: JSON array of disabled notification types OR "all"
+- `notification_check_interval`: Per-user custom interval (minutes)
+
+#### Architecture Highlights
+- **Dual Background Jobs**: Portal and Agent jobs run independently
+- **CMDBChangeOp Detection**: Leverages iTop's built-in change tracking (no external state)
+- **Minimal State Storage**: Only timestamps per user (no per-ticket data)
+- **Query Optimization**: Early exit if all notifications disabled, selective API calls
+- **Portal-Only Filtering**: Agent job automatically skips portal-only users
+
+#### Performance
+- **Per-User Intervals**: Users only processed when their interval elapses (reduces API load)
+- **Query Optimization**: Up to 100% reduction in API calls when notification types disabled
+- **Rate Limiting**: Max 20 notifications per user per run prevents spam
+- **Smart Caching**: Team memberships cached for 30 minutes, agent names for 24 hours
+
+#### Translation Updates
+- Updated en.json, de.json, de_DE.json, fr.json with agent notification types
+
+### Breaking Changes
+None - Existing portal notifications continue working without changes.
+
+### Migration Notes
+- **No user action required**: Portal notifications work as before
+- **Agent detection automatic**: Users with `is_portal_only='0'` gain agent notification access
+
+### See Also
+- [Complete Notification Guide](docs/NOTIFICATIONS.md)
+
+---
+
 ## [1.2.2] - 2025-11-02
 
 ### Changed
