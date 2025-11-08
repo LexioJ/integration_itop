@@ -283,10 +283,28 @@ $ciClassLabels = [
 		</div>
 
 
-		<?php if (!empty($_['user_choice_ci_classes'])): ?>
+		<!-- CI Class Preferences Section -->
+		<?php if (!empty($_['forced_ci_classes']) || !empty($_['user_choice_ci_classes'])): ?>
 		<div class="field ci-class-preferences">
 			<h4>🎯 <?php p($l->t('Configuration Item Classes')); ?></h4>
 			<p class="hint"><?php p($l->t('Choose which CI types you want to see in search, smart picker, and previews')); ?></p>
+			
+			<!-- Forced CI classes info -->
+			<?php if (!empty($_['forced_ci_classes'])): ?>
+			<div class="notification-forced-info" style="margin: 16px 0; padding: 12px; background: #f0f9ff; border-left: 4px solid #0ea5e9; border-radius: 4px;">
+				<strong style="color: #0c4a6e;">ℹ️ <?php p($l->t('Mandatory Configuration Items')); ?></strong>
+				<p style="margin: 8px 0 0 0; color: #0c4a6e; font-size: 0.9em;">
+					<?php p($l->t('Your administrator has enabled the following mandatory CI classes that cannot be disabled:')); ?>
+				</p>
+				<ul style="margin: 8px 0 0 20px; color: #0c4a6e; font-size: 0.9em;">
+					<?php foreach ($_['forced_ci_classes'] as $className): ?>
+						<li><?php p(isset($ciClassLabels[$className]) ? $ciClassLabels[$className] : $className); ?></li>
+					<?php endforeach; ?>
+				</ul>
+			</div>
+			<?php endif; ?>
+			
+			<?php if (!empty($_['user_choice_ci_classes'])): ?>
 			<div id="ci-class-user-toggles" class="ci-class-user-list">
 				<?php foreach ($_['user_choice_ci_classes'] as $className): ?>
 				<div class="ci-class-user-toggle">
@@ -304,9 +322,10 @@ $ciClassLabels = [
 						</span>
 						<span class="ci-class-user-label"><?php p(isset($ciClassLabels[$className]) ? $ciClassLabels[$className] : $className); ?></span>
 					</label>
-				</div>
-				<?php endforeach; ?>
 			</div>
+			<?php endforeach; ?>
+			</div>
+			<?php endif; ?>
 		</div>
 		<?php endif; ?>
 

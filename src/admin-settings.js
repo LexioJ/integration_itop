@@ -590,8 +590,8 @@
 		const saveButton = document.getElementById('save-ci-classes')
 		const config = {}
 
-		// Collect current state from all toggle groups
-		document.querySelectorAll('.state-toggle-group').forEach(group => {
+		// Collect current state from CI class toggle groups only
+		document.querySelectorAll('.state-toggle-group[data-class]').forEach(group => {
 			const className = group.dataset.class
 			const activeButton = group.querySelector('.state-button.active')
 			if (activeButton) {
@@ -603,13 +603,13 @@
 		const originalText = saveButton.innerHTML
 		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config'), {
-			method: 'PUT',
+		fetch(OC.generateUrl('/apps/integration_itop/ci-class-config'), {
+			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				requesttoken: OC.requestToken,
 			},
-			body: JSON.stringify({ values: { ci_class_config: config } }),
+			body: JSON.stringify({ classConfig: config }),
 		})
 			.then(response => {
 				if (!response.ok) throw new Error('Server error')
@@ -635,7 +635,8 @@
 		// Check current state - if any are disabled, enable all to 'forced'
 		// If all are forced, toggle to 'user_choice'
 		// If all are user_choice, toggle to 'disabled'
-		const groups = document.querySelectorAll('.state-toggle-group')
+		// Only select CI class toggle groups (those with data-class attribute)
+		const groups = document.querySelectorAll('.state-toggle-group[data-class]')
 		const states = []
 		groups.forEach(group => {
 			const activeButton = group.querySelector('.state-button.active')
@@ -652,7 +653,7 @@
 			targetState = 'disabled'
 		}
 
-		// Update all groups
+		// Update all CI class groups only
 		groups.forEach(group => {
 			group.querySelectorAll('.state-button').forEach(btn => {
 				btn.classList.remove('active')

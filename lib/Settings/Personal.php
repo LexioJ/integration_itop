@@ -61,6 +61,7 @@ class Personal implements ISettings {
 		
 		// Get CI classes that users can configure (user_choice state)
 		$userChoiceCIClasses = Application::getUserChoiceCIClasses($this->config);
+		$forcedCIClasses = Application::getForcedCIClasses($this->config);
 		
 		// Get user's disabled CI classes
 		$userDisabledJson = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
@@ -120,6 +121,7 @@ class Personal implements ISettings {
 			'notify_agent_responded' => $notifyAgentResponded,
 			'notify_ticket_resolved' => $notifyTicketResolved,
 			'user_choice_ci_classes' => $userChoiceCIClasses,
+			'forced_ci_classes' => $forcedCIClasses,
 			'user_disabled_ci_classes' => $userDisabledClasses,
 			// 3-state notification configuration
 			'user_choice_portal_notifications' => $userChoicePortalNotifications,

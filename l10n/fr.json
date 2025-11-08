@@ -444,7 +444,12 @@
     "Notification not available (hidden from users)": "Notification non disponible (cachée aux utilisateurs)",
     "Mandatory for all users (cannot be disabled)": "Obligatoire pour tous les utilisateurs (ne peut pas être désactivé)",
     "Enabled by default, users can opt-out": "Activé par défaut, les utilisateurs peuvent se désinscrire",
-    "CI class not available (hidden from users)": "Classe CI non disponible (cachée aux utilisateurs)"
+    "CI class not available (hidden from users)": "Classe CI non disponible (cachée aux utilisateurs)",
+    "Notification configuration saved": "Configuration des notifications enregistrée",
+    "CI class configuration saved": "Configuration des classes CI enregistrée",
+    "Cache settings saved": "Paramètres de cache enregistrés",
+    "Mandatory Configuration Items": "Éléments de configuration obligatoires",
+    "Your administrator has enabled the following mandatory CI classes that cannot be disabled:": "Votre administrateur a activé les classes CI obligatoires suivantes qui ne peuvent pas être désactivées:"
   },
   "pluralForm": "nplurals=2; plural=(n > 1);"
 }

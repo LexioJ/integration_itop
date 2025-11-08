@@ -445,6 +445,11 @@ OC.L10N.register(
     "Notification not available (hidden from users)": "Benachrichtigung nicht verfügbar (für Benutzer ausgeblendet)",
     "Mandatory for all users (cannot be disabled)": "Verpflichtend für alle Benutzer (kann nicht deaktiviert werden)",
     "Enabled by default, users can opt-out": "Standardmäßig aktiviert, Benutzer können sich abmelden",
-    "CI class not available (hidden from users)": "CI-Klasse nicht verfügbar (für Benutzer ausgeblendet)"
+    "CI class not available (hidden from users)": "CI-Klasse nicht verfügbar (für Benutzer ausgeblendet)",
+    "Notification configuration saved": "Benachrichtigungskonfiguration gespeichert",
+    "CI class configuration saved": "CI-Klassenkonfiguration gespeichert",
+    "Cache settings saved": "Cache-Einstellungen gespeichert",
+    "Mandatory Configuration Items": "Verpflichtende Konfigurationselemente",
+    "Your administrator has enabled the following mandatory CI classes that cannot be disabled:": "Ihr Administrator hat die folgenden verpflichtenden CI-Klassen aktiviert, die nicht deaktiviert werden können:"
 },
     "nplurals=2; plural=(n != 1);");

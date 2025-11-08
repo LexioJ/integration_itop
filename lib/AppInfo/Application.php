@@ -172,6 +172,25 @@ class Application extends App implements IBootstrap {
 	}
 
 	/**
+	 * Get list of forced CI classes (mandatory, user cannot disable)
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @return array List of CI class names with forced state
+	 */
+	public static function getForcedCIClasses(IConfig $config): array {
+		$classConfig = self::getCIClassConfig($config);
+		$forced = [];
+
+		foreach ($classConfig as $class => $state) {
+			if ($state === self::CI_CLASS_STATE_FORCED) {
+				$forced[] = $class;
+			}
+		}
+
+		return $forced;
+	}
+
+	/**
 	 * Get effective enabled CI classes for a specific user
 	 * Forced classes: always included
 	 * User-choice classes: included unless user disabled them

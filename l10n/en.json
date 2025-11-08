@@ -450,5 +450,10 @@
   "Notification not available (hidden from users)": "Notification not available (hidden from users)",
   "Mandatory for all users (cannot be disabled)": "Mandatory for all users (cannot be disabled)",
   "Enabled by default, users can opt-out": "Enabled by default, users can opt-out",
-  "CI class not available (hidden from users)": "CI class not available (hidden from users)"
+  "CI class not available (hidden from users)": "CI class not available (hidden from users)",
+  "Notification configuration saved": "Notification configuration saved",
+  "CI class configuration saved": "CI class configuration saved",
+  "Cache settings saved": "Cache settings saved",
+  "Mandatory Configuration Items": "Mandatory Configuration Items",
+  "Your administrator has enabled the following mandatory CI classes that cannot be disabled:": "Your administrator has enabled the following mandatory CI classes that cannot be disabled:"
 }
