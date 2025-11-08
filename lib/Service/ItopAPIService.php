@@ -1677,6 +1677,36 @@ class ItopAPIService {
 	 */
 
 	/**
+	 * Convert iTop date string to Unix timestamp
+	 * iTop returns dates in server's configured timezone (from Nextcloud config)
+	 *
+	 * @param string $dateString Date string from iTop (e.g., '2024-11-08 01:45:54')
+	 * @return int Unix timestamp
+	 */
+	private function itopDateToTimestamp(string $dateString): int {
+		if (empty($dateString)) {
+			return 0;
+		}
+
+		// Get Nextcloud's configured timezone (iTop should match this)
+		$timezoneStr = $this->config->getSystemValue('default_timezone', 'UTC');
+		try {
+			$timezone = new \DateTimeZone($timezoneStr);
+		} catch (\Exception $e) {
+			// Fallback to UTC if timezone is invalid
+			$timezone = new \DateTimeZone('UTC');
+		}
+
+		$dateTime = \DateTime::createFromFormat('Y-m-d H:i:s', $dateString, $timezone);
+		if ($dateTime === false) {
+			// Fallback to strtotime if format doesn't match
+			return strtotime($dateString);
+		}
+
+		return $dateTime->getTimestamp();
+	}
+
+	/**
 	 * Get scalar attribute changes (status, priority, agent_id, SLA flags) since timestamp
 	 *
 	 * NOTE: iTop OQL does not support comparison operators on external key attributes like change->date
@@ -1731,7 +1761,8 @@ class ItopAPIService {
 			$changeDate = $fields['date'] ?? '';
 			
 			// Filter out changes before the 'since' timestamp
-			if (!empty($changeDate) && strtotime($changeDate) > $sinceTimestamp) {
+			// Use timezone-aware conversion since iTop dates are in server timezone
+			if (!empty($changeDate) && $this->itopDateToTimestamp($changeDate) > $sinceTimestamp) {
 				$changes[] = [
 					'objclass' => $fields['objclass'] ?? '',
 					'objkey' => $fields['objkey'] ?? '',
@@ -1747,7 +1778,7 @@ class ItopAPIService {
 
 		// Sort by date descending (newest first) to prioritize recent changes before rate limiting
 		usort($changes, function($a, $b) {
-			return strtotime($b['date']) <=> strtotime($a['date']);
+			return $this->itopDateToTimestamp($b['date']) <=> $this->itopDateToTimestamp($a['date']);
 		});
 
 		return $changes;
@@ -1813,7 +1844,8 @@ class ItopAPIService {
 			$changeDate = $fields['date'] ?? '';
 			
 			// Filter out changes before the 'since' timestamp
-			if (!empty($changeDate) && strtotime($changeDate) > $sinceTimestamp) {
+			// Use timezone-aware conversion since iTop dates are in server timezone
+			if (!empty($changeDate) && $this->itopDateToTimestamp($changeDate) > $sinceTimestamp) {
 				$changes[] = [
 					'objclass' => $fields['objclass'] ?? '',
 					'objkey' => $fields['objkey'] ?? '',
@@ -1828,7 +1860,7 @@ class ItopAPIService {
 
 		// Sort by date descending (newest first) to prioritize recent changes before rate limiting
 		usort($changes, function($a, $b) {
-			return strtotime($b['date']) <=> strtotime($a['date']);
+			return $this->itopDateToTimestamp($b['date']) <=> $this->itopDateToTimestamp($a['date']);
 		});
 
 		return $changes;
