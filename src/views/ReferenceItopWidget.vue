@@ -48,16 +48,22 @@
 						TODO use the NcPopover component: https://nextcloud-vue-components.netlify.app/#/Components/NcPopover
 						It can be displayed on hover
 						 -->
-						<span v-if="richObject.close_date"
-							v-tooltip.top="{ content: closedAtFormatted }"
-							class="date-with-tooltip">
-							&nbsp;· {{ closedAtText }}
-						</span>
-						<span v-else-if="richObject.last_update"
-							v-tooltip.top="{ content: updatedAtFormatted }"
-							class="date-with-tooltip">
-							&nbsp;· {{ updatedAtText }}
-						</span>
+						<NcPopover v-if="richObject.close_date" :triggers="['hover']">
+						<template #trigger>
+							<span class="date-with-tooltip">
+								&nbsp;· {{ closedAtText }}
+							</span>
+						</template>
+						<span>{{ closedAtFormatted }}</span>
+						</NcPopover>
+						<NcPopover v-else-if="richObject.last_update" :triggers="['hover']">
+						<template #trigger>
+							<span class="date-with-tooltip">
+								&nbsp;· {{ updatedAtText }}
+							</span>
+						</template>
+						<span>{{ updatedAtFormatted }}</span>
+						</NcPopover>
 					</div>
 				</div>
 				<!-- Row 2: Service breadcrumb (Tickets) OR CI subtitle (CIs) -->
@@ -92,7 +98,19 @@
 			</div>
 		</div>
 		<div v-if="!isError && richObject.description" class="description">
-			<div v-tooltip.top="{ html: true, content: shortDescription ? t('integration_itop', 'Click to expand description') : undefined }"
+			<NcPopover v-if="shortDescription" :triggers="['hover']">
+			<template #trigger>
+				<div :class="{
+						'description-content': true,
+						'short-description': shortDescription,
+					}"
+					@click="shortDescription = !shortDescription">
+					{{ richObject.description }}
+				</div>
+			</template>
+			<span>{{ t('integration_itop', 'Click to expand description') }}</span>
+			</NcPopover>
+			<div v-else
 				:class="{
 					'description-content': true,
 					'short-description': shortDescription,
@@ -108,6 +126,7 @@
 import OpenInNewIcon from 'vue-material-design-icons/OpenInNew.vue'
 
 import ItopIcon from '../components/icons/ItopIcon.vue'
+import { NcPopover } from '@nextcloud/vue'
 
 import { generateUrl } from '@nextcloud/router'
 import moment from '@nextcloud/moment'
@@ -118,6 +137,7 @@ export default {
 	components: {
 		ItopIcon,
 		OpenInNewIcon,
+		NcPopover,
 	},
 
 	props: {
