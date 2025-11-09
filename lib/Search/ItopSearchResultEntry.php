@@ -25,7 +25,7 @@ class ItopSearchResultEntry extends SearchResultEntry {
 		string $subline,
 		string $resourceUrl,
 		string $icon = '',
-		bool $rounded = false
+		bool $rounded = false,
 	) {
 		parent::__construct($thumbnailUrl, $title, $subline, $resourceUrl, $icon, $rounded);
 	}

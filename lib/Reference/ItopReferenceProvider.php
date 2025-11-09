@@ -147,7 +147,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			'app' => Application::APP_ID,
 			'referenceText' => $referenceText,
 			'userId' => $this->userId,
-			'backtrace' => implode(' <- ', array_slice(array_map(function($t) { return ($t['class'] ?? '') . ($t['type'] ?? '') . ($t['function'] ?? ''); }, debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5)), 0, 5))
+			'backtrace' => implode(' <- ', array_slice(array_map(function ($t) { return ($t['class'] ?? '') . ($t['type'] ?? '') . ($t['function'] ?? ''); }, debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5)), 0, 5))
 		]);
 		if ($this->matchReference($referenceText) && $this->userId !== null) {
 			$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
@@ -328,7 +328,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			&& is_numeric($params['id'])) {
 			return [
 				'class' => $params['class'],
-				'id' => (int) $params['id']
+				'id' => (int)$params['id']
 			];
 		}
 

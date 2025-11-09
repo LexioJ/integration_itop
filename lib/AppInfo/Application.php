@@ -11,19 +11,19 @@
 namespace OCA\Itop\AppInfo;
 
 use Closure;
-use OCA\Itop\Dashboard\ItopWidget;
 use OCA\Itop\Dashboard\ItopAgentWidget;
+use OCA\Itop\Dashboard\ItopWidget;
 use OCA\Itop\Listener\ItopReferenceListener;
 use OCA\Itop\Notification\Notifier;
 use OCA\Itop\Reference\ItopReferenceProvider;
 use OCA\Itop\Search\ItopSearchProvider;
+use OCP\App\IAppManager;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
-use OCP\AppFramework\Bootstrap\IBootstrap;
 
+use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\Collaboration\Reference\RenderReferenceEvent;
-use OCP\App\IAppManager;
 use OCP\IConfig;
 use OCP\IL10N;
 use OCP\INavigationManager;
@@ -520,7 +520,7 @@ class Application extends App implements IBootstrap {
 				$c->get('userId')
 			);
 		});
-		
+
 		$context->registerDashboardWidget(ItopWidget::class);
 		$context->registerDashboardWidget(ItopAgentWidget::class);
 		$context->registerSearchProvider(ItopSearchProvider::class);
