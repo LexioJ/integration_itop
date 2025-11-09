@@ -103,7 +103,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject($l->t('Ticket status changed'));
 				$notification->setParsedMessage($l->t('Status changed: %s → %s', [$oldStatus, $newStatus]));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				// Add clickable link to ticket
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
@@ -121,7 +121,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject($l->t('Agent responded to your ticket'));
 				$notification->setParsedMessage($l->t('%s added a response', [$agentName]));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				// Add clickable link to ticket
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
@@ -138,7 +138,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject($l->t('Ticket resolved'));
 				$notification->setParsedMessage($l->t('Your ticket has been resolved'));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				// Add clickable link to ticket
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
@@ -147,7 +147,7 @@ class Notifier implements INotifier {
 
 				return $notification;
 
-		case 'agent_assigned':
+			case 'agent_assigned':
 				$p = $notification->getSubjectParameters();
 				$ticketId = $p['ticket_id'] ?? '';
 				$ticketClass = $p['ticket_class'] ?? 'UserRequest';
@@ -157,7 +157,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject($l->t('Assigned agent changed'));
 				$notification->setParsedMessage($l->t('%s → %s', [$oldAgent, $newAgent]));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				// Add clickable link to ticket
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
@@ -166,7 +166,7 @@ class Notifier implements INotifier {
 
 				return $notification;
 
-			// Agent notifications
+				// Agent notifications
 			case 'ticket_assigned':
 				$p = $notification->getSubjectParameters();
 				$ticketId = $p['ticket_id'] ?? '';
@@ -175,7 +175,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject($l->t('Ticket assigned to you'));
 				$notification->setParsedMessage($l->t('A new ticket has been assigned to you'));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
 					$notification->setLink($ticketUrl);
@@ -191,7 +191,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject($l->t('Ticket reassigned to you'));
 				$notification->setParsedMessage($l->t('A ticket has been reassigned to you'));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
 					$notification->setLink($ticketUrl);
@@ -208,7 +208,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject($l->t('New unassigned ticket in %s', [$teamName]));
 				$notification->setParsedMessage($l->t('A new ticket needs assignment in %s', [$teamName]));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
 					$notification->setLink($ticketUrl);
@@ -233,7 +233,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject($icon . ' ' . $l->t('TTO SLA warning: %dh remaining', [$level]));
 				$notification->setParsedMessage($l->t('Ticket needs assignment within %d hours', [$level]));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
 					$notification->setLink($ticketUrl);
@@ -258,7 +258,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject($icon . ' ' . $l->t('TTR SLA warning: %dh remaining', [$level]));
 				$notification->setParsedMessage($l->t('Ticket needs resolution within %d hours', [$level]));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
 					$notification->setLink($ticketUrl);
@@ -275,7 +275,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject('🚨 ' . $l->t('%s SLA breached', [$slaType]));
 				$notification->setParsedMessage($l->t('Ticket has breached %s SLA deadline', [$slaType]));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
 					$notification->setLink($ticketUrl);
@@ -291,7 +291,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject('🔴 ' . $l->t('Ticket escalated to CRITICAL'));
 				$notification->setParsedMessage($l->t('Ticket priority changed to critical'));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
 					$notification->setLink($ticketUrl);
@@ -311,7 +311,7 @@ class Notifier implements INotifier {
 				$notification->setParsedSubject($l->t('New %s on your ticket', [$typeLabel]));
 				$notification->setParsedMessage($l->t('%s added a %s', [$commenterName, $typeLabel]));
 				$notification->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')));
-				
+
 				if ($ticketId) {
 					$ticketUrl = $this->buildTicketUrl($notification->getUser(), $ticketClass, $ticketId);
 					$notification->setLink($ticketUrl);

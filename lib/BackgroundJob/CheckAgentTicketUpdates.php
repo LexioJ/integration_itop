@@ -24,7 +24,7 @@ use Psr\Log\LoggerInterface;
 
 /**
  * Background job to check for agent ticket updates and send notifications
- * 
+ *
  * Runs every 5 minutes and checks for:
  * - Ticket assignments (new + reassignments)
  * - Team unassigned new tickets
@@ -32,7 +32,7 @@ use Psr\Log\LoggerInterface;
  * - SLA breaches
  * - Priority critical escalations
  * - Comments (public + private for agents)
- * 
+ *
  * Implements per-user interval checking and respects granular notification toggles
  */
 class CheckAgentTicketUpdates extends TimedJob {
@@ -57,7 +57,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 	 */
 	protected function run($argument): void {
 		$startTime = microtime(true);
-		
+
 		// Get admin configured default interval (in seconds)
 		$adminDefaultInterval = (int)$this->config->getAppValue(
 			Application::APP_ID,
@@ -97,7 +97,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 
 	/**
 	 * Check if we should process notifications for this user
-	 * 
+	 *
 	 * @param string $userId Nextcloud user ID
 	 * @param int $adminDefaultInterval Admin configured default interval in seconds
 	 * @return bool
@@ -114,13 +114,13 @@ class CheckAgentTicketUpdates extends TimedJob {
 		if (empty($personId)) {
 			return false;
 		}
-		
+
 		// Check if user is portal-only (skip agent notifications for portal-only users)
 		$isPortalOnly = $this->config->getUserValue($userId, Application::APP_ID, 'is_portal_only', '0') === '1';
 		if ($isPortalOnly) {
 			return false;
 		}
-		
+
 		// Check if all agent notifications are disabled
 		$disabledAgent = $this->config->getUserValue($userId, Application::APP_ID, 'disabled_agent_notifications', '');
 		if ($disabledAgent === 'all') {
@@ -129,9 +129,9 @@ class CheckAgentTicketUpdates extends TimedJob {
 
 		// Get user's custom interval (fallback to admin default)
 		$userInterval = (int)$this->config->getUserValue(
-			$userId, 
-			Application::APP_ID, 
-			'notification_check_interval', 
+			$userId,
+			Application::APP_ID,
+			'notification_check_interval',
 			(string)($adminDefaultInterval / 60)
 		) * 60; // Convert minutes to seconds
 
@@ -152,7 +152,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 
 	/**
 	 * Check for agent notifications for a user and send them
-	 * 
+	 *
 	 * @return int Number of notifications sent
 	 */
 	private function checkAgentNotifications(string $userId): int {
@@ -162,10 +162,10 @@ class CheckAgentTicketUpdates extends TimedJob {
 			// Get last check Unix timestamp
 			$lastCheckStr = $this->config->getUserValue($userId, Application::APP_ID, 'notification_last_agent_check', '');
 			$lastCheckTimestamp = empty($lastCheckStr) ? (time() - (30 * 24 * 60 * 60)) : (int)$lastCheckStr; // Default 30 days ago
-			
+
 			// Get effective enabled agent notifications (respects admin config and user preferences)
 			$enabledNotifications = Application::getEffectiveEnabledAgentNotifications($this->config, $userId);
-			
+
 			if (empty($enabledNotifications)) {
 				// No notifications enabled, update timestamp and return
 				$this->config->setUserValue($userId, Application::APP_ID, 'notification_last_agent_check', (string)time());
@@ -192,9 +192,9 @@ class CheckAgentTicketUpdates extends TimedJob {
 			// 1. Handle assignment and reassignment notifications
 			if ($checkAssigned || $checkReassigned) {
 				$notificationCount += $this->processAssignmentChanges(
-					$userId, 
-					$lastCheckTimestamp, 
-					$checkAssigned, 
+					$userId,
+					$lastCheckTimestamp,
+					$checkAssigned,
 					$checkReassigned,
 					$notificationCount
 				);
@@ -203,7 +203,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 			// 2. Handle team unassigned new tickets
 			if ($checkTeamUnassigned && $notificationCount < 20) {
 				$notificationCount += $this->processTeamUnassignedTickets(
-					$userId, 
+					$userId,
 					$lastCheckTimestamp,
 					$notificationCount
 				);
@@ -212,7 +212,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 			// 3. Handle SLA warnings (TTO and TTR)
 			if (($checkTtoWarning || $checkTtrWarning) && $notificationCount < 20) {
 				$notificationCount += $this->processSlaWarnings(
-					$userId, 
+					$userId,
 					$lastCheckTimestamp,
 					$checkTtoWarning,
 					$checkTtrWarning,
@@ -223,7 +223,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 			// 4. Handle SLA breaches
 			if ($checkSlaBreach && $notificationCount < 20) {
 				$notificationCount += $this->processSlaBreaches(
-					$userId, 
+					$userId,
 					$lastCheckTimestamp,
 					$notificationCount
 				);
@@ -232,7 +232,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 			// 5. Handle priority critical escalations
 			if ($checkPriorityCritical && $notificationCount < 20) {
 				$notificationCount += $this->processPriorityChanges(
-					$userId, 
+					$userId,
 					$lastCheckTimestamp,
 					$notificationCount
 				);
@@ -241,7 +241,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 			// 6. Handle comments (public + private for agents)
 			if ($checkComment && $notificationCount < 20) {
 				$notificationCount += $this->processComments(
-					$userId, 
+					$userId,
 					$lastCheckTimestamp,
 					$notificationCount
 				);
@@ -270,14 +270,14 @@ class CheckAgentTicketUpdates extends TimedJob {
 	 * Process ticket assignment and reassignment changes
 	 */
 	private function processAssignmentChanges(
-		string $userId, 
-		int $lastCheckTimestamp, 
-		bool $checkAssigned, 
+		string $userId,
+		int $lastCheckTimestamp,
+		bool $checkAssigned,
 		bool $checkReassigned,
-		int $currentNotificationCount
+		int $currentNotificationCount,
 	): int {
 		$count = 0;
-		
+
 		// Get person_id for this user
 		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
 		if (empty($personId)) {
@@ -286,14 +286,14 @@ class CheckAgentTicketUpdates extends TimedJob {
 
 		// Get all agent tickets (assigned to me, ongoing only)
 		$ticketIds = $this->itopService->getAgentTicketIds($userId, false); // Don't include resolved
-		
+
 		if (empty($ticketIds)) {
 			return 0;
 		}
 
 		// Query for agent_id changes
 		$changes = $this->itopService->getChangeOps($userId, $ticketIds, $lastCheckTimestamp, ['agent_id']);
-		
+
 		foreach ($changes as $change) {
 			if ($change['attcode'] !== 'agent_id') {
 				continue;
@@ -342,16 +342,16 @@ class CheckAgentTicketUpdates extends TimedJob {
 	private function processTeamUnassignedTickets(
 		string $userId,
 		int $lastCheckTimestamp,
-		int $currentNotificationCount
+		int $currentNotificationCount,
 	): int {
 		$count = 0;
-		
+
 		// Get user's teams
 		$teams = $this->itopService->getUserTeams($userId);
 		if (empty($teams)) {
 			return 0;
 		}
-		
+
 		// Extract team IDs and names for notifications
 		$teamIds = array_column($teams, 'id');
 		$teamNames = array_column($teams, 'friendlyname', 'id');
@@ -359,12 +359,12 @@ class CheckAgentTicketUpdates extends TimedJob {
 		if (empty($teamIds)) {
 			return 0;
 		}
-		
+
 		try {
 			// Get newly created or team-assigned tickets that are still unassigned
 			// Strategy: Query for team_id changes where tickets became assigned to user's teams
 			// This detects both newly created tickets AND tickets reassigned to different teams
-			
+
 			$teamChanges = $this->itopService->getTeamAssignmentChanges(
 				$userId,
 				$teamIds,
@@ -396,7 +396,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 					break;
 				}
 			}
-			
+
 		} catch (\Exception $e) {
 			$this->logger->error('Error processing team unassigned tickets: ' . $e->getMessage(), [
 				'app' => Application::APP_ID,
@@ -417,7 +417,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 		int $lastCheckTimestamp,
 		bool $checkTto,
 		bool $checkTtr,
-		int $currentNotificationCount
+		int $currentNotificationCount,
 	): int {
 		$count = 0;
 		$now = time();
@@ -483,20 +483,20 @@ class CheckAgentTicketUpdates extends TimedJob {
 	private function processSlaBreaches(
 		string $userId,
 		int $lastCheckTimestamp,
-		int $currentNotificationCount
+		int $currentNotificationCount,
 	): int {
 		$count = 0;
-		
+
 		// Get agent tickets
 		$ticketIds = $this->itopService->getAgentTicketIds($userId, false);
-		
+
 		if (empty($ticketIds)) {
 			return 0;
 		}
 
 		// Query for SLA breach flags
 		$changes = $this->itopService->getChangeOps($userId, $ticketIds, $lastCheckTimestamp, ['sla_tto_passed', 'sla_ttr_passed']);
-		
+
 		foreach ($changes as $change) {
 			if (!in_array($change['attcode'], ['sla_tto_passed', 'sla_ttr_passed'])) {
 				continue;
@@ -505,7 +505,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 			// Check if SLA was breached (changed to 1 or '1')
 			if ($change['newvalue'] === '1' || $change['newvalue'] === 1) {
 				$slaType = $change['attcode'] === 'sla_tto_passed' ? 'TTO' : 'TTR';
-				
+
 				$this->sendNotification($userId, 'ticket_sla_breach', [
 					'ticket_id' => $change['objkey'],
 					'ticket_class' => $change['objclass'],
@@ -530,29 +530,29 @@ class CheckAgentTicketUpdates extends TimedJob {
 	private function processPriorityChanges(
 		string $userId,
 		int $lastCheckTimestamp,
-		int $currentNotificationCount
+		int $currentNotificationCount,
 	): int {
 		$count = 0;
-		
+
 		// Get agent tickets
 		$ticketIds = $this->itopService->getAgentTicketIds($userId, false);
-		
+
 		if (empty($ticketIds)) {
 			return 0;
 		}
 
 		// Query for priority changes
 		$changes = $this->itopService->getChangeOps($userId, $ticketIds, $lastCheckTimestamp, ['priority']);
-		
+
 		foreach ($changes as $change) {
 			if ($change['attcode'] !== 'priority') {
 				continue;
 			}
 
 			// Check if priority changed to critical (1)
-			if (($change['newvalue'] === '1' || $change['newvalue'] === 1) && 
-				($change['oldvalue'] !== '1' && $change['oldvalue'] !== 1)) {
-				
+			if (($change['newvalue'] === '1' || $change['newvalue'] === 1)
+				&& ($change['oldvalue'] !== '1' && $change['oldvalue'] !== 1)) {
+
 				$this->sendNotification($userId, 'ticket_priority_critical', [
 					'ticket_id' => $change['objkey'],
 					'ticket_class' => $change['objclass'],
@@ -577,13 +577,13 @@ class CheckAgentTicketUpdates extends TimedJob {
 	private function processComments(
 		string $userId,
 		int $lastCheckTimestamp,
-		int $currentNotificationCount
+		int $currentNotificationCount,
 	): int {
 		$count = 0;
-		
+
 		// Get agent tickets
 		$ticketIds = $this->itopService->getAgentTicketIds($userId, false);
-		
+
 		if (empty($ticketIds)) {
 			return 0;
 		}
@@ -641,7 +641,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 					// Fallback to UTC if timezone is invalid
 					$timezone = new \DateTimeZone('UTC');
 				}
-				
+
 				$dateTime = \DateTime::createFromFormat('Y-m-d H:i:s', $timestamp, $timezone);
 				if ($dateTime === false) {
 					// Fallback if format is different

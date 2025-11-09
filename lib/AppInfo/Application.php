@@ -410,13 +410,13 @@ class Application extends App implements IBootstrap {
 
 		// Get user-disabled notifications
 		$userDisabledJson = $config->getUserValue($userId, self::APP_ID, 'disabled_portal_notifications', '');
-		
+
 		// Check for master toggle off
 		if ($userDisabledJson === 'all') {
 			// Only forced notifications are active
 			return self::getForcedPortalNotifications($config);
 		}
-		
+
 		$userDisabled = [];
 		if ($userDisabledJson !== '') {
 			$userDisabled = json_decode($userDisabledJson, true);
@@ -456,13 +456,13 @@ class Application extends App implements IBootstrap {
 
 		// Get user-disabled notifications
 		$userDisabledJson = $config->getUserValue($userId, self::APP_ID, 'disabled_agent_notifications', '');
-		
+
 		// Check for master toggle off
 		if ($userDisabledJson === 'all') {
 			// Only forced notifications are active
 			return self::getForcedAgentNotifications($config);
 		}
-		
+
 		$userDisabled = [];
 		if ($userDisabledJson !== '') {
 			$userDisabled = json_decode($userDisabledJson, true);

@@ -24,12 +24,12 @@ use Psr\Log\LoggerInterface;
 
 /**
  * Background job to check for portal user ticket updates and send notifications
- * 
+ *
  * Runs every 5 minutes and checks CMDBChangeOp for:
  * - Ticket status changes
  * - Agent responses (public_log entries)
  * - Ticket resolutions
- * 
+ *
  * Implements per-user interval checking and respects granular notification toggles
  */
 class CheckPortalTicketUpdates extends TimedJob {
@@ -54,7 +54,7 @@ class CheckPortalTicketUpdates extends TimedJob {
 	 */
 	protected function run($argument): void {
 		$startTime = microtime(true);
-		
+
 		// Get admin configured default interval (in seconds)
 		$adminDefaultInterval = (int)$this->config->getAppValue(
 			Application::APP_ID,
@@ -94,7 +94,7 @@ class CheckPortalTicketUpdates extends TimedJob {
 
 	/**
 	 * Check if we should process notifications for this user
-	 * 
+	 *
 	 * @param string $userId Nextcloud user ID
 	 * @param int $adminDefaultInterval Admin configured default interval in seconds
 	 * @return bool
@@ -111,7 +111,7 @@ class CheckPortalTicketUpdates extends TimedJob {
 		if (empty($personId)) {
 			return false;
 		}
-		
+
 		// Check if all portal notifications are disabled
 		$disabledPortal = $this->config->getUserValue($userId, Application::APP_ID, 'disabled_portal_notifications', '');
 		if ($disabledPortal === 'all') {
@@ -120,9 +120,9 @@ class CheckPortalTicketUpdates extends TimedJob {
 
 		// Get user's custom interval (fallback to admin default)
 		$userInterval = (int)$this->config->getUserValue(
-			$userId, 
-			Application::APP_ID, 
-			'notification_check_interval', 
+			$userId,
+			Application::APP_ID,
+			'notification_check_interval',
 			(string)($adminDefaultInterval / 60)
 		) * 60; // Convert minutes to seconds
 
@@ -143,7 +143,7 @@ class CheckPortalTicketUpdates extends TimedJob {
 
 	/**
 	 * Check for portal notifications for a user and send them
-	 * 
+	 *
 	 * @return int Number of notifications sent
 	 */
 	private function checkPortalNotifications(string $userId): int {
@@ -153,10 +153,10 @@ class CheckPortalTicketUpdates extends TimedJob {
 			// Get last check Unix timestamp
 			$lastCheckStr = $this->config->getUserValue($userId, Application::APP_ID, 'notification_last_portal_check', '');
 			$lastCheckTimestamp = empty($lastCheckStr) ? (time() - (30 * 24 * 60 * 60)) : (int)$lastCheckStr; // Default 30 days ago
-			
+
 			// Get effective enabled portal notifications (respects admin config and user preferences)
 			$enabledNotifications = Application::getEffectiveEnabledPortalNotifications($this->config, $userId);
-			
+
 			if (empty($enabledNotifications)) {
 				// No notifications enabled, update timestamp and return
 				$this->config->setUserValue($userId, Application::APP_ID, 'notification_last_portal_check', (string)time());
@@ -190,13 +190,13 @@ class CheckPortalTicketUpdates extends TimedJob {
 			// Query optimization: Only query for CMDBChangeOpSetAttributeScalar if needed
 			if ($checkStatusChanged || $checkTicketResolved || $checkAgentAssigned) {
 				$statusChanges = $this->itopService->getChangeOps($userId, $ticketIds, $lastCheckTimestamp, ['status', 'agent_id']);
-				
+
 				$this->logger->debug('Status changes detected', [
 					'app' => Application::APP_ID,
 					'userId' => $userId,
 					'changeCount' => count($statusChanges)
 				]);
-				
+
 				foreach ($statusChanges as $change) {
 					// Handle agent assignment changes
 					if ($change['attcode'] === 'agent_id' && $checkAgentAssigned) {
@@ -206,25 +206,25 @@ class CheckPortalTicketUpdates extends TimedJob {
 						}
 
 						// Resolve agent IDs to names
-						$agentIds = array_filter([$change['oldvalue'], $change['newvalue']], function($id) {
+						$agentIds = array_filter([$change['oldvalue'], $change['newvalue']], function ($id) {
 							return !empty($id) && $id != '0';
 						});
 						$agentNames = !empty($agentIds) ? $this->itopService->resolveUserNames($userId, $agentIds) : [];
-						
-						$oldAgent = $change['oldvalue'] == '0' || empty($change['oldvalue']) 
-							? 'Unassigned' 
+
+						$oldAgent = $change['oldvalue'] == '0' || empty($change['oldvalue'])
+							? 'Unassigned'
 							: ($agentNames[$change['oldvalue']] ?? $change['oldvalue']);
-						$newAgent = $change['newvalue'] == '0' || empty($change['newvalue']) 
-							? 'Unassigned' 
+						$newAgent = $change['newvalue'] == '0' || empty($change['newvalue'])
+							? 'Unassigned'
 							: ($agentNames[$change['newvalue']] ?? $change['newvalue']);
 
-					$this->sendNotification($userId, 'agent_assigned', [
-						'ticket_id' => $change['objkey'],
-						'ticket_class' => $change['objclass'],
-						'old_agent' => $oldAgent,
-						'new_agent' => $newAgent,
-						'timestamp' => $change['date']
-					]);
+						$this->sendNotification($userId, 'agent_assigned', [
+							'ticket_id' => $change['objkey'],
+							'ticket_class' => $change['objclass'],
+							'old_agent' => $oldAgent,
+							'new_agent' => $newAgent,
+							'timestamp' => $change['date']
+						]);
 						$notificationCount++;
 						continue;
 					}
@@ -344,7 +344,7 @@ class CheckPortalTicketUpdates extends TimedJob {
 					// Fallback to UTC if timezone is invalid
 					$timezone = new \DateTimeZone('UTC');
 				}
-				
+
 				$dateTime = \DateTime::createFromFormat('Y-m-d H:i:s', $timestamp, $timezone);
 				if ($dateTime === false) {
 					// Fallback if format is different

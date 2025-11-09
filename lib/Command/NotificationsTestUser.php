@@ -74,11 +74,11 @@ class NotificationsTestUser extends Command {
 		// Reset portal check timestamp (Unix timestamp format)
 		$this->config->deleteUserValue($userId, Application::APP_ID, 'notification_last_portal_check');
 		$output->writeln('  ✓ Reset notification_last_portal_check');
-		
+
 		// Reset agent check timestamp
 		$this->config->deleteUserValue($userId, Application::APP_ID, 'notification_last_agent_check');
 		$output->writeln('  ✓ Reset notification_last_agent_check');
-		
+
 		// Clean up old timestamp format if it exists
 		$this->config->deleteUserValue($userId, Application::APP_ID, 'last_portal_check');
 
@@ -126,7 +126,7 @@ class NotificationsTestUser extends Command {
 		// Check preferences
 		$output->writeln('');
 		$output->writeln('<info>Notification preferences:</info>');
-		
+
 		if ($testAgent) {
 			// Check if user is portal-only
 			$isPortalOnly = $this->config->getUserValue($userId, Application::APP_ID, 'is_portal_only', '0') === '1';
@@ -134,7 +134,7 @@ class NotificationsTestUser extends Command {
 				$output->writeln('  <error>User is portal-only (agent notifications not available)</error>');
 				return 1;
 			}
-			
+
 			$disabledAgentStr = $this->config->getUserValue($userId, Application::APP_ID, 'disabled_agent_notifications', '');
 			if ($disabledAgentStr === 'all') {
 				$output->writeln('  <error>All agent notifications disabled</error>');
@@ -143,7 +143,7 @@ class NotificationsTestUser extends Command {
 				if (!is_array($disabledAgent)) {
 					$disabledAgent = [];
 				}
-				
+
 				$output->writeln('  Ticket assigned: ' . (in_array('ticket_assigned', $disabledAgent) ? '✗' : '✓'));
 				$output->writeln('  Ticket reassigned: ' . (in_array('ticket_reassigned', $disabledAgent) ? '✗' : '✓'));
 				$output->writeln('  Team unassigned new: ' . (in_array('team_unassigned_new', $disabledAgent) ? '✗' : '✓'));
@@ -162,7 +162,7 @@ class NotificationsTestUser extends Command {
 				if (!is_array($disabledPortal)) {
 					$disabledPortal = [];
 				}
-				
+
 				$output->writeln('  Ticket status changed: ' . (in_array('ticket_status_changed', $disabledPortal) ? '✗' : '✓'));
 				$output->writeln('  Agent responded: ' . (in_array('agent_responded', $disabledPortal) ? '✗' : '✓'));
 				$output->writeln('  Ticket resolved: ' . (in_array('ticket_resolved', $disabledPortal) ? '✗' : '✓'));

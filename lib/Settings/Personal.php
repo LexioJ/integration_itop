@@ -17,8 +17,8 @@ use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
 use OCP\IL10N;
-use OCP\Settings\ISettings;
 use OCP\Security\ICrypto;
+use OCP\Settings\ISettings;
 
 class Personal implements ISettings {
 
@@ -46,7 +46,7 @@ class Personal implements ISettings {
 		$navigationEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'navigation_enabled', '0') === '1';
 		$notificationEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'notification_enabled', '0') === '1';
 		$searchEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'search_enabled', '1') === '1'; // Default: enabled (opt-out)
-		
+
 		// Get portal notification preferences (default: enabled)
 		$notifyTicketStatusChanged = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_ticket_status_changed', '1') === '1';
 		$notifyAgentResponded = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_agent_responded', '1') === '1';
@@ -58,11 +58,11 @@ class Personal implements ISettings {
 
 		// Check if admin has configured application token
 		$hasApplicationToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '') !== '';
-		
+
 		// Get CI classes that users can configure (user_choice state)
 		$userChoiceCIClasses = Application::getUserChoiceCIClasses($this->config);
 		$forcedCIClasses = Application::getForcedCIClasses($this->config);
-		
+
 		// Get user's disabled CI classes
 		$userDisabledJson = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
 		$userDisabledClasses = [];
@@ -72,17 +72,17 @@ class Personal implements ISettings {
 				$userDisabledClasses = [];
 			}
 		}
-		
+
 		// Get notification configuration (3-state system)
 		$userChoicePortalNotifications = Application::getUserChoicePortalNotifications($this->config);
 		$userChoiceAgentNotifications = Application::getUserChoiceAgentNotifications($this->config);
 		$forcedPortalNotifications = Application::getForcedPortalNotifications($this->config);
 		$forcedAgentNotifications = Application::getForcedAgentNotifications($this->config);
-		
+
 		// Get user's disabled notifications
 		$userDisabledPortalNotifications = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications', '');
 		$userDisabledAgentNotifications = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications', '');
-		
+
 		// Parse disabled notification arrays
 		$disabledPortalArray = [];
 		if ($userDisabledPortalNotifications === 'all') {
@@ -93,7 +93,7 @@ class Personal implements ISettings {
 				$disabledPortalArray = $parsed;
 			}
 		}
-		
+
 		$disabledAgentArray = [];
 		if ($userDisabledAgentNotifications === 'all') {
 			$disabledAgentArray = 'all';
@@ -103,7 +103,7 @@ class Personal implements ISettings {
 				$disabledAgentArray = $parsed;
 			}
 		}
-		
+
 		// Get user's notification check interval (fallback to admin default)
 		$adminDefaultInterval = (int)$this->config->getAppValue(Application::APP_ID, 'default_notification_interval', '60');
 		$userNotificationInterval = (int)$this->config->getUserValue($this->userId, Application::APP_ID, 'notification_check_interval', (string)$adminDefaultInterval);

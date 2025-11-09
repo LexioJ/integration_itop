@@ -13,8 +13,8 @@
 namespace OCA\Itop\Controller;
 
 use OCA\Itop\AppInfo\Application;
-use OCA\Itop\Service\ItopAPIService;
 use OCA\Itop\Service\CacheService;
+use OCA\Itop\Service\ItopAPIService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -41,7 +41,7 @@ class ConfigController extends Controller {
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
 		private IClientService $clientService,
-		private ?string $userId
+		private ?string $userId,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -95,7 +95,7 @@ class ConfigController extends Controller {
 			'notify_agent_responded',
 			'notify_ticket_resolved'
 		];
-		
+
 		foreach ($values as $key => $value) {
 			if (in_array($key, $allowedKeys)) {
 				// Boolean values should be '0' or '1'
@@ -103,7 +103,7 @@ class ConfigController extends Controller {
 				$this->config->setUserValue($this->userId, Application::APP_ID, $key, $boolValue);
 			}
 		}
-		
+
 		// Handle disabled CI classes (user preferences)
 		if (isset($values['disabled_ci_classes']) && is_array($values['disabled_ci_classes'])) {
 			$disabledClasses = array_values(array_unique($values['disabled_ci_classes']));
@@ -115,7 +115,7 @@ class ConfigController extends Controller {
 				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', json_encode($validDisabled));
 			}
 		}
-		
+
 		// Handle disabled portal notifications (3-state system)
 		if (isset($values['disabled_portal_notifications'])) {
 			if ($values['disabled_portal_notifications'] === 'all') {
@@ -135,7 +135,7 @@ class ConfigController extends Controller {
 				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications');
 			}
 		}
-		
+
 		// Handle disabled agent notifications (3-state system)
 		if (isset($values['disabled_agent_notifications'])) {
 			if ($values['disabled_agent_notifications'] === 'all') {
@@ -155,7 +155,7 @@ class ConfigController extends Controller {
 				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications');
 			}
 		}
-		
+
 		// Handle notification check interval
 		if (isset($values['notification_check_interval'])) {
 			$interval = (int)$values['notification_check_interval'];
@@ -507,15 +507,15 @@ class ConfigController extends Controller {
 		if (empty($testUrl)) {
 			return new DataResponse(['status' => 'error', 'message' => $this->l10n->t('No server URL provided for testing')], Http::STATUS_BAD_REQUEST);
 		}
-		
+
 		$this->logger->info('iTop testing connection to URL: ' . $testUrl, ['app' => Application::APP_ID]);
-		
+
 		// Test iTop API endpoint specifically
 		try {
 			// Construct the iTop REST API URL
 			$apiUrl = rtrim($testUrl, '/') . '/webservices/rest.php?version=1.3';
 			$this->logger->info('iTop testing API endpoint: ' . $apiUrl, ['app' => Application::APP_ID]);
-			
+
 			// Prepare a basic API request (without credentials to test for proper iTop error response)
 			$postData = [
 				'json_data' => json_encode([
@@ -1138,13 +1138,13 @@ class ConfigController extends Controller {
 			$row = $result->fetch();
 			$result->closeCursor();
 			// Database may return the count as 'count' or 'COUNT(*)' depending on driver
-			return (int) ($row['count'] ?? $row['COUNT(*)'] ?? 0);
+			return (int)($row['count'] ?? $row['COUNT(*)'] ?? 0);
 		} catch (\Exception $e) {
 			$this->logger->error('Error counting connected users: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return 0;
 		}
 	}
-	
+
 
 	/**
 	 * Validate personal token and extract Person ID using iTop's :current_contact_id placeholder
@@ -1261,11 +1261,11 @@ class ConfigController extends Controller {
 			// Personal tokens can't query User class, so we use the application token
 			$encryptedAppToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
 			$userIdValue = null;
-			
+
 			if (!empty($encryptedAppToken)) {
 				try {
 					$applicationToken = $this->crypto->decrypt($encryptedAppToken);
-					
+
 					// Query User class using application token
 					// Validate personId to prevent OQL injection
 					if (!is_numeric($personId) || $personId < 0) {

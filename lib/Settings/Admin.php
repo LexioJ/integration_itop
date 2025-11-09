@@ -44,7 +44,7 @@ class Admin implements ISettings {
 
 		// Get notification configuration (default: 15 minutes)
 		$defaultNotificationInterval = (int)$this->config->getAppValue(Application::APP_ID, 'default_notification_interval', '15');
-		
+
 		// Get 3-state notification configurations
 		$portalNotificationConfig = Application::getPortalNotificationConfig($this->config);
 		$agentNotificationConfig = Application::getAgentNotificationConfig($this->config);
