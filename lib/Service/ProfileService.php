@@ -156,6 +156,13 @@ class ProfileService {
 	 * @return string|null iTop User ID or null if not found
 	 */
 	private function getUserIdByPersonId(string $userId, string $personId): ?string {
+		// Validate personId to prevent OQL injection
+		if (!is_numeric($personId) || $personId < 0) {
+			$this->logger->warning('Invalid person ID provided', ['app' => Application::APP_ID]);
+			return null;
+		}
+		$personId = (int)$personId;
+
 		$params = [
 			'operation' => 'core/get',
 			'class' => 'User',

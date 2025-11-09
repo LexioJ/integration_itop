@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.1] - 2025-11-09
+
+### 🔒 Security Hardening
+
+This release includes important security enhancements to strengthen the application's defenses.
+
+### Changed
+- Replaced direct cURL usage with Nextcloud's IClientService for proper SSL certificate verification
+- Enhanced input validation and sanitization for OQL query parameters
+- Improved data validation for numeric identifiers
+
+### Security
+- Resolved issues related to network communication security
+- Strengthened protection against malicious input in database queries
+
+---
+
 ## [1.3.0] - 2025-11-08
 
 ### ✨ Major New Feature: Agent Notifications System
