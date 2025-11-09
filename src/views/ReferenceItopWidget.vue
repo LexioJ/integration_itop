@@ -521,7 +521,7 @@ export default {
 			color: var(--color-text-maxcontrast);
 
 			.service-breadcrumb {
-				::v-deep a {
+				:deep(a) {
 					color: inherit !important;
 					&:hover {
 						color: #58a6ff !important;
@@ -540,7 +540,7 @@ export default {
 				color: var(--color-text-maxcontrast);
 
 				.org-breadcrumb {
-					::v-deep a {
+					:deep(a) {
 						color: inherit !important;
 						&:hover {
 							color: #58a6ff !important;
@@ -654,15 +654,15 @@ export default {
 		}
 	}
 
-	::v-deep .author-link,
-	::v-deep .agent-link,
+	:deep(.author-link),
+	:deep(.agent-link),
 	.slug-link {
 		color: inherit !important;
 	}
 
 	.date-with-tooltip,
-	::v-deep .author-link,
-	::v-deep .agent-link,
+	:deep(.author-link),
+	:deep(.agent-link),
 	.slug-link,
 	.ticket-link {
 		&:hover {
