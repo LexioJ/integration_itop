@@ -18,11 +18,7 @@ build/
 .php-cs-fixer.cache
 
 # Vite build outputs (reference widget)
-# Note: Vue components (.mjs) in js/ are tracked for deployment
-# admin-settings.js and personal-settings.js are manually created and tracked
-# Exclude source maps and vendor license to save repository space
-js/**/*.map
-js/vendor.LICENSE.txt
+js/
 
 # IDE files
 .idea/
