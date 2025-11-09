@@ -19,6 +19,7 @@ use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\Http\Client\IClientService;
 use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IRequest;
@@ -39,6 +40,7 @@ class ConfigController extends Controller {
 		private CacheService $cacheService,
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
+		private IClientService $clientService,
 		private ?string $userId
 	) {
 		parent::__construct($appName, $request);
@@ -269,26 +271,20 @@ class ConfigController extends Controller {
 				])
 			];
 
-			$ch = curl_init();
-			curl_setopt($ch, CURLOPT_URL, $apiUrl);
-			curl_setopt($ch, CURLOPT_POST, true);
-			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-			curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-			curl_setopt($ch, CURLOPT_HTTPHEADER, [
-				'Content-Type: application/x-www-form-urlencoded',
-				'Auth-Token: ' . $applicationToken,
-				'User-Agent: Nextcloud-iTop-Integration/1.0'
-			]);
-
-			$result = curl_exec($ch);
-			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-			$error = curl_error($ch);
-			curl_close($ch);
-
-			if ($result === false || !empty($error)) {
-				return new DataResponse(['error' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])], Http::STATUS_SERVICE_UNAVAILABLE);
+			try {
+				$client = $this->clientService->newClient();
+				$response = $client->post($apiUrl, [
+					'body' => http_build_query($postData),
+					'headers' => [
+						'Content-Type' => 'application/x-www-form-urlencoded',
+						'Auth-Token' => $applicationToken,
+						'User-Agent' => 'Nextcloud-iTop-Integration/1.0'
+					],
+					'timeout' => 15,
+				]);
+				$result = $response->getBody();
+			} catch (\Exception $e) {
+				return new DataResponse(['error' => $this->l10n->t('Connection failed: %s', [$e->getMessage()])], Http::STATUS_SERVICE_UNAVAILABLE);
 			}
 
 			$responseData = json_decode($result, true);
@@ -412,30 +408,24 @@ class ConfigController extends Controller {
 				])
 			];
 
-			$ch = curl_init();
-			curl_setopt($ch, CURLOPT_URL, $apiUrl);
-			curl_setopt($ch, CURLOPT_POST, true);
-			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-			curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-			curl_setopt($ch, CURLOPT_HTTPHEADER, [
-				'Content-Type: application/x-www-form-urlencoded',
-				'Auth-Token: ' . $token,
-				'User-Agent: Nextcloud-iTop-Integration/1.0'
-			]);
+			try {
+				$client = $this->clientService->newClient();
+				$response = $client->post($apiUrl, [
+					'body' => http_build_query($postData),
+					'headers' => [
+						'Content-Type' => 'application/x-www-form-urlencoded',
+						'Auth-Token' => $token,
+						'User-Agent' => 'Nextcloud-iTop-Integration/1.0'
+					],
+					'timeout' => 15,
+				]);
+				$result = $response->getBody();
 
-			$result = curl_exec($ch);
-			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-			$error = curl_error($ch);
-			curl_close($ch);
-
-			$this->logger->info('iTop application token test - Method 1 (Auth-Token header) response: ' . $result, ['app' => Application::APP_ID]);
-
-			if ($result === false || !empty($error)) {
+				$this->logger->info('iTop application token test response: ' . $result, ['app' => Application::APP_ID]);
+			} catch (\Exception $e) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])
+					'message' => $this->l10n->t('Connection failed: %s', [$e->getMessage()])
 				]);
 			}
 
@@ -532,37 +522,23 @@ class ConfigController extends Controller {
 					'operation' => 'core/check_credentials'
 				])
 			];
-			
-			$ch = curl_init();
-			curl_setopt($ch, CURLOPT_URL, $apiUrl);
-			curl_setopt($ch, CURLOPT_POST, true);
-			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-			curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-			curl_setopt($ch, CURLOPT_HTTPHEADER, [
-				'Content-Type: application/x-www-form-urlencoded',
-				'User-Agent: Nextcloud-iTop-Integration/1.0'
-			]);
-			
-			$result = curl_exec($ch);
-			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-			$error = curl_error($ch);
-			curl_close($ch);
-			
-			if ($result === false || !empty($error)) {
-				return new DataResponse([
-					'status' => 'error',
-					'message' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')]),
-					'details' => ['url' => $testUrl, 'api_url' => $apiUrl]
-				]);
-			}
 
-			if ($httpCode !== 200) {
+			try {
+				$client = $this->clientService->newClient();
+				$response = $client->post($apiUrl, [
+					'body' => http_build_query($postData),
+					'headers' => [
+						'Content-Type' => 'application/x-www-form-urlencoded',
+						'User-Agent' => 'Nextcloud-iTop-Integration/1.0'
+					],
+					'timeout' => 15,
+				]);
+				$result = $response->getBody();
+			} catch (\Exception $e) {
 				return new DataResponse([
 					'status' => 'error',
-					'message' => $this->l10n->t('iTop API endpoint returned HTTP %d', [$httpCode]),
-					'details' => ['http_code' => $httpCode, 'url' => $testUrl, 'api_url' => $apiUrl]
+					'message' => $this->l10n->t('Connection failed: %s', [$e->getMessage()]),
+					'details' => ['url' => $testUrl, 'api_url' => $apiUrl]
 				]);
 			}
 
@@ -1207,30 +1183,24 @@ class ConfigController extends Controller {
 				])
 			];
 
-			$ch = curl_init();
-			curl_setopt($ch, CURLOPT_URL, $apiUrl);
-			curl_setopt($ch, CURLOPT_POST, true);
-			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-			curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-			curl_setopt($ch, CURLOPT_HTTPHEADER, [
-				'Content-Type: application/x-www-form-urlencoded',
-				'Auth-Token: ' . $personalToken,
-				'User-Agent: Nextcloud-iTop-Integration/1.0'
-			]);
-
-			$result = curl_exec($ch);
-			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-			$error = curl_error($ch);
-			curl_close($ch);
-
-			if ($result === false || !empty($error)) {
+			try {
+				$client = $this->clientService->newClient();
+				$response = $client->post($apiUrl, [
+					'body' => http_build_query($postData),
+					'headers' => [
+						'Content-Type' => 'application/x-www-form-urlencoded',
+						'Auth-Token' => $personalToken,
+						'User-Agent' => 'Nextcloud-iTop-Integration/1.0'
+					],
+					'timeout' => 15,
+				]);
+				$result = $response->getBody();
+			} catch (\Exception $e) {
 				return [
 					'success' => false,
 					'person_id' => null,
 					'user_info' => null,
-					'error' => $this->l10n->t('Connection failed: %s', [$error ?: $this->l10n->t('Unknown error')])
+					'error' => $this->l10n->t('Connection failed: %s', [$e->getMessage()])
 				];
 			}
 
@@ -1297,6 +1267,11 @@ class ConfigController extends Controller {
 					$applicationToken = $this->crypto->decrypt($encryptedAppToken);
 					
 					// Query User class using application token
+					// Validate personId to prevent OQL injection
+					if (!is_numeric($personId) || $personId < 0) {
+						throw new \InvalidArgumentException('Invalid person ID');
+					}
+					$personId = (int)$personId;
 					$getUserData = [
 						'json_data' => json_encode([
 							'operation' => 'core/get',
@@ -1305,23 +1280,19 @@ class ConfigController extends Controller {
 							'output_fields' => 'id,login,finalclass'
 						])
 					];
-					
-					$ch2 = curl_init();
-					curl_setopt($ch2, CURLOPT_URL, $apiUrl);
-					curl_setopt($ch2, CURLOPT_POST, true);
-					curl_setopt($ch2, CURLOPT_POSTFIELDS, http_build_query($getUserData));
-					curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
-					curl_setopt($ch2, CURLOPT_TIMEOUT, 15);
-					curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
-					curl_setopt($ch2, CURLOPT_HTTPHEADER, [
-						'Content-Type: application/x-www-form-urlencoded',
-						'Auth-Token: ' . $applicationToken,
-						'User-Agent: Nextcloud-iTop-Integration/1.0'
+
+					$client = $this->clientService->newClient();
+					$response = $client->post($apiUrl, [
+						'body' => http_build_query($getUserData),
+						'headers' => [
+							'Content-Type' => 'application/x-www-form-urlencoded',
+							'Auth-Token' => $applicationToken,
+							'User-Agent' => 'Nextcloud-iTop-Integration/1.0'
+						],
+						'timeout' => 15,
 					]);
-					
-					$userResult = curl_exec($ch2);
-					curl_close($ch2);
-					
+					$userResult = $response->getBody();
+
 					$userData = json_decode($userResult, true);
 					if (isset($userData['objects']) && !empty($userData['objects'])) {
 						$userObject = reset($userData['objects']);

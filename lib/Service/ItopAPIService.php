@@ -123,6 +123,57 @@ class ItopAPIService {
 	}
 
 	/**
+	 * Escape a string value for use in OQL queries
+	 * Protects against OQL injection by properly escaping special characters
+	 *
+	 * @param string $value Value to escape
+	 * @return string Escaped value safe for OQL
+	 */
+	private function escapeOQLString(string $value): string {
+		// Escape backslashes first to prevent double-escaping
+		$value = str_replace('\\', '\\\\', $value);
+		// Escape single quotes
+		$value = str_replace("'", "\\'", $value);
+		// Escape double quotes
+		$value = str_replace('"', '\\"', $value);
+		return $value;
+	}
+
+	/**
+	 * Validate and sanitize a numeric ID for use in OQL queries
+	 * Throws exception if ID is not numeric to prevent injection
+	 *
+	 * @param mixed $id ID to validate
+	 * @return int Validated numeric ID
+	 * @throws \InvalidArgumentException If ID is not numeric
+	 */
+	private function validateNumericId($id): int {
+		if (!is_numeric($id) || $id < 0) {
+			throw new \InvalidArgumentException('Invalid ID: must be a positive integer');
+		}
+		return (int)$id;
+	}
+
+	/**
+	 * Validate class name against whitelist to prevent injection
+	 *
+	 * @param string $class Class name to validate
+	 * @return string Validated class name
+	 * @throws \InvalidArgumentException If class is not in whitelist
+	 */
+	private function validateClassName(string $class): string {
+		$allowedClasses = ['UserRequest', 'Incident', 'Person', 'User', 'Team', 'lnkContactToTicket',
+			'lnkPersonToTeam', 'Change', 'PC', 'Phone', 'IPPhone', 'MobilePhone', 'Tablet',
+			'Printer', 'Peripheral', 'PCSoftware', 'OtherSoftware', 'WebApplication', 'Software',
+			'SoftwareInstance', 'lnkContactToFunctionalCI'];
+
+		if (!in_array($class, $allowedClasses, true)) {
+			throw new \InvalidArgumentException('Invalid class name: ' . $class);
+		}
+		return $class;
+	}
+
+	/**
 	 * Get tickets created by the current user (UserRequest + Incident)
 	 *
 	 * @param string $userId
@@ -153,14 +204,16 @@ class ItopAPIService {
 
 	// Get person_id for more precise queries
 	$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
-	
+
 	// Query UserRequest tickets where user is caller OR contact
 	// Note: ORDER BY in complex queries with subqueries may not work, so we sort in PHP
 	if ($personId) {
-		$userRequestQuery = "SELECT UserRequest WHERE (caller_id = '$personId' OR id IN (SELECT UserRequest JOIN lnkContactToTicket ON lnkContactToTicket.ticket_id = UserRequest.id WHERE lnkContactToTicket.contact_id = '$personId')) AND status != 'closed'";
+		$personId = $this->validateNumericId($personId);
+		$userRequestQuery = "SELECT UserRequest WHERE (caller_id = $personId OR id IN (SELECT UserRequest JOIN lnkContactToTicket ON lnkContactToTicket.ticket_id = UserRequest.id WHERE lnkContactToTicket.contact_id = $personId)) AND status != 'closed'";
 	} else {
 		// Fallback to name-based query if no person_id
-		$userRequestQuery = "SELECT UserRequest WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
+		$escapedFullName = $this->escapeOQLString($fullName);
+		$userRequestQuery = "SELECT UserRequest WHERE caller_id_friendlyname = '$escapedFullName' AND status != 'closed'";
 	}
 	$userRequestParams = [
 		'operation' => 'core/get',
@@ -210,10 +263,11 @@ class ItopAPIService {
 		
 	// Query Incident tickets where user is caller OR contact
 	if ($personId) {
-		$incidentQuery = "SELECT Incident WHERE (caller_id = '$personId' OR id IN (SELECT Incident JOIN lnkContactToTicket ON lnkContactToTicket.ticket_id = Incident.id WHERE lnkContactToTicket.contact_id = '$personId')) AND status != 'closed'";
+		$incidentQuery = "SELECT Incident WHERE (caller_id = $personId OR id IN (SELECT Incident JOIN lnkContactToTicket ON lnkContactToTicket.ticket_id = Incident.id WHERE lnkContactToTicket.contact_id = $personId)) AND status != 'closed'";
 	} else {
 		// Fallback to name-based query if no person_id
-		$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
+		$escapedFullName = $this->escapeOQLString($fullName);
+		$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$escapedFullName' AND status != 'closed'";
 	}
 	$incidentParams = [
 		'operation' => 'core/get',
@@ -339,7 +393,8 @@ class ItopAPIService {
 		$requestCount = 0;
 		
 		// Query UserRequest tickets
-		$userRequestQuery = "SELECT UserRequest WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
+		$escapedFullName = $this->escapeOQLString($fullName);
+		$userRequestQuery = "SELECT UserRequest WHERE caller_id_friendlyname = '$escapedFullName' AND status != 'closed'";
 		$userRequestParams = [
 			'operation' => 'core/get',
 			'class' => 'UserRequest',
@@ -351,9 +406,9 @@ class ItopAPIService {
 		if (isset($userRequestResult['objects'])) {
 			$requestCount = count($userRequestResult['objects']);
 		}
-		
+
 		// Query Incident tickets
-		$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$fullName' AND status != 'closed'";
+		$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$escapedFullName' AND status != 'closed'";
 		$incidentParams = [
 			'operation' => 'core/get',
 			'class' => 'Incident',
