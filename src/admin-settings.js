@@ -5,6 +5,8 @@
  * Handles events and dynamic updates for server-rendered HTML
  */
 
+import { generateUrl } from '@nextcloud/router'
+
 (function() {
 	'use strict'
 
@@ -182,7 +184,7 @@
 	 *
 	 */
 	function loadConnectedUsersCount() {
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config'), {
+		fetch(generateUrl('/apps/integration_itop/admin-config'), {
 			method: 'GET',
 			headers: {
 				requesttoken: OC.requestToken,
@@ -251,7 +253,7 @@
 			requestData.values.application_token = token
 		}
 
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config'), {
+		fetch(generateUrl('/apps/integration_itop/admin-config'), {
 			method: 'PUT',
 			headers: {
 				'Content-Type': 'application/json',
@@ -333,7 +335,7 @@
 		statusElement.textContent = textTesting
 		if (statusCard) statusCard.className = 'status-card connection-status testing'
 
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config/test'), {
+		fetch(generateUrl('/apps/integration_itop/admin-config/test'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -386,7 +388,7 @@
 		const originalText = testButton.innerHTML
 		testButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Testing...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config/test-token'), {
+		fetch(generateUrl('/apps/integration_itop/admin-config/test-token'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -423,7 +425,7 @@
 		const originalText = saveButton.innerHTML
 		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/notification-settings'), {
+		fetch(generateUrl('/apps/integration_itop/notification-settings'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -479,7 +481,7 @@
 		const originalText = saveButton.innerHTML
 		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/notification-config'), {
+		fetch(generateUrl('/apps/integration_itop/notification-config'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -525,7 +527,7 @@
 		const originalText = saveButton.innerHTML
 		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config'), {
+		fetch(generateUrl('/apps/integration_itop/admin-config'), {
 			method: 'PUT',
 			headers: {
 				'Content-Type': 'application/json',
@@ -563,7 +565,7 @@
 		const originalText = clearButton.innerHTML
 		clearButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Clearing...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/clear-cache'), {
+		fetch(generateUrl('/apps/integration_itop/clear-cache'), {
 			method: 'DELETE',
 			headers: {
 				requesttoken: OC.requestToken,
@@ -603,7 +605,7 @@
 		const originalText = saveButton.innerHTML
 		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/ci-class-config'), {
+		fetch(generateUrl('/apps/integration_itop/ci-class-config'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -706,7 +708,7 @@
 	 */
 	function checkAppVersion(currentVersion) {
 
-		fetch(OC.generateUrl('/apps/integration_itop/version-check'), {
+		fetch(generateUrl('/apps/integration_itop/version-check'), {
 			method: 'GET',
 			headers: {
 				requesttoken: OC.requestToken,
