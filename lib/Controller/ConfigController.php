@@ -93,7 +93,8 @@ class ConfigController extends Controller {
 			'search_enabled',
 			'notify_ticket_status_changed',
 			'notify_agent_responded',
-			'notify_ticket_resolved'
+			'notify_ticket_resolved',
+			'newsroom_mirroring_enabled',
 		];
 		
 		foreach ($values as $key => $value) {

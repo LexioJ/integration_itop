@@ -30,5 +30,8 @@ return [
 
 		// Search routes
 		['name' => 'itopAPI#search', 'url' => '/search', 'verb' => 'GET'],
+
+		// Newsroom routes
+		['name' => 'newsroom#markAsRead', 'url' => '/newsroom/mark-read', 'verb' => 'POST'],
 	]
 ];

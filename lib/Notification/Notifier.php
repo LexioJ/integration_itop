@@ -319,6 +319,43 @@ class Notifier implements INotifier {
 
 				return $notification;
 
+
+			case 'newsroom_item':
+				$p = $notification->getSubjectParameters();
+				$title    = $p['title']    ?? 'iTop';
+				$message  = $p['message']  ?? '';
+				$priority = (int)($p['priority'] ?? 4);
+				$itemUrl  = $p['url']      ?? '';
+
+				// Priority icons matching iTop's priority scale:
+				// 1 = Critical, 2 = Urgent, 3 = Important, 4 = Standard
+				$icon = match($priority) {
+					1       => '🔴',
+					2       => '🟠',
+					3       => '🟡',
+					default => '🔵',
+				};
+
+				$notification->setParsedSubject($icon . ' ' . $title);
+				$notification->setParsedMessage($message);
+				$notification->setIcon(
+					$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg'))
+				);
+
+				if (!empty($itemUrl)) {
+					$notification->setLink($itemUrl);
+				}
+
+				// Translate the action label ("Mark as read" button)
+				foreach ($notification->getActions() as $action) {
+					if ($action->getLabel() === 'mark_read') {
+						$action->setParsedLabel($l->t('Mark as read'));
+						$notification->addParsedAction($action);
+					}
+				}
+
+				return $notification;
+
 			default:
 				// Unknown subject => Unknown notification => throw
 				throw new InvalidArgumentException();

@@ -2411,4 +2411,99 @@ class ItopAPIService {
 		return $results;
 	}
 
+	/**
+	 * Get unread newsroom items for a user since a given ID
+	 *
+	 * Queries EventNotificationNewsroom filtered by contact_id and only unread items
+	 * with an id greater than sinceId to avoid re-processing already-notified items.
+	 *
+	 * @param string $userId Nextcloud user ID
+	 * @param int $personId iTop Person ID
+	 * @param int $sinceId Only fetch items with id > sinceId (0 = all)
+	 * @return array Sorted array of newsroom item arrays (empty on error)
+	 */
+	public function getNewsroomItems(string $userId, int $personId, int $sinceId = 0): array {
+		$oql = "SELECT EventNotificationNewsroom WHERE contact_id = $personId AND id > $sinceId AND read = 'no'";
+
+		$params = [
+			'operation' => 'core/get',
+			'class' => 'EventNotificationNewsroom',
+			'key' => $oql,
+			'output_fields' => 'id,title,message,date,priority,url,read,contact_id'
+		];
+
+		$result = $this->request($userId, $params, 'POST', false);
+
+		if (!isset($result['objects'])) {
+			if (isset($result['error'])) {
+				$this->logger->warning('Failed to fetch newsroom items for user {userId}: {error}', [
+					'app' => Application::APP_ID,
+					'userId' => $userId,
+					'error' => $result['error']
+				]);
+			}
+			return [];
+		}
+
+		$items = [];
+		foreach ($result['objects'] as $objectKey => $item) {
+			$fields = $item['fields'] ?? [];
+			$id = $item['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : null);
+			if ($id === null) {
+				continue;
+			}
+			$items[] = [
+				'id'       => (int)$id,
+				'title'    => $fields['title'] ?? '',
+				'message'  => $fields['message'] ?? '',
+				'date'     => $fields['date'] ?? '',
+				'priority' => (int)($fields['priority'] ?? 4),
+				'url'      => $fields['url'] ?? '',
+			];
+		}
+
+		// Sort by ID ascending so we process oldest-first and can track progress correctly
+		usort($items, fn($a, $b) => $a['id'] - $b['id']);
+
+		return $items;
+	}
+
+	/**
+	 * Mark a newsroom item as read in iTop
+	 *
+	 * The OQL includes contact_id = $personId to ensure a user can only update
+	 * their own newsroom items (server-side authorisation check).
+	 *
+	 * @param string $userId    Nextcloud user ID
+	 * @param int    $newsroomId EventNotificationNewsroom key
+	 * @param int    $personId  iTop Person ID (used in OQL for security)
+	 * @return bool True on success
+	 */
+	public function markNewsroomAsRead(string $userId, int $newsroomId, int $personId): bool {
+		// OQL key with contact_id filter prevents cross-user updates
+		$oql = "SELECT EventNotificationNewsroom WHERE id = $newsroomId AND contact_id = $personId";
+
+		$params = [
+			'operation' => 'core/update',
+			'class'     => 'EventNotificationNewsroom',
+			'key'       => $oql,
+			'fields'    => ['read' => 'yes'],
+			'output_fields' => 'id'
+		];
+
+		$result = $this->request($userId, $params, 'POST', false);
+
+		if (isset($result['error'])) {
+			$this->logger->warning('Failed to mark newsroom item as read for user {userId}: {error}', [
+				'app'        => Application::APP_ID,
+				'newsroomId' => $newsroomId,
+				'userId'     => $userId,
+				'error'      => $result['error']
+			]);
+			return false;
+		}
+
+		return ($result['code'] ?? -1) === 0;
+	}
+
 }

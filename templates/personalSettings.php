@@ -133,6 +133,20 @@ $ciClassLabels = [
 						<span class="notification-user-label"><strong><?php p($l->t('Enable iTop Notifications')); ?></strong></span>
 					</label>
 				</div>
+
+				<!-- Newsroom mirroring toggle (opt-in, independent of ticket notifications) -->
+				<div class="notification-user-toggle" style="margin-top: 8px;">
+					<input id="itop-newsroom-mirroring-enabled" type="checkbox"
+						name="newsroom_mirroring_enabled"
+						<?php echo $_['newsroom_mirroring_enabled'] ? 'checked' : ''; ?>
+						<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
+					<label for="itop-newsroom-mirroring-enabled" class="notification-user-label-container">
+						<span class="notification-user-label"><?php p($l->t('Mirror iTop Newsroom notifications')); ?></span>
+					</label>
+				</div>
+				<p class="hint" style="margin-left: 28px; margin-top: 2px; margin-bottom: 8px;">
+					<?php p($l->t('Receive iTop Newsroom announcements as Nextcloud notifications (requires ActionNewsroom triggers configured in iTop)')); ?>
+				</p>
 			</div>
 			
 			<div id="notification-settings-content" style="<?php echo !$_['notification_enabled'] ? 'display: none;' : ''; ?>">
