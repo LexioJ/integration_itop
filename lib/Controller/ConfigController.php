@@ -18,7 +18,10 @@ use OCA\Itop\Service\CacheService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\Files\AppData\IAppDataFactory;
+use OCP\Files\NotFoundException;
 use OCP\Http\Client\IClientService;
 use OCP\IConfig;
 use OCP\IL10N;
@@ -41,6 +44,7 @@ class ConfigController extends Controller {
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
 		private IClientService $clientService,
+		private IAppDataFactory $appDataFactory,
 		private ?string $userId
 	) {
 		parent::__construct($appName, $request);
@@ -1158,6 +1162,136 @@ class ConfigController extends Controller {
 			'message' => $this->l10n->t('Custom CI classes saved successfully'),
 			'custom_classes' => $sanitized,
 		]);
+	}
+
+	/**
+	 * Upload a custom SVG icon for a CI class (admin only).
+	 *
+	 * The SVG is stored in appdata so it survives app updates and does not
+	 * pollute the app's img/ directory (which is part of the distributed package).
+	 *
+	 * @param string $class CI class name (e.g. "Monitor", "Scanner")
+	 * @return DataResponse
+	 */
+	public function uploadCIClassIcon(string $class): DataResponse {
+		// Validate class name
+		$class = trim($class);
+		if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $class)) {
+			return new DataResponse(['error' => $this->l10n->t('Invalid class name')], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Read raw SVG from request body
+		$svgContent = file_get_contents('php://input');
+		if ($svgContent === false || strlen($svgContent) === 0) {
+			return new DataResponse(['error' => $this->l10n->t('No file content received')], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Size guard (max 256 KB)
+		if (strlen($svgContent) > 262144) {
+			return new DataResponse(['error' => $this->l10n->t('Icon file too large (max 256 KB)')], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Basic SVG content check (strip BOM + leading whitespace before looking for <svg)
+		$stripped = ltrim($svgContent, " \t\n\r\0\x0B\xEF\xBB\xBF");
+		if (stripos($stripped, '<svg') === false) {
+			return new DataResponse(['error' => $this->l10n->t('File does not appear to be a valid SVG')], Http::STATUS_BAD_REQUEST);
+		}
+
+		try {
+			$appData = $this->appDataFactory->get(Application::APP_ID);
+			try {
+				$folder = $appData->getFolder('ci_class_icons');
+			} catch (NotFoundException $e) {
+				$folder = $appData->newFolder('ci_class_icons');
+			}
+			try {
+				$file = $folder->getFile($class . '.svg');
+				$file->putContent($svgContent);
+			} catch (NotFoundException $e) {
+				$file = $folder->newFile($class . '.svg');
+				$file->putContent($svgContent);
+			}
+		} catch (\Exception $e) {
+			$this->logger->error('Failed to save CI class icon for ' . $class . ': ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+			]);
+			return new DataResponse(['error' => $this->l10n->t('Failed to save icon')], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+
+		return new DataResponse(['message' => $this->l10n->t('Icon saved successfully')]);
+	}
+
+	/**
+	 * Serve the SVG icon for a CI class.
+	 *
+	 * Looks for a custom icon uploaded via uploadCIClassIcon() in appdata first.
+	 * Falls back to Peripheral.svg from the app's img/ directory when none exists.
+	 *
+	 * @NoAdminRequired
+	 * @param string $class CI class name
+	 * @return DataDisplayResponse
+	 */
+	public function getCIClassIcon(string $class): DataDisplayResponse {
+		// Strip anything that could form a path traversal
+		$class = preg_replace('/[^A-Za-z0-9_]/', '', $class);
+
+		// Try custom icon from appdata
+		try {
+			$appData = $this->appDataFactory->get(Application::APP_ID);
+			$folder = $appData->getFolder('ci_class_icons');
+			$file = $folder->getFile($class . '.svg');
+			return new DataDisplayResponse($file->getContent(), Http::STATUS_OK, ['Content-Type' => 'image/svg+xml']);
+		} catch (NotFoundException $e) {
+			// No custom icon uploaded — fall through to Peripheral.svg
+		} catch (\Exception $e) {
+			$this->logger->warning('Could not read custom CI class icon for ' . $class . ': ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+			]);
+		}
+
+		// Fallback: Peripheral.svg bundled with the app
+		$appPath = $this->appManager->getAppPath(Application::APP_ID);
+		$fallbackPath = $appPath . '/img/Peripheral.svg';
+		if (file_exists($fallbackPath)) {
+			return new DataDisplayResponse(
+				file_get_contents($fallbackPath),
+				Http::STATUS_OK,
+				['Content-Type' => 'image/svg+xml']
+			);
+		}
+
+		return new DataDisplayResponse('', Http::STATUS_NOT_FOUND);
+	}
+
+	/**
+	 * Delete the custom SVG icon for a CI class (admin only).
+	 *
+	 * After deletion the icon endpoint will automatically fall back to Peripheral.svg.
+	 *
+	 * @param string $class CI class name
+	 * @return DataResponse
+	 */
+	public function deleteCIClassIcon(string $class): DataResponse {
+		$class = preg_replace('/[^A-Za-z0-9_]/', '', $class);
+		if ($class === '') {
+			return new DataResponse(['error' => $this->l10n->t('Invalid class name')], Http::STATUS_BAD_REQUEST);
+		}
+
+		try {
+			$appData = $this->appDataFactory->get(Application::APP_ID);
+			$folder = $appData->getFolder('ci_class_icons');
+			$file = $folder->getFile($class . '.svg');
+			$file->delete();
+		} catch (NotFoundException $e) {
+			// Already gone — treat as success
+		} catch (\Exception $e) {
+			$this->logger->error('Failed to delete CI class icon for ' . $class . ': ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+			]);
+			return new DataResponse(['error' => $this->l10n->t('Failed to delete icon')], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+
+		return new DataResponse(['message' => $this->l10n->t('Icon deleted successfully')]);
 	}
 
 	/**

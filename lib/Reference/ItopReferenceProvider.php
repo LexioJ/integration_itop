@@ -664,7 +664,12 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	}
 
 	/**
-	 * Get icon URL for a CI class
+	 * Get icon URL for a CI class.
+	 *
+	 * Built-in classes are served directly from the app's img/ directory.
+	 * Custom classes (not in the built-in map) are routed through the
+	 * getCIClassIcon controller endpoint, which checks appdata for an
+	 * uploaded SVG and falls back to Peripheral.svg when none is found.
 	 *
 	 * @param string $class CI class name
 	 * @return string Absolute URL to icon
@@ -684,9 +689,21 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			'WebApplication' => 'WebApplication.svg',
 		];
 
-		$icon = $iconMap[$class] ?? 'app.svg';
+		if (isset($iconMap[$class])) {
+			// Built-in class: serve directly from the app's img/ directory (fast path)
+			return $this->urlGenerator->getAbsoluteURL(
+				$this->urlGenerator->imagePath(Application::APP_ID, $iconMap[$class])
+			);
+		}
+
+		// Custom class: route through the icon controller.
+		// The controller serves the admin-uploaded SVG from appdata, or falls
+		// back to Peripheral.svg when no custom icon has been uploaded yet.
 		return $this->urlGenerator->getAbsoluteURL(
-			$this->urlGenerator->imagePath(Application::APP_ID, $icon)
+			$this->urlGenerator->linkToRoute(
+				Application::APP_ID . '.config.getCIClassIcon',
+				['class' => $class]
+			)
 		);
 	}
 }
