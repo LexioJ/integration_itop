@@ -82,6 +82,18 @@ class Application extends App implements IBootstrap {
 		'ticket_comment'
 	];
 
+	/**
+	 * Ticket system type configuration
+	 *
+	 * itil   - Standard ITIL setup: separate UserRequest and Incident classes (default)
+	 * simple - Simple ticketing: single class (UserRequest) for all tickets,
+	 *          optionally distinguished by an enum field
+	 * auto   - Auto-detect by probing the Incident class via the iTop REST API
+	 */
+	public const TICKET_SYSTEM_TYPE_ITIL = 'itil';
+	public const TICKET_SYSTEM_TYPE_SIMPLE = 'simple';
+	public const TICKET_SYSTEM_TYPE_AUTO = 'auto';
+
 	private IConfig $config;
 
 	/**

@@ -148,6 +148,29 @@
 			})
 		}
 
+		// Ticket system type
+		const saveTicketSystemTypeButton = document.getElementById('save-ticket-system-type')
+		if (saveTicketSystemTypeButton) {
+			saveTicketSystemTypeButton.addEventListener('click', function(e) {
+				e.preventDefault()
+				saveTicketSystemType()
+			})
+		}
+
+		// Show/hide simple-mode enum options when radio selection changes
+		document.querySelectorAll('input[name="ticket-system-type"]').forEach(function(radio) {
+			radio.addEventListener('change', function() {
+				const simpleOptions = document.getElementById('simple-mode-options')
+				if (simpleOptions) {
+					simpleOptions.style.display = (this.value === 'simple') ? '' : 'none'
+				}
+				document.querySelectorAll('.ticket-type-option').forEach(function(label) {
+					label.classList.remove('active')
+				})
+				this.closest('.ticket-type-option')?.classList.add('active')
+			})
+		})
+
 		// Notification toggle all button
 		const toggleAllNotificationsButton = document.getElementById('toggle-all-notifications')
 
@@ -732,6 +755,57 @@
 			})
 			.catch(() => {
 				// Silently fail
+			})
+	}
+
+	/**
+	 * Save ticket system type configuration
+	 */
+	function saveTicketSystemType() {
+
+		const saveButton = document.getElementById('save-ticket-system-type')
+		const selectedRadio = document.querySelector('input[name="ticket-system-type"]:checked')
+
+		if (!selectedRadio) {
+			showNotification(t('integration_itop', 'Please select a ticket system type'), true)
+			return
+		}
+
+		const ticketSystemType = selectedRadio.value
+		const simpleTypeField = (document.getElementById('simple-ticket-type-field')?.value || '').trim()
+		const simpleIncidentValue = (document.getElementById('simple-ticket-incident-value')?.value || '').trim() || 'incident'
+		const simpleRequestValue = (document.getElementById('simple-ticket-request-value')?.value || '').trim() || 'service_request'
+
+		saveButton.disabled = true
+		const originalText = saveButton.innerHTML
+		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
+
+		fetch(OC.generateUrl('/apps/integration_itop/ticket-system-type'), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				requesttoken: OC.requestToken,
+			},
+			body: JSON.stringify({
+				ticketSystemType,
+				simpleTypeField,
+				simpleIncidentValue,
+				simpleRequestValue,
+			}),
+		})
+			.then(response => {
+				if (!response.ok) throw new Error('Server error: ' + response.status)
+				return response.json()
+			})
+			.then(() => {
+				showNotification(t('integration_itop', 'Ticket system type saved'), false)
+			})
+			.catch(() => {
+				showNotification(t('integration_itop', 'Error saving ticket system type'), true)
+			})
+			.finally(() => {
+				saveButton.disabled = false
+				saveButton.innerHTML = originalText
 			})
 	}
 

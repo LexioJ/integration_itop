@@ -59,6 +59,13 @@ class Admin implements ISettings {
 		// Get 3-state CI class configuration
 		$ciClassConfig = Application::getCIClassConfig($this->config);
 
+		// Get ticket system type configuration
+		$ticketSystemType = $this->config->getAppValue(Application::APP_ID, 'ticket_system_type', Application::TICKET_SYSTEM_TYPE_ITIL);
+		$simpleTicketTypeField = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_type_field', '');
+		$simpleTicketIncidentValue = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_incident_value', 'incident');
+		$simpleTicketRequestValue = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_request_value', 'service_request');
+		$ticketSystemTypeDetected = $this->config->getAppValue(Application::APP_ID, 'ticket_system_type_detected', '');
+
 		$parameters = [
 			'admin_instance_url' => $adminInstanceUrl,
 			'user_facing_name' => $userFacingName,
@@ -81,6 +88,12 @@ class Admin implements ISettings {
 			'ci_class_config' => $ciClassConfig,
 			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES,
 			'connected_users' => 0, // Will be populated by JavaScript via AJAX
+			// Ticket system type configuration
+			'ticket_system_type' => $ticketSystemType,
+			'simple_ticket_type_field' => $simpleTicketTypeField,
+			'simple_ticket_incident_value' => $simpleTicketIncidentValue,
+			'simple_ticket_request_value' => $simpleTicketRequestValue,
+			'ticket_system_type_detected' => $ticketSystemTypeDetected,
 		];
 
 		return new TemplateResponse(Application::APP_ID, 'adminSettings', $parameters);

@@ -1163,6 +1163,89 @@ class ItopAPIService {
 
 	/**
 	 * ==========================================
+	 * TICKET SYSTEM TYPE DETECTION
+	 * ==========================================
+	 */
+
+	/**
+	 * Get the effective ticket system type for this iTop installation.
+	 *
+	 * Reads the admin setting 'ticket_system_type'. When set to 'auto' it probes
+	 * the iTop REST API to determine whether the Incident class exists, caching
+	 * the result so that the probe is only performed once per installation.
+	 *
+	 * @param string $userId Nextcloud user ID (used for the probe API call)
+	 * @return string 'itil' or 'simple'
+	 */
+	public function getEffectiveTicketSystemType(string $userId): string {
+		$configured = $this->config->getAppValue(
+			Application::APP_ID,
+			'ticket_system_type',
+			Application::TICKET_SYSTEM_TYPE_ITIL
+		);
+
+		if ($configured === Application::TICKET_SYSTEM_TYPE_AUTO) {
+			return $this->detectTicketSystemType($userId);
+		}
+
+		// 'itil' or 'simple' set explicitly – trust the admin
+		return $configured === Application::TICKET_SYSTEM_TYPE_SIMPLE
+			? Application::TICKET_SYSTEM_TYPE_SIMPLE
+			: Application::TICKET_SYSTEM_TYPE_ITIL;
+	}
+
+	/**
+	 * Probe the iTop REST API to determine whether the Incident class is present.
+	 *
+	 * The result is stored as an app-level config value so the HTTP probe only
+	 * fires once. Admins can reset the cached value by switching to a different
+	 * ticket_system_type and back to 'auto'.
+	 *
+	 * @param string $userId Nextcloud user ID for the API call
+	 * @return string 'itil' if Incident class exists, 'simple' otherwise
+	 */
+	private function detectTicketSystemType(string $userId): string {
+		// Use a cached detection result so we don't probe on every request
+		$cached = $this->config->getAppValue(Application::APP_ID, 'ticket_system_type_detected', '');
+		if ($cached === Application::TICKET_SYSTEM_TYPE_ITIL
+			|| $cached === Application::TICKET_SYSTEM_TYPE_SIMPLE) {
+			return $cached;
+		}
+
+		// Probe: try to fetch a single Incident record (limit 1, only id field)
+		$probeParams = [
+			'operation' => 'core/get',
+			'class' => 'Incident',
+			'key' => 'SELECT Incident LIMIT 1',
+			'output_fields' => 'id',
+		];
+
+		// We call the raw request helper directly to inspect the response code
+		$result = $this->request($userId, $probeParams);
+
+		// iTop returns {"code":1,"message":"Error: Unknown class 'Incident'"} when
+		// the class does not exist in the current datamodel.
+		$detected = Application::TICKET_SYSTEM_TYPE_ITIL;
+		if (isset($result['code']) && $result['code'] !== 0) {
+			$msg = strtolower($result['message'] ?? '');
+			if (str_contains($msg, 'unknown class') || str_contains($msg, 'unknown object class')) {
+				$detected = Application::TICKET_SYSTEM_TYPE_SIMPLE;
+			}
+		}
+
+		// Persist the detection so future calls skip the probe
+		$this->config->setAppValue(Application::APP_ID, 'ticket_system_type_detected', $detected);
+
+		$this->logger->info(
+			'Ticket system type auto-detected: ' . $detected,
+			['app' => Application::APP_ID]
+		);
+
+		return $detected;
+	}
+
+	/**
+	 * ==========================================
 	 * AGENT DASHBOARD METHODS
 	 * ==========================================
 	 * Methods specific to agent workflows for the Agent Dashboard widget
@@ -1230,68 +1313,53 @@ class ItopAPIService {
 			return [];
 		}
 
-		$itopUrl = $this->getItopUrl($userId);
 		$allTickets = [];
+		$isSimple = $this->getEffectiveTicketSystemType($userId) === Application::TICKET_SYSTEM_TYPE_SIMPLE;
 
-		// Query UserRequest tickets assigned to this agent
-		$userRequestParams = [
-			'operation' => 'core/get',
-			'class' => 'UserRequest',
-			'key' => "SELECT UserRequest WHERE agent_id = $personId AND status != 'closed'",
-			'output_fields' => 'id,ref,title,description,status,operational_status,priority,caller_id_friendlyname,team_id_friendlyname,start_date,last_update',
-			'limit' => $limit
-		];
+		// In simple ticketing mode only UserRequest exists
+		$classes = $isSimple ? ['UserRequest'] : ['UserRequest', 'Incident'];
 
-		$userRequestResult = $this->request($userId, $userRequestParams);
-		if (isset($userRequestResult['objects'])) {
-			foreach ($userRequestResult['objects'] as $objectKey => $ticket) {
-				$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
-				$allTickets[] = [
-					'type' => 'UserRequest',
-					'id' => $ticketId,
-					'ref' => $ticket['fields']['ref'] ?? '',
-					'title' => $ticket['fields']['title'] ?? '',
-					'description' => $ticket['fields']['description'] ?? '',
-					'status' => $ticket['fields']['status'] ?? 'unknown',
-					'operational_status' => $ticket['fields']['operational_status'] ?? '',
-					'priority' => $ticket['fields']['priority'] ?? '',
-					'caller' => $ticket['fields']['caller_id_friendlyname'] ?? '',
-					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
-					'start_date' => $ticket['fields']['start_date'] ?? '',
-					'last_update' => $ticket['fields']['last_update'] ?? '',
-					'url' => $this->buildTicketUrl($userId, 'UserRequest', $ticketId)
-				];
-			}
-		}
+		foreach ($classes as $class) {
+			$params = [
+				'operation' => 'core/get',
+				'class' => $class,
+				'key' => "SELECT $class WHERE agent_id = $personId AND status != 'closed'",
+				'output_fields' => 'id,ref,title,description,status,operational_status,priority,caller_id_friendlyname,team_id_friendlyname,start_date,last_update',
+				'limit' => $limit
+			];
 
-		// Query Incident tickets assigned to this agent
-		$incidentParams = [
-			'operation' => 'core/get',
-			'class' => 'Incident',
-			'key' => "SELECT Incident WHERE agent_id = $personId AND status != 'closed'",
-			'output_fields' => 'id,ref,title,description,status,operational_status,priority,caller_id_friendlyname,team_id_friendlyname,start_date,last_update',
-			'limit' => $limit
-		];
+			$result = $this->request($userId, $params);
+			if (isset($result['objects'])) {
+				foreach ($result['objects'] as $objectKey => $ticket) {
+					$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
 
-		$incidentResult = $this->request($userId, $incidentParams);
-		if (isset($incidentResult['objects'])) {
-			foreach ($incidentResult['objects'] as $objectKey => $ticket) {
-				$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
-				$allTickets[] = [
-					'type' => 'Incident',
-					'id' => $ticketId,
-					'ref' => $ticket['fields']['ref'] ?? '',
-					'title' => $ticket['fields']['title'] ?? '',
-					'description' => $ticket['fields']['description'] ?? '',
-					'status' => $ticket['fields']['status'] ?? 'unknown',
-					'operational_status' => $ticket['fields']['operational_status'] ?? '',
-					'priority' => $ticket['fields']['priority'] ?? '',
-					'caller' => $ticket['fields']['caller_id_friendlyname'] ?? '',
-					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
-					'start_date' => $ticket['fields']['start_date'] ?? '',
-					'last_update' => $ticket['fields']['last_update'] ?? '',
-					'url' => $this->buildTicketUrl($userId, 'Incident', $ticketId)
-				];
+					// In simple mode resolve type via the enum field if configured
+					$type = $class;
+					if ($isSimple) {
+						$typeField = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_type_field', '');
+						if ($typeField !== '') {
+							$enumVal = strtolower($ticket['fields'][$typeField] ?? '');
+							$incidentVal = strtolower($this->config->getAppValue(Application::APP_ID, 'simple_ticket_incident_value', 'incident'));
+							$type = ($enumVal === $incidentVal) ? 'Incident' : 'UserRequest';
+						}
+					}
+
+					$allTickets[] = [
+						'type' => $type,
+						'id' => $ticketId,
+						'ref' => $ticket['fields']['ref'] ?? '',
+						'title' => $ticket['fields']['title'] ?? '',
+						'description' => $ticket['fields']['description'] ?? '',
+						'status' => $ticket['fields']['status'] ?? 'unknown',
+						'operational_status' => $ticket['fields']['operational_status'] ?? '',
+						'priority' => $ticket['fields']['priority'] ?? '',
+						'caller' => $ticket['fields']['caller_id_friendlyname'] ?? '',
+						'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
+						'start_date' => $ticket['fields']['start_date'] ?? '',
+						'last_update' => $ticket['fields']['last_update'] ?? '',
+						'url' => $this->buildTicketUrl($userId, $class, $ticketId)
+					];
+				}
 			}
 		}
 
@@ -1320,68 +1388,50 @@ class ItopAPIService {
 		$teamIds = array_map(fn($t) => $t['id'], $teams);
 		$teamIdList = implode(',', $teamIds);
 
-		$itopUrl = $this->getItopUrl($userId);
 		$allTickets = [];
+		$isSimple = $this->getEffectiveTicketSystemType($userId) === Application::TICKET_SYSTEM_TYPE_SIMPLE;
+		$classes = $isSimple ? ['UserRequest'] : ['UserRequest', 'Incident'];
 
-		// Query UserRequest tickets assigned to these teams (open tickets only)
-		$userRequestParams = [
-			'operation' => 'core/get',
-			'class' => 'UserRequest',
-			'key' => "SELECT UserRequest WHERE team_id IN ($teamIdList) AND status != 'closed' AND status != 'resolved'",
-			'output_fields' => 'id,ref,title,description,status,operational_status,priority,agent_id_friendlyname,team_id_friendlyname,start_date,last_update',
-			'limit' => $limit
-		];
+		foreach ($classes as $class) {
+			$params = [
+				'operation' => 'core/get',
+				'class' => $class,
+				'key' => "SELECT $class WHERE team_id IN ($teamIdList) AND status != 'closed' AND status != 'resolved'",
+				'output_fields' => 'id,ref,title,description,status,operational_status,priority,agent_id_friendlyname,team_id_friendlyname,start_date,last_update',
+				'limit' => $limit
+			];
 
-		$userRequestResult = $this->request($userId, $userRequestParams);
-		if (isset($userRequestResult['objects'])) {
-			foreach ($userRequestResult['objects'] as $objectKey => $ticket) {
-				$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
-				$allTickets[] = [
-					'type' => 'UserRequest',
-					'id' => $ticketId,
-					'ref' => $ticket['fields']['ref'] ?? '',
-					'title' => $ticket['fields']['title'] ?? '',
-					'description' => $ticket['fields']['description'] ?? '',
-					'status' => $ticket['fields']['status'] ?? 'unknown',
-					'operational_status' => $ticket['fields']['operational_status'] ?? '',
-					'priority' => $ticket['fields']['priority'] ?? '',
-					'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
-					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
-					'start_date' => $ticket['fields']['start_date'] ?? '',
-					'last_update' => $ticket['fields']['last_update'] ?? '',
-					'url' => $this->buildTicketUrl($userId, 'UserRequest', $ticketId)
-				];
-			}
-		}
+			$result = $this->request($userId, $params);
+			if (isset($result['objects'])) {
+				foreach ($result['objects'] as $objectKey => $ticket) {
+					$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
 
-		// Query Incident tickets assigned to these teams
-		$incidentParams = [
-			'operation' => 'core/get',
-			'class' => 'Incident',
-			'key' => "SELECT Incident WHERE team_id IN ($teamIdList) AND status != 'closed' AND status != 'resolved'",
-			'output_fields' => 'id,ref,title,description,status,operational_status,priority,agent_id_friendlyname,team_id_friendlyname,start_date,last_update',
-			'limit' => $limit
-		];
+					$type = $class;
+					if ($isSimple) {
+						$typeField = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_type_field', '');
+						if ($typeField !== '') {
+							$enumVal = strtolower($ticket['fields'][$typeField] ?? '');
+							$incidentVal = strtolower($this->config->getAppValue(Application::APP_ID, 'simple_ticket_incident_value', 'incident'));
+							$type = ($enumVal === $incidentVal) ? 'Incident' : 'UserRequest';
+						}
+					}
 
-		$incidentResult = $this->request($userId, $incidentParams);
-		if (isset($incidentResult['objects'])) {
-			foreach ($incidentResult['objects'] as $objectKey => $ticket) {
-				$ticketId = $ticket['key'] ?? (strpos($objectKey, '::') !== false ? explode('::', $objectKey)[1] : $objectKey);
-				$allTickets[] = [
-					'type' => 'Incident',
-					'id' => $ticketId,
-					'ref' => $ticket['fields']['ref'] ?? '',
-					'title' => $ticket['fields']['title'] ?? '',
-					'description' => $ticket['fields']['description'] ?? '',
-					'status' => $ticket['fields']['status'] ?? 'unknown',
-					'operational_status' => $ticket['fields']['operational_status'] ?? '',
-					'priority' => $ticket['fields']['priority'] ?? '',
-					'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
-					'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
-					'start_date' => $ticket['fields']['start_date'] ?? '',
-					'last_update' => $ticket['fields']['last_update'] ?? '',
-					'url' => $this->buildTicketUrl($userId, 'Incident', $ticketId)
-				];
+					$allTickets[] = [
+						'type' => $type,
+						'id' => $ticketId,
+						'ref' => $ticket['fields']['ref'] ?? '',
+						'title' => $ticket['fields']['title'] ?? '',
+						'description' => $ticket['fields']['description'] ?? '',
+						'status' => $ticket['fields']['status'] ?? 'unknown',
+						'operational_status' => $ticket['fields']['operational_status'] ?? '',
+						'priority' => $ticket['fields']['priority'] ?? '',
+						'agent' => $ticket['fields']['agent_id_friendlyname'] ?? '',
+						'team' => $ticket['fields']['team_id_friendlyname'] ?? '',
+						'start_date' => $ticket['fields']['start_date'] ?? '',
+						'last_update' => $ticket['fields']['last_update'] ?? '',
+						'url' => $this->buildTicketUrl($userId, $class, $ticketId)
+					];
+				}
 			}
 		}
 
@@ -1581,78 +1631,45 @@ class ItopAPIService {
 		$ttoCount = 0;
 		$ttrCount = 0;
 
-		// Fetch all tickets in team with SLA deadline fields (filter in PHP)
-		$incidentParams = [
-			'operation' => 'core/get',
-			'class' => 'Incident',
-			'key' => "SELECT Incident WHERE team_id IN ($teamFilter)",
-			'output_fields' => 'id,tto_escalation_deadline,ttr_escalation_deadline,sla_tto_passed,sla_ttr_passed'
-		];
-
-		$requestParams = [
-			'operation' => 'core/get',
-			'class' => 'UserRequest',
-			'key' => "SELECT UserRequest WHERE team_id IN ($teamFilter)",
-			'output_fields' => 'id,tto_escalation_deadline,ttr_escalation_deadline,sla_tto_passed,sla_ttr_passed'
-		];
-
 		$now = time();
 		// Weekend-aware warning window: Friday=72h, Saturday=48h, other days=24h
 		$dayOfWeek = (int)date('N', $now); // 1 (Monday) to 7 (Sunday)
 		if ($dayOfWeek === 5) {
-			// Friday: 72h to catch Mon/Tue breaches
 			$warningWindow = 72 * 60 * 60;
 		} elseif ($dayOfWeek === 6) {
-			// Saturday: 48h to catch Sun/Mon breaches
 			$warningWindow = 48 * 60 * 60;
 		} else {
-			// Other days: standard 24h window
 			$warningWindow = 24 * 60 * 60;
 		}
 
-		// Count Incident warnings by filtering in PHP
-		$incidentResult = $this->request($userId, $incidentParams);
-		if (isset($incidentResult['objects'])) {
-			foreach ($incidentResult['objects'] as $incident) {
-				$fields = $incident['fields'];
+		$isSimple = $this->getEffectiveTicketSystemType($userId) === Application::TICKET_SYSTEM_TYPE_SIMPLE;
+		$classes = $isSimple ? ['UserRequest'] : ['Incident', 'UserRequest'];
 
-				// TTO warning: deadline within warning window and not yet passed
-				if (!empty($fields['tto_escalation_deadline']) && ($fields['sla_tto_passed'] ?? 'no') !== 'yes') {
-					$deadline = strtotime($fields['tto_escalation_deadline']);
-					if ($deadline > $now && $deadline <= ($now + $warningWindow)) {
-						$ttoCount++;
+		foreach ($classes as $class) {
+			$params = [
+				'operation' => 'core/get',
+				'class' => $class,
+				'key' => "SELECT $class WHERE team_id IN ($teamFilter)",
+				'output_fields' => 'id,tto_escalation_deadline,ttr_escalation_deadline,sla_tto_passed,sla_ttr_passed'
+			];
+
+			$result = $this->request($userId, $params);
+			if (isset($result['objects'])) {
+				foreach ($result['objects'] as $ticket) {
+					$fields = $ticket['fields'];
+
+					if (!empty($fields['tto_escalation_deadline']) && ($fields['sla_tto_passed'] ?? 'no') !== 'yes') {
+						$deadline = strtotime($fields['tto_escalation_deadline']);
+						if ($deadline > $now && $deadline <= ($now + $warningWindow)) {
+							$ttoCount++;
+						}
 					}
-				}
 
-				// TTR warning: deadline within warning window and not yet passed
-				if (!empty($fields['ttr_escalation_deadline']) && ($fields['sla_ttr_passed'] ?? 'no') !== 'yes') {
-					$deadline = strtotime($fields['ttr_escalation_deadline']);
-					if ($deadline > $now && $deadline <= ($now + $warningWindow)) {
-						$ttrCount++;
-					}
-				}
-			}
-		}
-
-		// Count UserRequest warnings by filtering in PHP
-		$requestResult = $this->request($userId, $requestParams);
-		if (isset($requestResult['objects'])) {
-			foreach ($requestResult['objects'] as $request) {
-				$fields = $request['fields'];
-
-				// TTO warning: deadline within warning window and not yet passed
-				if (!empty($fields['tto_escalation_deadline']) && ($fields['sla_tto_passed'] ?? 'no') !== 'yes') {
-					$deadline = strtotime($fields['tto_escalation_deadline']);
-					if ($deadline > $now && $deadline <= ($now + $warningWindow)) {
-						$ttoCount++;
-					}
-				}
-
-				// TTR warning: deadline within warning window and not yet passed
-				if (!empty($fields['ttr_escalation_deadline']) && ($fields['sla_ttr_passed'] ?? 'no') !== 'yes') {
-					$deadline = strtotime($fields['ttr_escalation_deadline']);
-					if ($deadline > $now && $deadline <= ($now + $warningWindow)) {
-						$ttrCount++;
+					if (!empty($fields['ttr_escalation_deadline']) && ($fields['sla_ttr_passed'] ?? 'no') !== 'yes') {
+						$deadline = strtotime($fields['ttr_escalation_deadline']);
+						if ($deadline > $now && $deadline <= ($now + $warningWindow)) {
+							$ttrCount++;
+						}
 					}
 				}
 			}
@@ -1680,48 +1697,31 @@ class ItopAPIService {
 		$ttoCount = 0;
 		$ttrCount = 0;
 
-		// Fetch all Incidents in team with SLA fields (OQL string filtering doesn't work reliably)
-		$incidentParams = [
-			'operation' => 'core/get',
-			'class' => 'Incident',
-			'key' => "SELECT Incident WHERE team_id IN ($teamFilter)",
-			'output_fields' => 'id,sla_tto_passed,sla_ttr_passed'
-		];
+		$isSimple = $this->getEffectiveTicketSystemType($userId) === Application::TICKET_SYSTEM_TYPE_SIMPLE;
+		$classes = $isSimple ? ['UserRequest'] : ['Incident', 'UserRequest'];
 
-		$requestParams = [
-			'operation' => 'core/get',
-			'class' => 'UserRequest',
-			'key' => "SELECT UserRequest WHERE team_id IN ($teamFilter)",
-			'output_fields' => 'id,sla_tto_passed,sla_ttr_passed'
-		];
+		foreach ($classes as $class) {
+			$params = [
+				'operation' => 'core/get',
+				'class' => $class,
+				'key' => "SELECT $class WHERE team_id IN ($teamFilter)",
+				'output_fields' => 'id,sla_tto_passed,sla_ttr_passed'
+			];
 
-		// Count Incident breaches by filtering in PHP
-		$incidentResult = $this->request($userId, $incidentParams);
-		if (isset($incidentResult['objects'])) {
-			foreach ($incidentResult['objects'] as $incident) {
-				if (($incident['fields']['sla_tto_passed'] ?? 'no') === 'yes') {
-					$ttoCount++;
-				}
-				if (($incident['fields']['sla_ttr_passed'] ?? 'no') === 'yes') {
-					$ttrCount++;
+			$result = $this->request($userId, $params);
+			if (isset($result['objects'])) {
+				foreach ($result['objects'] as $ticket) {
+					if (($ticket['fields']['sla_tto_passed'] ?? 'no') === 'yes') {
+						$ttoCount++;
+					}
+					if (($ticket['fields']['sla_ttr_passed'] ?? 'no') === 'yes') {
+						$ttrCount++;
+					}
 				}
 			}
 		}
 
-		// Count UserRequest breaches by filtering in PHP
-		$requestResult = $this->request($userId, $requestParams);
-		if (isset($requestResult['objects'])) {
-			foreach ($requestResult['objects'] as $request) {
-				if (($request['fields']['sla_tto_passed'] ?? 'no') === 'yes') {
-					$ttoCount++;
-				}
-				if (($request['fields']['sla_ttr_passed'] ?? 'no') === 'yes') {
-					$ttrCount++;
-				}
-			}
-		}
-
-	return ['tto' => $ttoCount, 'ttr' => $ttrCount];
+		return ['tto' => $ttoCount, 'ttr' => $ttrCount];
 	}
 
 	/**

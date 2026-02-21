@@ -677,6 +677,53 @@ class ConfigController extends Controller {
 	}
 
 	/**
+	 * Save ticket system type configuration
+	 *
+	 * @param string $ticketSystemType 'itil', 'simple', or 'auto'
+	 * @param string $simpleTypeField  Optional enum field name (may be empty)
+	 * @param string $simpleIncidentValue Enum value meaning "incident"
+	 * @param string $simpleRequestValue  Enum value meaning "service request"
+	 * @return DataResponse
+	 */
+	public function saveTicketSystemType(
+		string $ticketSystemType,
+		string $simpleTypeField = '',
+		string $simpleIncidentValue = 'incident',
+		string $simpleRequestValue = 'service_request',
+	): DataResponse {
+		$validTypes = [
+			Application::TICKET_SYSTEM_TYPE_ITIL,
+			Application::TICKET_SYSTEM_TYPE_SIMPLE,
+			Application::TICKET_SYSTEM_TYPE_AUTO,
+		];
+
+		if (!in_array($ticketSystemType, $validTypes, true)) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Invalid ticket system type'),
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		$this->config->setAppValue(Application::APP_ID, 'ticket_system_type', $ticketSystemType);
+
+		// Store optional simple-mode enum configuration
+		$this->config->setAppValue(Application::APP_ID, 'simple_ticket_type_field', trim($simpleTypeField));
+		$this->config->setAppValue(Application::APP_ID, 'simple_ticket_incident_value', trim($simpleIncidentValue) ?: 'incident');
+		$this->config->setAppValue(Application::APP_ID, 'simple_ticket_request_value', trim($simpleRequestValue) ?: 'service_request');
+
+		// Clear the cached auto-detection result so the next request re-probes if needed
+		$this->config->deleteAppValue(Application::APP_ID, 'ticket_system_type_detected');
+
+		$this->logger->info('Ticket system type configuration saved: ' . $ticketSystemType, [
+			'app' => Application::APP_ID,
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('Ticket system type configuration saved'),
+			'ticket_system_type' => $ticketSystemType,
+		]);
+	}
+
+	/**
 	 * Save notification interval settings with validation
 	 *
 	 * @param int $portalInterval Portal notification check interval in minutes (5-1440)

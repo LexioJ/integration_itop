@@ -905,3 +905,66 @@ input.password-style {
         font-size: 24px;
     }
 }
+
+/* Ticket system type selector */
+.ticket-type-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.ticket-type-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 16px;
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.ticket-type-option:hover {
+    border-color: var(--color-primary-element);
+    background: var(--color-primary-light);
+}
+
+.ticket-type-option.active,
+.ticket-type-option input[type="radio"]:checked ~ * {
+    border-color: var(--color-primary-element);
+    background: var(--color-primary-light);
+}
+
+.ticket-type-option input[type="radio"] {
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.option-title {
+    font-weight: 600;
+    display: block;
+    color: var(--color-main-text);
+}
+
+.option-desc {
+    font-size: 12px;
+    color: var(--color-text-maxcontrast);
+    display: block;
+}
+
+/* Simple mode enum fields */
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.form-field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-maxcontrast);
+    margin-bottom: 4px;
+}

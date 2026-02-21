@@ -191,6 +191,95 @@ $ciClassLabels = [
 			</div>
 		</div>
 
+		<!-- Ticket System Type Section -->
+		<div class="settings-section">
+			<div class="section-header">
+				<h3><?php p($l->t('🎫 Ticket System Type')); ?></h3>
+				<p class="section-description"><?php p($l->t('Choose how your iTop instance organises tickets. Standard ITIL setups use separate UserRequest and Incident classes; some installations use a single class for all tickets (simple ticketing).')); ?></p>
+			</div>
+
+			<div class="settings-form">
+				<div class="form-group">
+					<label class="form-label">
+						<span class="icon">🏷️</span>
+						<?php p($l->t('Ticket System Mode')); ?>
+					</label>
+
+					<div class="ticket-type-options">
+						<label class="ticket-type-option <?php echo ($_['ticket_system_type'] === 'itil') ? 'active' : ''; ?>">
+							<input type="radio" name="ticket-system-type" value="itil"
+								<?php echo ($_['ticket_system_type'] === 'itil') ? 'checked' : ''; ?> />
+							<span class="option-title"><?php p($l->t('ITIL (standard)')); ?></span>
+							<span class="option-desc"><?php p($l->t('Separate UserRequest and Incident classes — the default iTop ITIL setup.')); ?></span>
+						</label>
+
+						<label class="ticket-type-option <?php echo ($_['ticket_system_type'] === 'simple') ? 'active' : ''; ?>">
+							<input type="radio" name="ticket-system-type" value="simple"
+								<?php echo ($_['ticket_system_type'] === 'simple') ? 'checked' : ''; ?> />
+							<span class="option-title"><?php p($l->t('Simple ticketing')); ?></span>
+							<span class="option-desc"><?php p($l->t('All tickets live in a single class (UserRequest). The agent widget shows a unified Tickets count and skips Incident queries.')); ?></span>
+						</label>
+
+						<label class="ticket-type-option <?php echo ($_['ticket_system_type'] === 'auto') ? 'active' : ''; ?>">
+							<input type="radio" name="ticket-system-type" value="auto"
+								<?php echo ($_['ticket_system_type'] === 'auto') ? 'checked' : ''; ?> />
+							<span class="option-title"><?php p($l->t('Auto-detect')); ?></span>
+							<span class="option-desc"><?php p($l->t('Probe the iTop REST API on the next dashboard load to check whether the Incident class exists. The result is cached; switch to ITIL or Simple to override it.')); ?></span>
+						</label>
+					</div>
+
+					<?php if (!empty($_['ticket_system_type_detected'])): ?>
+					<p class="form-hint">
+						<?php p($l->t('Last auto-detection result:')); ?>
+						<strong><?php p($_['ticket_system_type_detected'] === 'simple' ? $l->t('Simple (Incident class not found)') : $l->t('ITIL (Incident class present)')); ?></strong>.
+						<?php p($l->t('Switch to a different mode and back to Auto-detect to force a new probe.')); ?>
+					</p>
+					<?php endif; ?>
+				</div>
+
+				<!-- Simple mode: optional enum field configuration -->
+				<div id="simple-mode-options" class="form-group"
+					style="<?php echo ($_['ticket_system_type'] === 'simple') ? '' : 'display:none'; ?>">
+					<label class="form-label">
+						<span class="icon">⚙️</span>
+						<?php p($l->t('Enum field for type distinction (optional)')); ?>
+					</label>
+					<p class="form-hint"><?php p($l->t('Leave blank to treat all tickets as a single pool. Fill in if your datamodel adds an enum field that distinguishes Incidents from Service Requests so the widget can show split counts.')); ?></p>
+
+					<div class="form-row">
+						<div class="form-field">
+							<label for="simple-ticket-type-field"><?php p($l->t('Enum field name')); ?></label>
+							<input type="text" id="simple-ticket-type-field"
+								value="<?php p($_['simple_ticket_type_field']); ?>"
+								placeholder="<?php p($l->t('e.g., request_type')); ?>"
+								class="form-input" />
+						</div>
+						<div class="form-field">
+							<label for="simple-ticket-incident-value"><?php p($l->t('Enum value = Incident')); ?></label>
+							<input type="text" id="simple-ticket-incident-value"
+								value="<?php p($_['simple_ticket_incident_value']); ?>"
+								placeholder="incident"
+								class="form-input" />
+						</div>
+						<div class="form-field">
+							<label for="simple-ticket-request-value"><?php p($l->t('Enum value = Service Request')); ?></label>
+							<input type="text" id="simple-ticket-request-value"
+								value="<?php p($_['simple_ticket_request_value']); ?>"
+								placeholder="service_request"
+								class="form-input" />
+						</div>
+					</div>
+				</div>
+
+				<div class="form-actions">
+					<button id="save-ticket-system-type" class="btn-primary">
+						<span class="btn-icon">💾</span>
+						<?php p($l->t('Save Ticket System Type')); ?>
+					</button>
+				</div>
+			</div>
+		</div>
+
 		<!-- User Permission Requirements Section -->
 		<div class="settings-section">
 			<div class="section-header">
