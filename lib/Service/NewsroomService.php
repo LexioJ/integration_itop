@@ -224,11 +224,14 @@ class NewsroomService {
 				'url'      => $item['url'],
 			]);
 
-		// Add "Mark as read" action button
+		// Add "Mark as read" action button.
+		// The nid query parameter carries the iTop EventNotificationNewsroom key so
+		// the controller can update the correct record.  Nextcloud POSTs to the
+		// action URL verbatim, so query params work for both GET and POST verbs.
 		$action = $notification->createAction();
 		$action->setLabel('mark_read')
 			->setLink(
-				'/apps/' . Application::APP_ID . '/newsroom/mark-read',
+				'/apps/' . Application::APP_ID . '/newsroom/mark-read?nid=' . $newsroomId,
 				'POST'
 			)
 			->setPrimary(true);

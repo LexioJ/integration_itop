@@ -2487,7 +2487,14 @@ class ItopAPIService {
 			'operation' => 'core/update',
 			'class'     => 'EventNotificationNewsroom',
 			'key'       => $oql,
-			'fields'    => ['read' => 'yes'],
+			'fields'    => [
+				'read'      => 'yes',
+				// iTop's OperationMarkAsRead also calls SetCurrentDate('read_date').
+				// Via REST API we must set the value explicitly so the GC retention
+				// logic (notifications.itop.read_notification_retention) can delete
+				// old items correctly.
+				'read_date' => date('Y-m-d H:i:s'),
+			],
 			'output_fields' => 'id'
 		];
 
