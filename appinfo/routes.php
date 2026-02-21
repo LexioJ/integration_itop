@@ -14,6 +14,8 @@ return [
 		['name' => 'config#saveCacheSettings', 'url' => '/cache-settings', 'verb' => 'POST'],
 		['name' => 'config#clearAllCache', 'url' => '/clear-cache', 'verb' => 'POST'],
 		['name' => 'config#saveCIClassConfig', 'url' => '/ci-class-config', 'verb' => 'POST'],
+		['name' => 'config#getAvailableItopClasses', 'url' => '/ci-class-available', 'verb' => 'GET'],
+		['name' => 'config#saveCustomCIClasses', 'url' => '/ci-class-custom', 'verb' => 'POST'],
 		['name' => 'config#saveEnabledCIClasses', 'url' => '/enabled-ci-classes', 'verb' => 'POST'],
 		['name' => 'config#getUserDisabledCIClasses', 'url' => '/user-disabled-ci-classes', 'verb' => 'GET'],
 		['name' => 'config#saveUserDisabledCIClasses', 'url' => '/user-disabled-ci-classes', 'verb' => 'POST'],

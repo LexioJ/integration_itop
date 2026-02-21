@@ -820,8 +820,8 @@ class ItopAPIService {
 				} elseif ($class === 'Software') {
 					// Software catalog entries: try exact-like on name/vendor first
 					$termClause = "(ci.name LIKE '$escapedTerm' OR ci.vendor_name LIKE '$escapedTerm')";
-				} else {
-					// Hardware-like CIs (FunctionalCI subclasses): include brand/model; add phone specifics
+				} elseif (in_array($class, Application::SUPPORTED_CI_CLASSES, true)) {
+					// Known hardware-like CIs (FunctionalCI subclasses): include brand/model; add phone specifics
 					$termParts = [
 						"ci.name LIKE '%$escapedTerm%'",
 						"ci.serialnumber LIKE '%$escapedTerm%'",
@@ -836,6 +836,10 @@ class ItopAPIService {
 						$termParts[] = "ci.imei LIKE '%$escapedTerm%'";
 					}
 					$termClause = '(' . implode(' OR ', $termParts) . ')';
+				} else {
+					// Custom / unknown CI classes: use a safe minimal search on name only
+					// to avoid OQL failures with fields that may not exist in this class.
+					$termClause = "ci.name LIKE '%$escapedTerm%'";
 				}
 
 				// Build OQL query with profile-aware filtering

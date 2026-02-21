@@ -960,16 +960,20 @@ class ConfigController extends Controller {
 
 	/**
 	 * Save CI class configuration (admin only) - 3-state model
+	 * Accepts both standard SUPPORTED_CI_CLASSES and admin-added custom classes.
 	 *
 	 * @param array $classConfig Map of class name => state (disabled/forced/user_choice)
 	 * @return DataResponse
 	 */
 	public function saveCIClassConfig(array $classConfig): DataResponse {
+		// All known classes = standard + custom
+		$allKnownClasses = Application::getAllCIClasses($this->config);
+
 		// Validate format and values
 		$validConfig = [];
 		foreach ($classConfig as $className => $state) {
-			// Only process supported classes
-			if (!in_array($className, Application::SUPPORTED_CI_CLASSES, true)) {
+			// Only process known classes (standard or custom)
+			if (!in_array($className, $allKnownClasses, true)) {
 				continue;
 			}
 
@@ -998,6 +1002,161 @@ class ConfigController extends Controller {
 		return new DataResponse([
 			'message' => $this->l10n->t('CI class configuration saved successfully'),
 			'ci_class_config' => $validConfig
+		]);
+	}
+
+	/**
+	 * Get available iTop CI classes by querying the iTop CMDB.
+	 *
+	 * Queries FunctionalCI for distinct finalclass values to discover all
+	 * CI subclasses present in the iTop instance. Returns classes not already
+	 * in SUPPORTED_CI_CLASSES so the admin can add them as custom classes.
+	 * Also returns the currently configured custom classes.
+	 *
+	 * @return DataResponse
+	 */
+	public function getAvailableItopClasses(): DataResponse {
+		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		if (empty($adminInstanceUrl)) {
+			return new DataResponse([
+				'error' => $this->l10n->t('Server URL not configured')
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		$encryptedToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+		if (empty($encryptedToken)) {
+			return new DataResponse([
+				'error' => $this->l10n->t('Application token not configured')
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		try {
+			$applicationToken = $this->crypto->decrypt($encryptedToken);
+		} catch (\Exception $e) {
+			return new DataResponse([
+				'error' => $this->l10n->t('Failed to decrypt application token')
+			], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+
+		try {
+			$apiUrl = rtrim($adminInstanceUrl, '/') . '/webservices/rest.php?version=1.3';
+
+			// Query FunctionalCI to discover all subclasses present in this iTop instance
+			$postData = [
+				'json_data' => json_encode([
+					'operation' => 'core/get',
+					'class' => 'FunctionalCI',
+					'key' => 'SELECT FunctionalCI',
+					'output_fields' => 'finalclass',
+					'limit' => 2000,
+				])
+			];
+
+			$client = $this->clientService->newClient();
+			$response = $client->post($apiUrl, [
+				'body' => http_build_query($postData),
+				'headers' => [
+					'Content-Type' => 'application/x-www-form-urlencoded',
+					'Auth-Token' => $applicationToken,
+					'User-Agent' => 'Nextcloud-iTop-Integration/1.0'
+				],
+				'timeout' => 20,
+			]);
+
+			$result = json_decode($response->getBody(), true);
+
+			if (!is_array($result) || ($result['code'] ?? -1) !== 0) {
+				return new DataResponse([
+					'error' => $result['message'] ?? $this->l10n->t('Failed to fetch CI classes from iTop')
+				], Http::STATUS_BAD_REQUEST);
+			}
+
+			// Collect unique finalclass values from all objects
+			$discoveredClasses = [];
+			foreach ($result['objects'] ?? [] as $obj) {
+				$fc = $obj['fields']['finalclass'] ?? '';
+				if ($fc !== '' && !in_array($fc, $discoveredClasses, true)) {
+					$discoveredClasses[] = $fc;
+				}
+			}
+			sort($discoveredClasses);
+
+			// Filter out standard built-in classes (already managed separately)
+			$availableForCustom = array_values(
+				array_filter($discoveredClasses, function (string $cls) {
+					return !in_array($cls, Application::SUPPORTED_CI_CLASSES, true);
+				})
+			);
+
+			// Return discovered classes + currently configured custom classes
+			$currentCustomClasses = Application::getCustomCIClasses($this->config);
+
+			return new DataResponse([
+				'available_classes' => $availableForCustom,
+				'custom_classes' => $currentCustomClasses,
+				'supported_classes' => Application::SUPPORTED_CI_CLASSES,
+			]);
+
+		} catch (\Exception $e) {
+			$this->logger->error('Failed to fetch available iTop classes: ' . $e->getMessage(), [
+				'app' => Application::APP_ID
+			]);
+			return new DataResponse([
+				'error' => $this->l10n->t('Connection failed: %s', [$e->getMessage()])
+			], Http::STATUS_SERVICE_UNAVAILABLE);
+		}
+	}
+
+	/**
+	 * Save the list of custom CI classes chosen by the admin.
+	 *
+	 * Custom classes are iTop FunctionalCI subclasses not in SUPPORTED_CI_CLASSES
+	 * (e.g. Monitor, Scanner). They are stored in a separate config key and merged
+	 * with standard classes at runtime by Application::getAllCIClasses().
+	 *
+	 * @param array $customClasses Array of iTop class names to treat as custom CI classes
+	 * @return DataResponse
+	 */
+	public function saveCustomCIClasses(array $customClasses): DataResponse {
+		// Sanitize: class names must be non-empty alphanumeric strings
+		$sanitized = [];
+		foreach ($customClasses as $cls) {
+			$cls = trim((string)$cls);
+			// iTop class names are CamelCase identifiers (letters, digits)
+			if ($cls !== '' && preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $cls)) {
+				// Must not duplicate a standard class
+				if (!in_array($cls, Application::SUPPORTED_CI_CLASSES, true)) {
+					$sanitized[] = $cls;
+				}
+			}
+		}
+		$sanitized = array_values(array_unique($sanitized));
+
+		// Persist the custom class list
+		$this->config->setAppValue(Application::APP_ID, 'custom_ci_classes', json_encode($sanitized));
+
+		// Clean up ci_class_config: remove entries for classes that are no longer
+		// custom (neither standard nor in the new custom list)
+		$allKnown = array_merge(Application::SUPPORTED_CI_CLASSES, $sanitized);
+		$configJson = $this->config->getAppValue(Application::APP_ID, 'ci_class_config', '');
+		if ($configJson !== '') {
+			$classConfig = json_decode($configJson, true);
+			if (is_array($classConfig)) {
+				$cleaned = array_filter($classConfig, function (string $cls) use ($allKnown) {
+					return in_array($cls, $allKnown, true);
+				}, ARRAY_FILTER_USE_KEY);
+				$this->config->setAppValue(Application::APP_ID, 'ci_class_config', json_encode($cleaned));
+			}
+		}
+
+		$this->logger->info('Custom CI classes updated', [
+			'app' => Application::APP_ID,
+			'custom_classes' => $sanitized
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('Custom CI classes saved successfully'),
+			'custom_classes' => $sanitized,
 		]);
 	}
 

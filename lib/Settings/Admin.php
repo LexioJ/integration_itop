@@ -56,8 +56,9 @@ class Admin implements ISettings {
 		$cacheTtlPicker = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_picker', '60');
 		$cacheTtlProfile = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_profile', '1800');
 
-		// Get 3-state CI class configuration
+		// Get 3-state CI class configuration (standard + custom classes)
 		$ciClassConfig = Application::getCIClassConfig($this->config);
+		$customCIClasses = Application::getCustomCIClasses($this->config);
 
 		$parameters = [
 			'admin_instance_url' => $adminInstanceUrl,
@@ -77,9 +78,11 @@ class Admin implements ISettings {
 			'cache_ttl_search' => $cacheTtlSearch,
 			'cache_ttl_picker' => $cacheTtlPicker,
 			'cache_ttl_profile' => $cacheTtlProfile,
-			// CI class configuration
+			// CI class configuration (standard built-in classes)
 			'ci_class_config' => $ciClassConfig,
 			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES,
+			// Custom CI classes (admin-added, e.g. Monitor, Scanner)
+			'custom_ci_classes' => $customCIClasses,
 			'connected_users' => 0, // Will be populated by JavaScript via AJAX
 		];
 

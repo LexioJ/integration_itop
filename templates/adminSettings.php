@@ -546,6 +546,96 @@ $ciClassLabels = [
 					</button>
 				</div>
 			</div>
+
+	<!-- Custom CI Classes Section -->
+	<div class="settings-section">
+		<div class="section-header">
+			<h3><?php p($l->t('🔧 Custom CI Classes')); ?></h3>
+			<p class="section-description"><?php p($l->t('Add iTop CI classes not in the built-in list (e.g. Monitor, Scanner, NetworkDevice) to search, smart picker, and previews')); ?></p>
+		</div>
+
+		<div class="settings-form">
+
+			<!-- Browse available classes from iTop -->
+			<div class="form-group">
+				<p class="form-hint"><?php p($l->t('Click "Browse iTop Classes" to discover all FunctionalCI subclasses present in your iTop instance. Select the ones you want to make available to users.')); ?></p>
+				<div class="form-actions" style="margin-top: 8px; margin-bottom: 0;">
+					<button id="browse-itop-classes" class="btn-secondary"
+						data-text-browse="<?php p($l->t('Browse iTop Classes')); ?>"
+						data-text-loading="<?php p($l->t('Loading...')); ?>">
+						<span class="btn-icon">🔍</span>
+						<?php p($l->t('Browse iTop Classes')); ?>
+					</button>
+				</div>
+			</div>
+
+			<!-- Browse result panel (hidden until Browse is clicked) -->
+			<div id="itop-class-browser" style="display:none; margin-top: 16px;">
+				<div class="form-info-box info" style="margin-bottom: 12px;">
+					<strong><?php p($l->t('ℹ️ Available Custom Classes')); ?></strong><br>
+					<?php p($l->t('These are FunctionalCI subclasses found in your iTop CMDB that are not already in the built-in class list. Check the classes you want to add and click "Save Custom CI Classes".')); ?>
+				</div>
+				<div id="itop-class-browser-list" class="ci-class-config-grid">
+					<!-- Populated dynamically by JavaScript -->
+				</div>
+				<div id="itop-class-browser-empty" style="display:none; color: var(--color-text-maxcontrast); padding: 12px 0;">
+					<?php p($l->t('No additional CI classes found in iTop, or all available classes are already in the built-in list.')); ?>
+				</div>
+			</div>
+
+			<!-- Currently configured custom classes -->
+			<div id="custom-ci-classes-section" style="margin-top: 16px; <?php echo empty($_['custom_ci_classes']) ? 'display:none;' : ''; ?>">
+				<h4 style="margin-bottom: 12px;"><?php p($l->t('Configured Custom CI Classes')); ?></h4>
+				<div id="custom-ci-class-config-grid" class="ci-class-config-grid">
+					<?php foreach ($_['custom_ci_classes'] as $customClass): ?>
+						<?php
+							$currentState = $_['ci_class_config'][$customClass] ?? 'disabled';
+							$genericIconPath = \OC::$server->getURLGenerator()->imagePath($appId, 'FunctionalCI.svg');
+						?>
+						<div class="ci-class-config-row" id="custom-ci-row-<?php p($customClass); ?>">
+							<div class="ci-class-info">
+								<span class="ci-class-icon">
+									<img src="<?php p($genericIconPath); ?>" alt="<?php p($customClass); ?>" width="25" height="25" style="display: block;" />
+								</span>
+								<span class="ci-class-label">
+									<?php p($customClass); ?>
+									<span class="custom-class-badge" style="font-size: 0.75em; background: var(--color-primary-element-light); color: var(--color-primary-element); border-radius: 3px; padding: 1px 5px; margin-left: 4px;"><?php p($l->t('custom')); ?></span>
+								</span>
+							</div>
+							<div style="display:flex; align-items:center; gap:8px;">
+								<div class="state-toggle-group" data-class="<?php p($customClass); ?>">
+									<button type="button" class="state-button <?php echo $currentState === 'disabled' ? 'active' : ''; ?>" data-state="disabled">
+										<span class="state-icon">🚫</span>
+										<span class="state-text"><?php p($l->t('Disable')); ?></span>
+									</button>
+									<button type="button" class="state-button <?php echo $currentState === 'forced' ? 'active' : ''; ?>" data-state="forced">
+										<span class="state-icon">✓</span>
+										<span class="state-text"><?php p($l->t('Force Enable')); ?></span>
+									</button>
+									<button type="button" class="state-button <?php echo $currentState === 'user_choice' ? 'active' : ''; ?>" data-state="user_choice">
+										<span class="state-icon">⚙️</span>
+										<span class="state-text"><?php p($l->t('User Choice')); ?></span>
+									</button>
+								</div>
+								<button type="button" class="btn-icon-only remove-custom-class" data-class="<?php p($customClass); ?>" title="<?php p($l->t('Remove')); ?>" style="background:none; border:none; cursor:pointer; color:var(--color-error); font-size:18px; padding:0 4px;">✕</button>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				</div>
+			</div>
+
+			<div id="custom-ci-empty-hint" style="<?php echo !empty($_['custom_ci_classes']) ? 'display:none;' : ''; ?> color: var(--color-text-maxcontrast); margin-top: 8px; font-style: italic;">
+				<?php p($l->t('No custom CI classes configured yet. Use "Browse iTop Classes" above to add some.')); ?>
+			</div>
+
+			<div class="form-actions" style="margin-top: 16px;">
+				<button id="save-custom-ci-classes" class="btn-primary">
+					<span class="btn-icon">💾</span>
+					<?php p($l->t('Save Custom CI Classes')); ?>
+				</button>
+			</div>
+		</div>
+	</div>
 		</div>
 	</div>
 </div>

@@ -165,7 +165,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			// Determine if this is a ticket or CI
 			if ($class === 'UserRequest' || $class === 'Incident') {
 				return $this->getTicketReference($id, $class, $referenceText);
-			} elseif (in_array($class, Application::SUPPORTED_CI_CLASSES, true)) {
+			} elseif (in_array($class, Application::getAllCIClasses($this->config), true)) {
 				return $this->getCIReference($id, $class, $referenceText);
 			}
 		}
