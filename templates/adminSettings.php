@@ -546,6 +546,7 @@ $ciClassLabels = [
 					</button>
 				</div>
 			</div>
+		</div>
 
 	<!-- Custom CI Classes Section -->
 	<div class="settings-section">
@@ -632,6 +633,5 @@ $ciClassLabels = [
 			</div>
 		</div>
 	</div>
-		</div>
 	</div>
 </div>
