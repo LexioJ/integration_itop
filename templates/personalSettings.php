@@ -19,6 +19,21 @@ $ciClassLabels = [
 	'WebApplication' => $l->t('Web Applications'),
 	'Software' => $l->t('Software Catalog')
 ];
+
+// CI class icon mapping with safe fallback for unknown classes
+$ciClassIcons = [
+	'PC' => 'PC.svg',
+	'Phone' => 'Phone.svg',
+	'IPPhone' => 'IPPhone.svg',
+	'MobilePhone' => 'MobilePhone.svg',
+	'Tablet' => 'Tablet.svg',
+	'Printer' => 'Printer.svg',
+	'Peripheral' => 'Peripheral.svg',
+	'PCSoftware' => 'PCSoftware.svg',
+	'OtherSoftware' => 'OtherSoftware.svg',
+	'WebApplication' => 'WebApplication.svg',
+	'Software' => 'Software.svg'
+];
 ?>
 
 <div id="itop_prefs" class="section">
@@ -307,6 +322,10 @@ $ciClassLabels = [
 			<?php if (!empty($_['user_choice_ci_classes'])): ?>
 			<div id="ci-class-user-toggles" class="ci-class-user-list">
 				<?php foreach ($_['user_choice_ci_classes'] as $className): ?>
+				<?php
+				$iconFile = isset($ciClassIcons[$className]) ? $ciClassIcons[$className] : 'notification.svg';
+				$iconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', $iconFile);
+				?>
 				<div class="ci-class-user-toggle">
 					<input
 						type="checkbox"
@@ -318,7 +337,7 @@ $ciClassLabels = [
 					/>
 					<label for="ci-class-<?php p($className); ?>" class="ci-class-user-label-container">
 						<span class="ci-class-user-icon">
-							<img src="<?php p(\OC::$server->getURLGenerator()->imagePath('integration_itop', $className . '.svg')); ?>" alt="<?php p($className); ?>" width="24" height="24" />
+							<img src="<?php p($iconPath); ?>" alt="<?php p($className); ?>" width="24" height="24" />
 						</span>
 						<span class="ci-class-user-label"><?php p(isset($ciClassLabels[$className]) ? $ciClassLabels[$className] : $className); ?></span>
 					</label>
