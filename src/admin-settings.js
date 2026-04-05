@@ -159,60 +159,54 @@
 		}
 
 		// CI class state toggle buttons (delegated to also cover dynamically added custom class rows)
-	document.addEventListener('click', function(e) {
-		const button = e.target.closest('.state-button')
-		if (!button) return
+		document.addEventListener('click', function(e) {
+			const button = e.target.closest('.state-button')
+			if (!button) return
 
-		const toggleGroup = button.closest('.state-toggle-group')
-		if (!toggleGroup) return
+			const toggleGroup = button.closest('.state-toggle-group')
+			if (!toggleGroup) return
 
-		e.preventDefault()
-
-		// Remove active class from all buttons in this group
-		toggleGroup.querySelectorAll('.state-button').forEach(function(btn) {
-			btn.classList.remove('active')
-		})
-
-		// Add active class to clicked button
-		button.classList.add('active')
-	})
-
-	// Remove custom CI class button (delegated)
-	document.addEventListener('click', function(e) {
-		const btn = e.target.closest('.remove-custom-class')
-		if (!btn) return
-		e.preventDefault()
-		const className = btn.dataset.class
-		const row = document.getElementById('custom-ci-row-' + className)
-		if (row) {
-			row.remove()
-		}
-		// Also uncheck the class in the browser list if visible
-		const browserCheck = document.getElementById('browser-check-' + className)
-		if (browserCheck) {
-			browserCheck.checked = false
-		}
-		updateCustomCIEmptyState()
-	})
-
-	// Custom CI classes: browse button
-	const browseButton = document.getElementById('browse-itop-classes')
-	if (browseButton) {
-		browseButton.addEventListener('click', function(e) {
 			e.preventDefault()
-			browseItopClasses()
-		})
-	}
 
-	// Custom CI classes: save button
-	const saveCustomCIButton = document.getElementById('save-custom-ci-classes')
-	if (saveCustomCIButton) {
-		saveCustomCIButton.addEventListener('click', function(e) {
-			e.preventDefault()
-			saveCustomCIClasses()
+			// Remove active class from all buttons in this group
+			toggleGroup.querySelectorAll('.state-button').forEach(function(btn) {
+				btn.classList.remove('active')
+			})
+
+			// Add active class to clicked button
+			button.classList.add('active')
 		})
+
+		// Remove custom CI class button (delegated)
+		document.addEventListener('click', function(e) {
+			const btn = e.target.closest('.remove-custom-class')
+			if (!btn) return
+			e.preventDefault()
+			const className = btn.dataset.class
+			removeCustomCIClass(className, btn)
+		})
+
+		// Custom CI classes: browse button
+		const browseButton = document.getElementById('browse-itop-classes')
+		if (browseButton) {
+			browseButton.addEventListener('click', function(e) {
+				e.preventDefault()
+				browseItopClasses()
+			})
+		}
+
+		// Custom CI classes: save button
+		const saveCustomCIButton = document.getElementById('save-custom-ci-classes')
+		if (saveCustomCIButton) {
+			saveCustomCIButton.addEventListener('click', function(e) {
+				e.preventDefault()
+				saveCustomCIClasses()
+			})
+		}
+
+		// Make sure existing rows always expose a visible remove button
+		ensureCustomClassRemoveButtons()
 	}
-}
 
 	/**
 	 *
@@ -524,7 +518,7 @@
 			body: JSON.stringify({
 				defaultInterval,
 				portalConfig: JSON.stringify(portalConfig),
-				agentConfig: JSON.stringify(agentConfig)
+				agentConfig: JSON.stringify(agentConfig),
 			}),
 		})
 			.then(response => {
@@ -783,7 +777,6 @@
 		}
 	}
 
-
 	/**
 	 * Update the empty-state hint for the custom CI section
 	 */
@@ -794,6 +787,16 @@
 		const hasRows = grid && grid.querySelectorAll('.ci-class-config-row').length > 0
 		if (section) section.style.display = hasRows ? '' : 'none'
 		if (hint) hint.style.display = hasRows ? 'none' : ''
+	}
+
+	/**
+	 * Build URL for cached custom class icon served by this app.
+	 *
+	 * @param {string} className
+	 * @return {string}
+	 */
+	function getCustomClassIconUrl(className) {
+		return OC.generateUrl('/apps/integration_itop/ci-class-icon/' + encodeURIComponent(className))
 	}
 
 	/**
@@ -826,12 +829,13 @@
 
 				const list = document.getElementById('itop-class-browser-list')
 				const empty = document.getElementById('itop-class-browser-empty')
+				const classIcons = data.class_icons || {}
 				const currentCustom = Array.from(
-					document.querySelectorAll('#custom-ci-class-config-grid .ci-class-config-row')
+					document.querySelectorAll('#custom-ci-class-config-grid .ci-class-config-row'),
 				).map(row => row.id.replace('custom-ci-row-', ''))
 
 				const available = (data.available_classes || []).filter(
-					cls => !currentCustom.includes(cls)
+					cls => !currentCustom.includes(cls),
 				)
 
 				if (list) list.innerHTML = ''
@@ -841,21 +845,23 @@
 				} else {
 					if (empty) empty.style.display = 'none'
 					available.forEach(cls => {
+						const iconUrl = classIcons[cls] || getCustomClassIconUrl(cls)
 						const row = document.createElement('div')
 						row.className = 'ci-class-config-row'
 						row.style.cursor = 'pointer'
-						row.innerHTML =
-							'<label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1;">' +
-							'<input type="checkbox" id="browser-check-' + cls + '" value="' + cls + '" style="width:18px;height:18px;">' +
-							'<span class="ci-class-label" style="font-size:1em;">' + cls + '</span>' +
-							'</label>'
+						row.innerHTML
+							= '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1;">'
+							+ '<span class="ci-class-icon"><img src="' + iconUrl + '" width="25" height="25" style="display:block;" /></span>'
+							+ '<input type="checkbox" id="browser-check-' + cls + '" value="' + cls + '" style="width:18px;height:18px;">'
+							+ '<span class="ci-class-label" style="font-size:1em;">' + cls + '</span>'
+							+ '</label>'
 						if (list) list.appendChild(row)
 					})
 				}
 
 				if (browser) browser.style.display = ''
 			})
-			.catch(err => {
+			.catch(() => {
 				if (btn) {
 					btn.disabled = false
 					btn.querySelector('.btn-icon').textContent = '🔍'
@@ -873,7 +879,7 @@
 
 		// 1. Collect already-configured custom class rows
 		const existingRows = Array.from(
-			document.querySelectorAll('#custom-ci-class-config-grid .ci-class-config-row')
+			document.querySelectorAll('#custom-ci-class-config-grid .ci-class-config-row'),
 		).map(row => row.id.replace('custom-ci-row-', ''))
 
 		// 2. Collect newly checked classes from browser
@@ -904,27 +910,27 @@
 				const grid = document.getElementById('custom-ci-class-config-grid')
 				newClasses.forEach(cls => {
 					if (document.getElementById('custom-ci-row-' + cls)) return // already exists
-					const genericIcon = OC.generateUrl('/apps/integration_itop/img/FunctionalCI.svg')
+					const genericIcon = getCustomClassIconUrl(cls)
 					const row = document.createElement('div')
 					row.className = 'ci-class-config-row'
 					row.id = 'custom-ci-row-' + cls
-					row.innerHTML =
-						'<div class="ci-class-info">' +
-						'<span class="ci-class-icon"><img src="' + genericIcon + '" width="25" height="25" style="display:block;" /></span>' +
-						'<span class="ci-class-label">' + cls +
-						' <span class="custom-class-badge" style="font-size:0.75em;background:var(--color-primary-element-light);color:var(--color-primary-element);border-radius:3px;padding:1px 5px;margin-left:4px;">' + t('integration_itop', 'custom') + '</span>' +
-						'</span>' +
-						'</div>' +
-						'<div style="display:flex;align-items:center;gap:8px;">' +
-						'<div class="state-toggle-group" data-class="' + cls + '">' +
-						'<button type="button" class="state-button active" data-state="disabled"><span class="state-icon">🚫</span><span class="state-text">' + t('integration_itop', 'Disable') + '</span></button>' +
-						'<button type="button" class="state-button" data-state="forced"><span class="state-icon">✓</span><span class="state-text">' + t('integration_itop', 'Force Enable') + '</span></button>' +
-						'<button type="button" class="state-button" data-state="user_choice"><span class="state-icon">⚙️</span><span class="state-text">' + t('integration_itop', 'User Choice') + '</span></button>' +
-						'</div>' +
-						'<button type="button" class="btn-icon-only remove-custom-class" data-class="' + cls + '" title="' + t('integration_itop', 'Remove') + '" style="background:none;border:none;cursor:pointer;color:var(--color-error);font-size:18px;padding:0 4px;">✕</button>' +
-						'</div>'
+					row.innerHTML
+						= '<div class="ci-class-info">'
+						+ '<span class="ci-class-icon"><img src="' + genericIcon + '" width="25" height="25" style="display:block;" /></span>'
+						+ '<span class="ci-class-label">' + cls + '</span>'
+						+ '<span class="custom-class-badge">' + t('integration_itop', 'custom') + '</span>'
+						+ '<button type="button" class="remove-custom-class custom-ci-remove-btn custom-ci-remove-badge-btn" data-class="' + cls + '" title="' + t('integration_itop', 'Remove') + '">✕ ' + t('integration_itop', 'Remove') + '</button>'
+						+ '</div>'
+						+ '<div class="state-toggle-group" data-class="' + cls + '">'
+						+ '<button type="button" class="state-button active" data-state="disabled"><span class="state-icon">🚫</span><span class="state-text">' + t('integration_itop', 'Disable') + '</span></button>'
+						+ '<button type="button" class="state-button" data-state="forced"><span class="state-icon">✓</span><span class="state-text">' + t('integration_itop', 'Force Enable') + '</span></button>'
+						+ '<button type="button" class="state-button" data-state="user_choice"><span class="state-icon">⚙️</span><span class="state-text">' + t('integration_itop', 'User Choice') + '</span></button>'
+						+ '</div>'
 					if (grid) grid.appendChild(row)
 				})
+
+				// Ensure remove controls are visible and normalized
+				ensureCustomClassRemoveButtons()
 
 				// Clear browser checkboxes
 				document.querySelectorAll('#itop-class-browser-list input[type="checkbox"]').forEach(cb => {
@@ -968,6 +974,118 @@
 			.catch(() => {
 				if (saveBtn) saveBtn.disabled = false
 				showNotification(t('integration_itop', 'Failed to save custom CI classes'), true)
+			})
+	}
+
+	/**
+	 * Ensure each configured custom CI row has a visible labeled remove button.
+	 * Also upgrades older icon-only remove buttons.
+	 */
+	function ensureCustomClassRemoveButtons() {
+		const grid = document.getElementById('custom-ci-class-config-grid')
+		if (!grid) return
+
+		const rowNodes = Array.from(grid.querySelectorAll('.ci-class-config-row'))
+		rowNodes.forEach((row) => {
+			const className = row.id.replace('custom-ci-row-', '')
+			if (!className) return
+			const infoContainer = row.querySelector('.ci-class-info')
+			if (!infoContainer) return
+
+			let removeBtn = row.querySelector('.remove-custom-class')
+			if (!removeBtn) {
+
+				removeBtn = document.createElement('button')
+				removeBtn.type = 'button'
+				removeBtn.className = 'remove-custom-class'
+				removeBtn.dataset.class = className
+				infoContainer.appendChild(removeBtn)
+			} else if (removeBtn.parentElement !== infoContainer) {
+				infoContainer.appendChild(removeBtn)
+			}
+
+			removeBtn.dataset.class = className
+			removeBtn.classList.add('custom-ci-remove-btn', 'custom-ci-remove-badge-btn')
+			removeBtn.title = t('integration_itop', 'Remove')
+			removeBtn.textContent = '✕ ' + t('integration_itop', 'Remove')
+			removeBtn.removeAttribute('style')
+		})
+	}
+
+	/**
+	 * Remove a single custom CI class and persist immediately.
+	 *
+	 * @param {string} className
+	 * @param {HTMLElement} buttonEl
+	 */
+	function removeCustomCIClass(className, buttonEl) {
+		const row = document.getElementById('custom-ci-row-' + className)
+		if (!row) return
+
+		const remainingCustom = Array.from(
+			document.querySelectorAll('#custom-ci-class-config-grid .ci-class-config-row'),
+		).map(r => r.id.replace('custom-ci-row-', '')).filter(cls => cls !== className)
+
+		const classConfig = {}
+		document.querySelectorAll('.state-toggle-group[data-class]').forEach(function(group) {
+			const cls = group.dataset.class
+			if (!cls || cls === className) return
+			const activeBtn = group.querySelector('.state-button.active')
+			if (activeBtn) {
+				classConfig[cls] = activeBtn.dataset.state
+			}
+		})
+
+		buttonEl.disabled = true
+		const originalHtml = buttonEl.innerHTML
+		buttonEl.innerHTML = '⏳'
+
+		fetch(OC.generateUrl('/apps/integration_itop/ci-class-custom'), {
+			method: 'POST',
+			headers: {
+				requesttoken: OC.requestToken,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({ customClasses: remainingCustom }),
+		})
+			.then(r => r.json())
+			.then(data => {
+				if (data.error) {
+					throw new Error(data.error)
+				}
+
+				return fetch(OC.generateUrl('/apps/integration_itop/ci-class-config'), {
+					method: 'POST',
+					headers: {
+						requesttoken: OC.requestToken,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ classConfig }),
+				})
+			})
+			.then(r => r.json())
+			.then(data => {
+				if (data.error) {
+					throw new Error(data.error)
+				}
+
+				row.remove()
+
+				// Also uncheck the class in the browser list if visible
+				const browserCheck = document.getElementById('browser-check-' + className)
+				if (browserCheck) {
+					browserCheck.checked = false
+				}
+
+				updateCustomCIEmptyState()
+				showNotification(t('integration_itop', 'Custom CI class removed'), false)
+			})
+			.catch((err) => {
+				showNotification(err.message || t('integration_itop', 'Failed to remove custom CI class'), true)
+			})
+			.finally(() => {
+				buttonEl.disabled = false
+				buttonEl.innerHTML = originalHtml
 			})
 	}
 

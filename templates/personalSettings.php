@@ -307,6 +307,12 @@ $ciClassLabels = [
 			<?php if (!empty($_['user_choice_ci_classes'])): ?>
 			<div id="ci-class-user-toggles" class="ci-class-user-list">
 				<?php foreach ($_['user_choice_ci_classes'] as $className): ?>
+				<?php
+				$isStandardClass = in_array($className, \OCA\Itop\AppInfo\Application::SUPPORTED_CI_CLASSES, true);
+				$ciClassIconPath = $isStandardClass
+					? \OC::$server->getURLGenerator()->imagePath('integration_itop', $className . '.svg')
+					: \OC::$server->getURLGenerator()->linkToRoute('integration_itop.config.getCIClassIcon', ['class' => $className]);
+				?>
 				<div class="ci-class-user-toggle">
 					<input
 						type="checkbox"
@@ -318,7 +324,7 @@ $ciClassLabels = [
 					/>
 					<label for="ci-class-<?php p($className); ?>" class="ci-class-user-label-container">
 						<span class="ci-class-user-icon">
-							<img src="<?php p(\OC::$server->getURLGenerator()->imagePath('integration_itop', $className . '.svg')); ?>" alt="<?php p($className); ?>" width="24" height="24" />
+							<img src="<?php p($ciClassIconPath); ?>" alt="<?php p($className); ?>" width="24" height="24" />
 						</span>
 						<span class="ci-class-user-label"><?php p(isset($ciClassLabels[$className]) ? $ciClassLabels[$className] : $className); ?></span>
 					</label>

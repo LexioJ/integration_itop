@@ -615,6 +615,7 @@ input.password-style {
 .ci-class-info {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 12px;
 }
 
@@ -812,6 +813,42 @@ input.password-style {
     font-size: 13px;
     font-weight: 500;
     color: var(--color-main-text);
+}
+
+.custom-class-badge {
+    font-size: 0.75em;
+    background: var(--color-primary-element-light);
+    color: var(--color-primary-element);
+    border-radius: 3px;
+    padding: 1px 5px;
+}
+
+.custom-ci-remove-btn {
+    background: var(--color-main-background);
+    border: 1px solid var(--color-border-dark);
+    color: var(--color-main-text);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    transition: all 0.15s ease-in-out;
+}
+
+.custom-ci-remove-btn:hover {
+    background: var(--color-error);
+    border-color: var(--color-error);
+    color: #fff;
+}
+
+.custom-ci-remove-btn:focus-visible {
+    outline: 2px solid var(--color-primary-element);
+    outline-offset: 1px;
+}
+
+.custom-ci-remove-badge-btn {
+    margin-left: 8px;
 }
 
 /* Responsive Design */

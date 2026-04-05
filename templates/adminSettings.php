@@ -590,34 +590,30 @@ $ciClassLabels = [
 					<?php foreach ($_['custom_ci_classes'] as $customClass): ?>
 						<?php
 							$currentState = $_['ci_class_config'][$customClass] ?? 'disabled';
-							$genericIconPath = \OC::$server->getURLGenerator()->imagePath($appId, 'FunctionalCI.svg');
+							$customIconPath = \OC::$server->getURLGenerator()->linkToRoute('integration_itop.config.getCIClassIcon', ['class' => $customClass]);
 						?>
 						<div class="ci-class-config-row" id="custom-ci-row-<?php p($customClass); ?>">
 							<div class="ci-class-info">
 								<span class="ci-class-icon">
-									<img src="<?php p($genericIconPath); ?>" alt="<?php p($customClass); ?>" width="25" height="25" style="display: block;" />
+									<img src="<?php p($customIconPath); ?>" alt="<?php p($customClass); ?>" width="25" height="25" style="display: block;" />
 								</span>
-								<span class="ci-class-label">
-									<?php p($customClass); ?>
-									<span class="custom-class-badge" style="font-size: 0.75em; background: var(--color-primary-element-light); color: var(--color-primary-element); border-radius: 3px; padding: 1px 5px; margin-left: 4px;"><?php p($l->t('custom')); ?></span>
-								</span>
+								<span class="ci-class-label"><?php p($customClass); ?></span>
+								<span class="custom-class-badge"><?php p($l->t('custom')); ?></span>
+								<button type="button" class="remove-custom-class custom-ci-remove-btn custom-ci-remove-badge-btn" data-class="<?php p($customClass); ?>" title="<?php p($l->t('Remove')); ?>">✕ <?php p($l->t('Remove')); ?></button>
 							</div>
-							<div style="display:flex; align-items:center; gap:8px;">
-								<div class="state-toggle-group" data-class="<?php p($customClass); ?>">
-									<button type="button" class="state-button <?php echo $currentState === 'disabled' ? 'active' : ''; ?>" data-state="disabled">
-										<span class="state-icon">🚫</span>
-										<span class="state-text"><?php p($l->t('Disable')); ?></span>
-									</button>
-									<button type="button" class="state-button <?php echo $currentState === 'forced' ? 'active' : ''; ?>" data-state="forced">
-										<span class="state-icon">✓</span>
-										<span class="state-text"><?php p($l->t('Force Enable')); ?></span>
-									</button>
-									<button type="button" class="state-button <?php echo $currentState === 'user_choice' ? 'active' : ''; ?>" data-state="user_choice">
-										<span class="state-icon">⚙️</span>
-										<span class="state-text"><?php p($l->t('User Choice')); ?></span>
-									</button>
-								</div>
-								<button type="button" class="btn-icon-only remove-custom-class" data-class="<?php p($customClass); ?>" title="<?php p($l->t('Remove')); ?>" style="background:none; border:none; cursor:pointer; color:var(--color-error); font-size:18px; padding:0 4px;">✕</button>
+							<div class="state-toggle-group" data-class="<?php p($customClass); ?>">
+								<button type="button" class="state-button <?php echo $currentState === 'disabled' ? 'active' : ''; ?>" data-state="disabled">
+									<span class="state-icon">🚫</span>
+									<span class="state-text"><?php p($l->t('Disable')); ?></span>
+								</button>
+								<button type="button" class="state-button <?php echo $currentState === 'forced' ? 'active' : ''; ?>" data-state="forced">
+									<span class="state-icon">✓</span>
+									<span class="state-text"><?php p($l->t('Force Enable')); ?></span>
+								</button>
+								<button type="button" class="state-button <?php echo $currentState === 'user_choice' ? 'active' : ''; ?>" data-state="user_choice">
+									<span class="state-icon">⚙️</span>
+									<span class="state-text"><?php p($l->t('User Choice')); ?></span>
+								</button>
 							</div>
 						</div>
 					<?php endforeach; ?>
