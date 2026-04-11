@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] - 2026-04-10
+
+### Custom CI Classes, Ticket System Detection & Newsroom Mirroring
+
+This release combines three feature branches to add Configuration Item class management improvements, ticket system type detection, and Newsroom Mirroring functionality.
+
+#### Added
+- **Custom CI Classes Support**: Complete implementation for managing custom Configuration Item classes beyond the standard 11 types
+  - Custom CI class icons stored in appdata with Peripheral.svg fallback
+  - Support for custom CI classes in CI Search and Reference Provider
+  - Improved admin settings UI for Custom CI Classes section
+- **Ticket System Type Detection**: 
+  - Automatic detection of iTop ticket system configuration (ITIL/simple/auto)
+  - Support for simple ticketing environments with single ticket class
+  - Runtime error prevention in personal settings CI icon handling
+- **Newsroom Mirroring**:
+  - Mirror iTop ticket updates to Nextcloud Talk Notifications
+  - Background job for efficient Talk integration processing
+
+#### Changed
+- **Admin Settings UI**:
+  - Improved custom CI class management and icon handling
+  - Enhanced notification configuration UI with emojis and better layout
+- **Personal Settings**:
+  - Improved personal settings UI consistency and theming
+- **Background Jobs**:
+  - Added NewsroomPollJob for processing Newsroom Mirroring requests
+  - Integrated with existing CheckPortalTicketUpdates and CheckAgentTicketUpdates infrastructure
+- **API & Services**:
+  - Enhanced ItopAPIService with CI query methods for profile-aware filtering
+  - Improved PreviewMapper service for CI data transformation
+  - Improved Controller classes for settings management and API endpoints
+- **Frontend**:
+  - Updated admin-settings.js and personal-settings.js for improved UX
+  - Enhanced AgentDashboardWidget.vue for better responsiveness
+
+#### Fixed
+- **CI Icon Resolution for Custom Classes**: Custom CI class icons now served via `getCIClassIcon` controller route (appdata) instead of failing on missing SVGs in `img/` directory, which caused the entire search to return empty results
+- **Software Search Field Name**: Corrected OQL field `vendor_name` to `vendor` matching the iTop data model
+- **Personal Settings CI Icons**: Custom CI classes now display correct icons instead of falling back to the notification bell icon
+
+---
+
 ## [1.3.1] - 2025-11-09
 
 ### 🔒 Security Hardening

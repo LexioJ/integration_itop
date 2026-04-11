@@ -46,6 +46,7 @@ class Personal implements ISettings {
 		$navigationEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'navigation_enabled', '0') === '1';
 		$notificationEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'notification_enabled', '0') === '1';
 		$searchEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'search_enabled', '1') === '1'; // Default: enabled (opt-out)
+		$newsroomMirroringEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'newsroom_mirroring_enabled', '0') === '1'; // Default: disabled (opt-in)
 		
 		// Get portal notification preferences (default: enabled)
 		$notifyTicketStatusChanged = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_ticket_status_changed', '1') === '1';
@@ -117,6 +118,7 @@ class Personal implements ISettings {
 			'navigation_enabled' => $navigationEnabled,
 			'notification_enabled' => $notificationEnabled,
 			'search_enabled' => $searchEnabled,
+			'newsroom_mirroring_enabled' => $newsroomMirroringEnabled,
 			'notify_ticket_status_changed' => $notifyTicketStatusChanged,
 			'notify_agent_responded' => $notifyAgentResponded,
 			'notify_ticket_resolved' => $notifyTicketResolved,

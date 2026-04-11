@@ -82,6 +82,18 @@ class Application extends App implements IBootstrap {
 		'ticket_comment'
 	];
 
+	/**
+	 * Ticket system type configuration
+	 *
+	 * itil   - Standard ITIL setup: separate UserRequest and Incident classes (default)
+	 * simple - Simple ticketing: single class (UserRequest) for all tickets,
+	 *          optionally distinguished by an enum field
+	 * auto   - Auto-detect by probing the Incident class via the iTop REST API
+	 */
+	public const TICKET_SYSTEM_TYPE_ITIL = 'itil';
+	public const TICKET_SYSTEM_TYPE_SIMPLE = 'simple';
+	public const TICKET_SYSTEM_TYPE_AUTO = 'auto';
+
 	private IConfig $config;
 
 	/**
@@ -95,19 +107,47 @@ class Application extends App implements IBootstrap {
 	}
 
 	/**
+	 * Get the list of custom CI classes added by the admin
+	 * These are iTop classes not in SUPPORTED_CI_CLASSES (e.g., Monitor, Scanner)
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @return array List of custom class names
+	 */
+	public static function getCustomCIClasses(IConfig $config): array {
+		$json = $config->getAppValue(self::APP_ID, 'custom_ci_classes', '');
+		if ($json === '') {
+			return [];
+		}
+		$classes = json_decode($json, true);
+		return is_array($classes) ? $classes : [];
+	}
+
+	/**
+	 * Get all CI classes: standard built-in classes plus admin-added custom classes
+	 *
+	 * @param IConfig $config Nextcloud config service
+	 * @return array Combined list of all CI class names
+	 */
+	public static function getAllCIClasses(IConfig $config): array {
+		return array_merge(self::SUPPORTED_CI_CLASSES, self::getCustomCIClasses($config));
+	}
+
+	/**
 	 * Get CI class configuration from admin settings
 	 * Returns array mapping class names to their state (disabled/forced/user_choice)
+	 * Covers both standard SUPPORTED_CI_CLASSES and admin-added custom classes.
 	 *
 	 * @param IConfig $config Nextcloud config service
 	 * @return array Map of class name => state
 	 */
 	public static function getCIClassConfig(IConfig $config): array {
 		$configJson = $config->getAppValue(self::APP_ID, 'ci_class_config', '');
+		$allClasses = self::getAllCIClasses($config);
 
 		if ($configJson === '') {
 			// Default: all classes disabled (opt-in model)
 			$defaultConfig = [];
-			foreach (self::SUPPORTED_CI_CLASSES as $class) {
+			foreach ($allClasses as $class) {
 				$defaultConfig[$class] = self::CI_CLASS_STATE_DISABLED;
 			}
 			return $defaultConfig;
@@ -117,14 +157,14 @@ class Application extends App implements IBootstrap {
 		if (!is_array($classConfig)) {
 			// Fallback on invalid JSON
 			$defaultConfig = [];
-			foreach (self::SUPPORTED_CI_CLASSES as $class) {
+			foreach ($allClasses as $class) {
 				$defaultConfig[$class] = self::CI_CLASS_STATE_DISABLED;
 			}
 			return $defaultConfig;
 		}
 
-		// Ensure all supported classes have a state
-		foreach (self::SUPPORTED_CI_CLASSES as $class) {
+		// Ensure all known classes have a state
+		foreach ($allClasses as $class) {
 			if (!isset($classConfig[$class])) {
 				$classConfig[$class] = self::CI_CLASS_STATE_DISABLED;
 			}
@@ -135,6 +175,7 @@ class Application extends App implements IBootstrap {
 
 	/**
 	 * Get list of admin-enabled CI classes (forced + user_choice)
+	 * Includes both standard and custom classes.
 	 *
 	 * @param IConfig $config Nextcloud config service
 	 * @return array List of enabled CI class names
@@ -201,6 +242,7 @@ class Application extends App implements IBootstrap {
 	 */
 	public static function getEffectiveEnabledCIClasses(IConfig $config, string $userId): array {
 		$classConfig = self::getCIClassConfig($config);
+		$allClasses = self::getAllCIClasses($config);
 		$effective = [];
 
 		// Get user-disabled classes
@@ -214,6 +256,10 @@ class Application extends App implements IBootstrap {
 		}
 
 		foreach ($classConfig as $class => $state) {
+			// Only include classes that are actually known (standard or custom)
+			if (!in_array($class, $allClasses, true)) {
+				continue;
+			}
 			if ($state === self::CI_CLASS_STATE_FORCED) {
 				// Forced classes: always enabled, user can't opt-out
 				$effective[] = $class;

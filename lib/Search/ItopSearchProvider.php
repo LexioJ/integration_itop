@@ -269,15 +269,22 @@ class ItopSearchProvider implements IProvider {
 	}
 
 	protected function getCIIconUrl(string $class): string {
-		// Map Software to existing OtherSoftware.svg icon if dedicated icon is absent
-		if ($class === 'Software') {
-			$iconFile = 'Software.svg';
-		} else {
-			$iconFile = $class . '.svg';
+		// Built-in classes are served directly from the app's img/ directory (fast path).
+		// Custom classes (not in SUPPORTED_CI_CLASSES) are routed through the
+		// getCIClassIcon controller endpoint, which checks appdata for an
+		// uploaded SVG and falls back to Peripheral.svg when none is found.
+		if (in_array($class, Application::SUPPORTED_CI_CLASSES, true)) {
+			return $this->urlGenerator->getAbsoluteURL(
+				$this->urlGenerator->imagePath(Application::APP_ID, $class . '.svg')
+			);
 		}
 
+		// Custom class: route through the icon controller
 		return $this->urlGenerator->getAbsoluteURL(
-			$this->urlGenerator->imagePath(Application::APP_ID, $iconFile)
+			$this->urlGenerator->linkToRoute(
+				Application::APP_ID . '.config.getCIClassIcon',
+				['class' => $class]
+			)
 		);
 	}
 

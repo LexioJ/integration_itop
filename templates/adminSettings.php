@@ -191,6 +191,95 @@ $ciClassLabels = [
 			</div>
 		</div>
 
+		<!-- Ticket System Type Section -->
+		<div class="settings-section">
+			<div class="section-header">
+				<h3><?php p($l->t('🎫 Ticket System Type')); ?></h3>
+				<p class="section-description"><?php p($l->t('Choose how your iTop instance organises tickets. Standard ITIL setups use separate UserRequest and Incident classes; some installations use a single class for all tickets (simple ticketing).')); ?></p>
+			</div>
+
+			<div class="settings-form">
+				<div class="form-group">
+					<label class="form-label">
+						<span class="icon">🏷️</span>
+						<?php p($l->t('Ticket System Mode')); ?>
+					</label>
+
+					<div class="ticket-type-options">
+						<label class="ticket-type-option <?php echo ($_['ticket_system_type'] === 'itil') ? 'active' : ''; ?>">
+							<input type="radio" name="ticket-system-type" value="itil"
+								<?php echo ($_['ticket_system_type'] === 'itil') ? 'checked' : ''; ?> />
+							<span class="option-title"><?php p($l->t('ITIL (standard)')); ?></span>
+							<span class="option-desc"><?php p($l->t('Separate UserRequest and Incident classes — the default iTop ITIL setup.')); ?></span>
+						</label>
+
+						<label class="ticket-type-option <?php echo ($_['ticket_system_type'] === 'simple') ? 'active' : ''; ?>">
+							<input type="radio" name="ticket-system-type" value="simple"
+								<?php echo ($_['ticket_system_type'] === 'simple') ? 'checked' : ''; ?> />
+							<span class="option-title"><?php p($l->t('Simple ticketing')); ?></span>
+							<span class="option-desc"><?php p($l->t('All tickets live in a single class (UserRequest). The agent widget shows a unified Tickets count and skips Incident queries.')); ?></span>
+						</label>
+
+						<label class="ticket-type-option <?php echo ($_['ticket_system_type'] === 'auto') ? 'active' : ''; ?>">
+							<input type="radio" name="ticket-system-type" value="auto"
+								<?php echo ($_['ticket_system_type'] === 'auto') ? 'checked' : ''; ?> />
+							<span class="option-title"><?php p($l->t('Auto-detect')); ?></span>
+							<span class="option-desc"><?php p($l->t('Probe the iTop REST API on the next dashboard load to check whether the Incident class exists. The result is cached; switch to ITIL or Simple to override it.')); ?></span>
+						</label>
+					</div>
+
+					<?php if (!empty($_['ticket_system_type_detected'])): ?>
+					<p class="form-hint">
+						<?php p($l->t('Last auto-detection result:')); ?>
+						<strong><?php p($_['ticket_system_type_detected'] === 'simple' ? $l->t('Simple (Incident class not found)') : $l->t('ITIL (Incident class present)')); ?></strong>.
+						<?php p($l->t('Switch to a different mode and back to Auto-detect to force a new probe.')); ?>
+					</p>
+					<?php endif; ?>
+				</div>
+
+				<!-- Simple mode: optional enum field configuration -->
+				<div id="simple-mode-options" class="form-group"
+					style="<?php echo ($_['ticket_system_type'] === 'simple') ? '' : 'display:none'; ?>">
+					<label class="form-label">
+						<span class="icon">⚙️</span>
+						<?php p($l->t('Enum field for type distinction (optional)')); ?>
+					</label>
+					<p class="form-hint"><?php p($l->t('Leave blank to treat all tickets as a single pool. Fill in if your datamodel adds an enum field that distinguishes Incidents from Service Requests so the widget can show split counts.')); ?></p>
+
+					<div class="form-row">
+						<div class="form-field">
+							<label for="simple-ticket-type-field"><?php p($l->t('Enum field name')); ?></label>
+							<input type="text" id="simple-ticket-type-field"
+								value="<?php p($_['simple_ticket_type_field']); ?>"
+								placeholder="<?php p($l->t('e.g., request_type')); ?>"
+								class="form-input" />
+						</div>
+						<div class="form-field">
+							<label for="simple-ticket-incident-value"><?php p($l->t('Enum value = Incident')); ?></label>
+							<input type="text" id="simple-ticket-incident-value"
+								value="<?php p($_['simple_ticket_incident_value']); ?>"
+								placeholder="incident"
+								class="form-input" />
+						</div>
+						<div class="form-field">
+							<label for="simple-ticket-request-value"><?php p($l->t('Enum value = Service Request')); ?></label>
+							<input type="text" id="simple-ticket-request-value"
+								value="<?php p($_['simple_ticket_request_value']); ?>"
+								placeholder="service_request"
+								class="form-input" />
+						</div>
+					</div>
+				</div>
+
+				<div class="form-actions">
+					<button id="save-ticket-system-type" class="btn-primary">
+						<span class="btn-icon">💾</span>
+						<?php p($l->t('Save Ticket System Type')); ?>
+					</button>
+				</div>
+			</div>
+		</div>
+
 		<!-- User Permission Requirements Section -->
 		<div class="settings-section">
 			<div class="section-header">
@@ -547,5 +636,91 @@ $ciClassLabels = [
 				</div>
 			</div>
 		</div>
+
+	<!-- Custom CI Classes Section -->
+	<div class="settings-section">
+		<div class="section-header">
+			<h3><?php p($l->t('🔧 Custom CI Classes')); ?></h3>
+			<p class="section-description"><?php p($l->t('Add iTop CI classes not in the built-in list (e.g. Monitor, Scanner, NetworkDevice) to search, smart picker, and previews')); ?></p>
+		</div>
+
+		<div class="settings-form">
+
+			<!-- Browse available classes from iTop -->
+			<div class="form-group">
+				<p class="form-hint"><?php p($l->t('Click "Browse iTop Classes" to discover all FunctionalCI subclasses present in your iTop instance. Select the ones you want to make available to users.')); ?></p>
+				<div class="form-actions" style="margin-top: 8px; margin-bottom: 0;">
+					<button id="browse-itop-classes" class="btn-secondary"
+						data-text-browse="<?php p($l->t('Browse iTop Classes')); ?>"
+						data-text-loading="<?php p($l->t('Loading...')); ?>">
+						<span class="btn-icon">🔍</span>
+						<?php p($l->t('Browse iTop Classes')); ?>
+					</button>
+				</div>
+			</div>
+
+			<!-- Browse result panel (hidden until Browse is clicked) -->
+			<div id="itop-class-browser" style="display:none; margin-top: 16px;">
+				<div class="form-info-box info" style="margin-bottom: 12px;">
+					<strong><?php p($l->t('ℹ️ Available Custom Classes')); ?></strong><br>
+					<?php p($l->t('These are FunctionalCI subclasses found in your iTop CMDB that are not already in the built-in class list. Check the classes you want to add and click "Save Custom CI Classes".')); ?>
+				</div>
+				<div id="itop-class-browser-list" class="ci-class-config-grid">
+					<!-- Populated dynamically by JavaScript -->
+				</div>
+				<div id="itop-class-browser-empty" style="display:none; color: var(--color-text-maxcontrast); padding: 12px 0;">
+					<?php p($l->t('No additional CI classes found in iTop, or all available classes are already in the built-in list.')); ?>
+				</div>
+			</div>
+
+			<!-- Currently configured custom classes -->
+			<div id="custom-ci-classes-section" style="margin-top: 16px; <?php echo empty($_['custom_ci_classes']) ? 'display:none;' : ''; ?>">
+				<h4 style="margin-bottom: 12px;"><?php p($l->t('Configured Custom CI Classes')); ?></h4>
+				<div id="custom-ci-class-config-grid" class="ci-class-config-grid">
+					<?php foreach ($_['custom_ci_classes'] as $customClass): ?>
+						<?php
+							$currentState = $_['ci_class_config'][$customClass] ?? 'disabled';
+							$customIconPath = \OC::$server->getURLGenerator()->linkToRoute('integration_itop.config.getCIClassIcon', ['class' => $customClass]);
+						?>
+						<div class="ci-class-config-row" id="custom-ci-row-<?php p($customClass); ?>">
+							<div class="ci-class-info">
+								<span class="ci-class-icon">
+									<img src="<?php p($customIconPath); ?>" alt="<?php p($customClass); ?>" width="25" height="25" style="display: block;" />
+								</span>
+								<span class="ci-class-label"><?php p($customClass); ?></span>
+								<span class="custom-class-badge"><?php p($l->t('custom')); ?></span>
+								<button type="button" class="remove-custom-class custom-ci-remove-btn custom-ci-remove-badge-btn" data-class="<?php p($customClass); ?>" title="<?php p($l->t('Remove')); ?>">✕ <?php p($l->t('Remove')); ?></button>
+							</div>
+							<div class="state-toggle-group" data-class="<?php p($customClass); ?>">
+								<button type="button" class="state-button <?php echo $currentState === 'disabled' ? 'active' : ''; ?>" data-state="disabled">
+									<span class="state-icon">🚫</span>
+									<span class="state-text"><?php p($l->t('Disable')); ?></span>
+								</button>
+								<button type="button" class="state-button <?php echo $currentState === 'forced' ? 'active' : ''; ?>" data-state="forced">
+									<span class="state-icon">✓</span>
+									<span class="state-text"><?php p($l->t('Force Enable')); ?></span>
+								</button>
+								<button type="button" class="state-button <?php echo $currentState === 'user_choice' ? 'active' : ''; ?>" data-state="user_choice">
+									<span class="state-icon">⚙️</span>
+									<span class="state-text"><?php p($l->t('User Choice')); ?></span>
+								</button>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				</div>
+			</div>
+
+			<div id="custom-ci-empty-hint" style="<?php echo !empty($_['custom_ci_classes']) ? 'display:none;' : ''; ?> color: var(--color-text-maxcontrast); margin-top: 8px; font-style: italic;">
+				<?php p($l->t('No custom CI classes configured yet. Use "Browse iTop Classes" above to add some.')); ?>
+			</div>
+
+			<div class="form-actions" style="margin-top: 16px;">
+				<button id="save-custom-ci-classes" class="btn-primary">
+					<span class="btn-icon">💾</span>
+					<?php p($l->t('Save Custom CI Classes')); ?>
+				</button>
+			</div>
+		</div>
+	</div>
 	</div>
 </div>

@@ -9,11 +9,17 @@ return [
 		['name' => 'config#setAdminConfig', 'url' => '/admin-config', 'verb' => 'PUT'],
 		['name' => 'config#testAdminConnection', 'url' => '/admin-config/test', 'verb' => 'POST'],
 		['name' => 'config#testApplicationToken', 'url' => '/admin-config/test-token', 'verb' => 'POST'],
+		['name' => 'config#saveTicketSystemType', 'url' => '/ticket-system-type', 'verb' => 'POST'],
 		['name' => 'config#saveNotificationSettings', 'url' => '/notification-settings', 'verb' => 'POST'],
 		['name' => 'config#saveNotificationConfig', 'url' => '/notification-config', 'verb' => 'POST'],
 		['name' => 'config#saveCacheSettings', 'url' => '/cache-settings', 'verb' => 'POST'],
 		['name' => 'config#clearAllCache', 'url' => '/clear-cache', 'verb' => 'POST'],
 		['name' => 'config#saveCIClassConfig', 'url' => '/ci-class-config', 'verb' => 'POST'],
+		['name' => 'config#getAvailableItopClasses', 'url' => '/ci-class-available', 'verb' => 'GET'],
+		['name' => 'config#saveCustomCIClasses', 'url' => '/ci-class-custom', 'verb' => 'POST'],
+		['name' => 'config#uploadCIClassIcon', 'url' => '/ci-class-icon/{class}', 'verb' => 'POST'],
+		['name' => 'config#getCIClassIcon', 'url' => '/ci-class-icon/{class}', 'verb' => 'GET'],
+		['name' => 'config#deleteCIClassIcon', 'url' => '/ci-class-icon/{class}', 'verb' => 'DELETE'],
 		['name' => 'config#saveEnabledCIClasses', 'url' => '/enabled-ci-classes', 'verb' => 'POST'],
 		['name' => 'config#getUserDisabledCIClasses', 'url' => '/user-disabled-ci-classes', 'verb' => 'GET'],
 		['name' => 'config#saveUserDisabledCIClasses', 'url' => '/user-disabled-ci-classes', 'verb' => 'POST'],
@@ -30,5 +36,8 @@ return [
 
 		// Search routes
 		['name' => 'itopAPI#search', 'url' => '/search', 'verb' => 'GET'],
+
+		// Newsroom routes
+		['name' => 'newsroom#markAsRead', 'url' => '/newsroom/mark-read', 'verb' => 'POST'],
 	]
 ];

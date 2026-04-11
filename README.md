@@ -2,7 +2,7 @@
 
 🎟️ **Complete iTop ITSM & CMDB Integration** - Seamlessly access tickets, incidents, and Configuration Items from your Nextcloud environment
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue)](https://github.com/lexioj/integration_itop/releases)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue)](https://github.com/lexioj/integration_itop/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 [![Nextcloud](https://img.shields.io/badge/Nextcloud-30+-blue)](https://nextcloud.com)
 
@@ -91,7 +91,7 @@ Transform iTop links into rich, interactive previews across Nextcloud apps (Talk
 - **Tickets**: Status, priority, assignee, caller, description, timestamps
 - **Configuration Items**: Hardware specs (CPU, RAM), software details, contact count
 - **Smart Icons**: State-specific ticket icons (closed, escalated, deadline)
-- **CI Icons**: Class-specific icons for all 11 CI types (PC, phone, printer, etc.)
+- **CI Icons**: Class-specific icons for all CI types (built-in + custom with appdata caching)
 - **Universal Support**: Works across all Nextcloud apps supporting rich content
 
 ### 🔍 Unified Search Integration
@@ -101,7 +101,7 @@ Search your iTop tickets **and Configuration Items** directly from Nextcloud's u
 
 **Search Capabilities:**
 - **Tickets**: UserRequest, Incident - by title, description, reference number
-- **Configuration Items**: PC, Phone, Tablet, Printer, Software, WebApplication
+- **Configuration Items**: 11 built-in CI classes + admin-configurable custom classes (Cluster, NetworkDevice, etc.)
 - **Smart Ranking**: Exact matches first, then class weighting, then recency
 - **Profile-Aware**: Portal users see only related CIs; power users get full CMDB
 - **Real-Time Status**: Live priority badges and status indicators
@@ -121,7 +121,7 @@ Quick access to tickets and CIs when creating documents or chatting.
 
 ### 📊 Configuration Item (CI) Browsing
 
-**NEW in v1.1.0** - Complete CMDB integration with 11 supported CI classes:
+**CI Browsing since v1.1.0, Custom Classes since v1.4.0** - Complete CMDB integration with 11 built-in CI classes plus admin-configurable custom classes:
 
 #### End User Devices
 - **PC** - Desktops and laptops with hardware specs (CPU, RAM, OS)
@@ -134,6 +134,11 @@ Quick access to tickets and CIs when creating documents or chatting.
 - **PCSoftware** - Desktop/server software with version and license info
 - **OtherSoftware** - Miscellaneous software installations
 - **WebApplication** - Web-based applications with URLs
+
+#### Custom CI Classes (v1.4.0)
+- **Admin-Configurable**: Add any iTop FunctionalCI subclass (Cluster, Monitor, NetworkDevice, etc.) from admin settings
+- **Icon Support**: Custom class icons fetched from iTop datamodel and cached in appdata; Peripheral.svg as fallback
+- **Full Integration**: Custom classes work in search, smart picker, reference provider, and personal settings
 
 **Profile-Based Permissions:**
 - **Portal Users**: See only CIs where they are listed as contacts (strict filtering)
@@ -176,7 +181,7 @@ Professional user configuration with real-time status monitoring.
 - **User Profile**: See your iTop identity (name, email, organization, profiles)
 - **Ticket Counter**: Open incidents and user requests at a glance
 - **Secure Setup**: Token-based authentication with one-time personal token validation
-- **Feature Toggles**: Enable/disable search, portal notifications, and agent notifications individually
+- **Feature Toggles**: Enable/disable search, portal notifications, agent notifications, and newsroom mirroring individually
 - **Granular Control**: Per-notification-type toggles for User Choice notifications
 - **Clean Interface**: Professional theme-aware design
 
@@ -190,6 +195,8 @@ Comprehensive administration interface for system-wide configuration.
 ![Admin Settings - Cache Settings](docs/images/admin-settings5.png)
 **Administrative Features:**
 - **Connection Management**: iTop URL, display name, application token (encrypted)
+- **Ticket System Type**: ITIL (UserRequest + Incident), Simple (UserRequest only), or Auto-detect
+- **Custom CI Classes**: Discover and add iTop classes beyond the 11 built-in types with icon support
 - **CI Class Configuration**: Enable/disable CI classes with 3-state control:
   - **Disabled**: CI class hidden from all users
   - **Forced**: Enabled for all users (no opt-out)
@@ -332,7 +339,8 @@ lib/
 ├── Search/
 │   └── ItopSearchProvider.php       # Unified search (tickets + CIs)
 ├── Dashboard/
-│   └── ItopWidget.php               # Dashboard widget
+│   ├── ItopWidget.php               # Portal dashboard widget
+│   └── ItopAgentWidget.php          # Agent dashboard widget
 ├── Settings/
 │   ├── Admin.php                    # Admin configuration panel
 │   └── Personal.php                 # User settings interface
@@ -340,7 +348,8 @@ lib/
 │   └── Notifier.php                 # Notification system (12 types)
 └── BackgroundJob/
     ├── CheckPortalTicketUpdates.php # Portal notification processor
-    └── CheckAgentTicketUpdates.php  # Agent notification processor
+    ├── CheckAgentTicketUpdates.php  # Agent notification processor
+    └── NewsroomPollJob.php          # Newsroom mirroring processor
 
 src/
 └── views/
@@ -356,8 +365,8 @@ src/
 - **Caching**: Multi-layer with configurable TTLs
 
 ### Supported iTop Objects
-- **Tickets**: UserRequest, Incident
-- **Configuration Items**: PC, Phone, IPPhone, MobilePhone, Tablet, Printer, Peripheral, PCSoftware, OtherSoftware, WebApplication, Software
+- **Tickets**: UserRequest, Incident (auto-detected; simple ticketing mode supported)
+- **Configuration Items**: 11 built-in classes (PC, Phone, IPPhone, MobilePhone, Tablet, Printer, Peripheral, PCSoftware, OtherSoftware, WebApplication, Software) + admin-configurable custom classes
 - **Persons**: User profile information
 - **Organizations**: Company/department info
 
@@ -418,9 +427,28 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
 
 ---
 
-## 📋 What's New in v1.3.0
+## 📋 What's New in v1.4.0
 
-**Major New Feature: Intelligent Notification System** 🎉
+**Custom CI Classes, Ticket System Detection & Newsroom Mirroring** 🎉
+
+### Added
+- **Custom CI Classes**: Add any iTop FunctionalCI subclass (Cluster, Monitor, NetworkDevice, etc.) beyond the 11 built-in types
+  - Icons auto-fetched from iTop datamodel and cached in appdata
+  - Peripheral.svg fallback when no custom icon available
+  - Full integration in search, smart picker, reference provider, and personal settings
+- **Ticket System Type Detection**: Auto-detect ITIL vs simple ticketing (UserRequest-only) environments
+  - Admin configurable: ITIL, Simple, or Auto-detect
+  - Eliminates errors in iTop installations without Incident class
+- **Newsroom Mirroring**: Mirror iTop newsroom notifications as Nextcloud notifications
+  - Background job (NewsroomPollJob) for efficient processing
+  - Read/unread sync with iTop newsroom
+
+### Fixed
+- **CI Icon Resolution**: Custom CI class icons now served via controller route (appdata) instead of failing on missing SVGs in img/
+- **Software Search**: Corrected `vendor_name` field to `vendor` matching iTop data model
+- **Personal Settings Icons**: Custom CI classes now display correctly (no more bell icon fallback)
+
+### Previous Release: v1.3.0 - Intelligent Notification System
 
 ### Added
 - **12 Notification Types**: 4 Portal + 8 Agent notification types for comprehensive ticket tracking
@@ -531,9 +559,11 @@ curl -X POST https://itop.company.com/webservices/rest.php \
 - [x] Weekend-aware SLA warnings
 - [x] Background jobs for automated notification delivery
 
-### v1.4.0 (Next Release)
+### v1.4.0 (Released 2026-04-10) ✅
+- [x] Custom CI classes with admin-configurable class discovery and icon support
+- [x] Ticket system type detection (ITIL/simple/auto)
+- [x] Newsroom mirroring for broadcast notifications
 - [ ] Advanced search filters (date ranges, custom fields)
-- [ ] Newsroom mirroring for broadcast notifications
 
 ### Future
 - [ ] Ticket creation from Nextcloud

@@ -250,9 +250,12 @@
 			const originalButtonText = saveButton.innerHTML
 			saveButton.innerHTML = '<span class="icon">⏳</span> Saving...'
 
+			const newsroomMirroringField = document.getElementById('itop-newsroom-mirroring-enabled')
+
 			const params = {
 				notification_enabled: notificationEnabled,
 				search_enabled: searchEnabled && searchEnabled.checked ? '1' : '0',
+				newsroom_mirroring_enabled: newsroomMirroringField && newsroomMirroringField.checked ? '1' : '0',
 			}
 
 			// Send personal_token if provided (used for identity verification only)

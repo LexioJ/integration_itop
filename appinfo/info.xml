@@ -28,21 +28,35 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 
 #### 🔗 Dynamic Reference Provider
 - **Rich Link Previews**: Paste iTop ticket links in Talk, Deck, or Collectives for instant rich previews
-- **Detailed Information**: View ticket status, priority, assignee, and description at a glance  
+- **Detailed Information**: View ticket status, priority, assignee, and description at a glance
 - **Smart Navigation**: Direct links to full ticket details in iTop
 - **Universal Compatibility**: Works across all Nextcloud apps that support rich content
 
 #### 🔍 Unified Search Integration
 - **Quick Access**: Search your iTop tickets directly from Nextcloud's search bar
 - **Smart Results**: Filter by ticket type (Incidents, User Requests) with status indicators
+- **CI Browsing**: Search Configuration Items (computers, phones, printers, software, and more)
+- **Custom CI Classes**: Extensible search support for any CI class defined in your iTop CMDB
 - **Personal Scope**: Only shows tickets you created or are assigned to
 - **Real-time Status**: Live priority and status badges in search results
 
-#### 🎯 Smart Picker & Content Integration  
-- **Content Creation**: Insert iTop references while writing in Text app or chatting in Talk
+#### 🎯 Smart Picker & Content Integration
+- **Content Creation**: Insert iTop references while writing in Text App or chatting in Talk
 - **Quick Browse**: Access recent tickets and CIs with smart suggestions
 - **Rich Insertion**: Add links that automatically become interactive previews
 - **Context Aware**: Relevant suggestions based on your current work
+
+#### 🔔 Notification System (v1.3.0+)
+- **Portal Notifications**: Stay informed about your tickets - status changes, agent responses, resolutions
+- **Agent Notifications**: Get alerted about assignments, team queue updates, reassignments, and SLA warnings
+- **12 Notification Types**: Granular control with per-type enable/disable for portal and agent notifications
+- **Mandatory/Optional Control**: Administrators can force-certain notifications or let users choose
+- **Configurable Intervals**: Adjust how frequently the system checks for updates
+
+#### 📰 Newsroom Mirroring (v1.4.0)
+- **iTop Newsroom in Nextcloud**: Receive iTop Newsroom announcements as Nextcloud notifications
+- **Opt-in Per User**: Each user independently enables Newsroom mirroring
+- **ActionNewsroom Triggers**: Requires ActionNewsroom extension configured in iTop
 
 #### ⚙️ Professional Settings Interface
 - **Personal Dashboard**: Real-time status with connection indicator and ticket counts
@@ -52,7 +66,10 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 
 #### 🛠️ Enterprise Admin Panel
 - **Centralized Configuration**: System-wide settings with encrypted token storage
-- **Connection Testing**: Real-time validation of iTop server connectivity  
+- **Connection Testing**: Real-time validation of iTop server connectivity
+- **Ticket System Detection**: Automatically detects iTop configuration (Helpdesk vs Ticketing mode)
+- **Custom CI Classes**: Add any CI class from your iTop CMDB beyond the 11 built-in types
+- **Icon Management**: Upload custom SVG icons for CI classes, or auto-fetch from iTop datamodel
 - **User Monitoring**: Track connected users and system health
 
 #### 🔐 Security & Architecture
@@ -63,19 +80,19 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 
 ### 🏢 Perfect For
 - IT teams managing incidents and service requests
-- Help desk agents tracking assigned tickets  
+- Help desk agents tracking assigned tickets
 - End users checking their request status
 - Organizations using both Nextcloud and iTop ITSM
 
 ### 🔧 Technical Requirements
-- **iTop Server**: Version 1.3+ with REST API enabled
+- **iTop Server**: Version 3.0 or higher with REST API enabled
 - **Nextcloud**: Version 30.0 or higher
 - **PHP**: 8.1 or higher
 - **Optional**: [iTop Portal Personal Tokens Extension](https://github.com/LexioJ/itop-portal-personal-tokens) for enhanced Portal user support
 
 #### Start streamlining your ITSM workflow - Connect iTop with Nextcloud and experience unified IT service management!]]></description>
 
-	<version>1.3.1</version>
+	<version>1.4.0</version>
 	<licence>AGPL-3.0-or-later</licence>
 
 	<author>iTop Integration Team</author>
@@ -97,14 +114,15 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/personal-settings.png</screenshot>
 	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/admin-settings1.png</screenshot>
 	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/admin-settings2.png</screenshot>
-	
+
    <dependencies>
-		<nextcloud min-version="30" max-version="32" />
+		<nextcloud min-version="30" max-version="33" />
 	</dependencies>
 
 	<background-jobs>
 		<job>OCA\Itop\BackgroundJob\CheckPortalTicketUpdates</job>
 		<job>OCA\Itop\BackgroundJob\CheckAgentTicketUpdates</job>
+		<job>OCA\Itop\BackgroundJob\NewsroomPollJob</job>
 	</background-jobs>
 
 	<commands>
@@ -128,5 +146,6 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 
 	<dashboard>
 		<widget>OCA\Itop\Dashboard\ItopWidget</widget>
+		<widget>OCA\Itop\Dashboard\ItopAgentWidget</widget>
 	</dashboard>
 </info>

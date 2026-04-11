@@ -18,17 +18,27 @@ use OCA\Itop\Service\CacheService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\Files\AppData\IAppDataFactory;
+use OCP\Files\NotFoundException;
 use OCP\Http\Client\IClientService;
 use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IRequest;
+use OCP\IURLGenerator;
 use OCP\PreConditionNotMetException;
 use OCP\Security\ICrypto;
 
 use Psr\Log\LoggerInterface;
 
 class ConfigController extends Controller {
+	/**
+	 * Request-local cache of parsed iTop class definitions, keyed by iTop base URL.
+	 *
+	 * @var array<string, array<string, array{parent:?string, icon:?string}>>
+	 */
+	private array $itopClassDefinitionsCache = [];
 
 	public function __construct(
 		string $appName,
@@ -41,6 +51,8 @@ class ConfigController extends Controller {
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
 		private IClientService $clientService,
+		private IAppDataFactory $appDataFactory,
+		private IURLGenerator $urlGenerator,
 		private ?string $userId
 	) {
 		parent::__construct($appName, $request);
@@ -93,7 +105,8 @@ class ConfigController extends Controller {
 			'search_enabled',
 			'notify_ticket_status_changed',
 			'notify_agent_responded',
-			'notify_ticket_resolved'
+			'notify_ticket_resolved',
+			'newsroom_mirroring_enabled',
 		];
 		
 		foreach ($values as $key => $value) {
@@ -677,6 +690,53 @@ class ConfigController extends Controller {
 	}
 
 	/**
+	 * Save ticket system type configuration
+	 *
+	 * @param string $ticketSystemType 'itil', 'simple', or 'auto'
+	 * @param string $simpleTypeField  Optional enum field name (may be empty)
+	 * @param string $simpleIncidentValue Enum value meaning "incident"
+	 * @param string $simpleRequestValue  Enum value meaning "service request"
+	 * @return DataResponse
+	 */
+	public function saveTicketSystemType(
+		string $ticketSystemType,
+		string $simpleTypeField = '',
+		string $simpleIncidentValue = 'incident',
+		string $simpleRequestValue = 'service_request',
+	): DataResponse {
+		$validTypes = [
+			Application::TICKET_SYSTEM_TYPE_ITIL,
+			Application::TICKET_SYSTEM_TYPE_SIMPLE,
+			Application::TICKET_SYSTEM_TYPE_AUTO,
+		];
+
+		if (!in_array($ticketSystemType, $validTypes, true)) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Invalid ticket system type'),
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		$this->config->setAppValue(Application::APP_ID, 'ticket_system_type', $ticketSystemType);
+
+		// Store optional simple-mode enum configuration
+		$this->config->setAppValue(Application::APP_ID, 'simple_ticket_type_field', trim($simpleTypeField));
+		$this->config->setAppValue(Application::APP_ID, 'simple_ticket_incident_value', trim($simpleIncidentValue) ?: 'incident');
+		$this->config->setAppValue(Application::APP_ID, 'simple_ticket_request_value', trim($simpleRequestValue) ?: 'service_request');
+
+		// Clear the cached auto-detection result so the next request re-probes if needed
+		$this->config->deleteAppValue(Application::APP_ID, 'ticket_system_type_detected');
+
+		$this->logger->info('Ticket system type configuration saved: ' . $ticketSystemType, [
+			'app' => Application::APP_ID,
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('Ticket system type configuration saved'),
+			'ticket_system_type' => $ticketSystemType,
+		]);
+	}
+
+	/**
 	 * Save notification interval settings with validation
 	 *
 	 * @param int $portalInterval Portal notification check interval in minutes (5-1440)
@@ -960,16 +1020,20 @@ class ConfigController extends Controller {
 
 	/**
 	 * Save CI class configuration (admin only) - 3-state model
+	 * Accepts both standard SUPPORTED_CI_CLASSES and admin-added custom classes.
 	 *
 	 * @param array $classConfig Map of class name => state (disabled/forced/user_choice)
 	 * @return DataResponse
 	 */
 	public function saveCIClassConfig(array $classConfig): DataResponse {
+		// All known classes = standard + custom
+		$allKnownClasses = Application::getAllCIClasses($this->config);
+
 		// Validate format and values
 		$validConfig = [];
 		foreach ($classConfig as $className => $state) {
-			// Only process supported classes
-			if (!in_array($className, Application::SUPPORTED_CI_CLASSES, true)) {
+			// Only process known classes (standard or custom)
+			if (!in_array($className, $allKnownClasses, true)) {
 				continue;
 			}
 
@@ -999,6 +1063,862 @@ class ConfigController extends Controller {
 			'message' => $this->l10n->t('CI class configuration saved successfully'),
 			'ci_class_config' => $validConfig
 		]);
+	}
+
+	/**
+	 * Get available iTop CI classes by querying the iTop CMDB.
+	 *
+	 * Queries FunctionalCI for distinct finalclass values to discover all
+	 * CI subclasses present in the iTop instance. Returns classes not already
+	 * in SUPPORTED_CI_CLASSES so the admin can add them as custom classes.
+	 * Also returns the currently configured custom classes.
+	 *
+	 * @return DataResponse
+	 */
+	public function getAvailableItopClasses(): DataResponse {
+		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		if (empty($adminInstanceUrl)) {
+			return new DataResponse([
+				'error' => $this->l10n->t('Server URL not configured')
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		$encryptedToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+		if (empty($encryptedToken)) {
+			return new DataResponse([
+				'error' => $this->l10n->t('Application token not configured')
+			], Http::STATUS_BAD_REQUEST);
+		}
+
+		try {
+			$applicationToken = $this->crypto->decrypt($encryptedToken);
+		} catch (\Exception $e) {
+			return new DataResponse([
+				'error' => $this->l10n->t('Failed to decrypt application token')
+			], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+
+		try {
+			$apiUrl = rtrim($adminInstanceUrl, '/') . '/webservices/rest.php?version=1.3';
+
+			// Query FunctionalCI to discover all subclasses present in this iTop instance
+			$postData = [
+				'json_data' => json_encode([
+					'operation' => 'core/get',
+					'class' => 'FunctionalCI',
+					'key' => 'SELECT FunctionalCI',
+					'output_fields' => 'finalclass',
+					'limit' => 2000,
+				])
+			];
+
+			$client = $this->clientService->newClient();
+			$response = $client->post($apiUrl, [
+				'body' => http_build_query($postData),
+				'headers' => [
+					'Content-Type' => 'application/x-www-form-urlencoded',
+					'Auth-Token' => $applicationToken,
+					'User-Agent' => 'Nextcloud-iTop-Integration/1.0'
+				],
+				'timeout' => 20,
+			]);
+
+			$result = json_decode($response->getBody(), true);
+
+			if (!is_array($result) || ($result['code'] ?? -1) !== 0) {
+				return new DataResponse([
+					'error' => $result['message'] ?? $this->l10n->t('Failed to fetch CI classes from iTop')
+				], Http::STATUS_BAD_REQUEST);
+			}
+
+			// Collect unique finalclass values from all objects
+			$discoveredClasses = [];
+			foreach ($result['objects'] ?? [] as $obj) {
+				$fc = $obj['fields']['finalclass'] ?? '';
+				if ($fc !== '' && !in_array($fc, $discoveredClasses, true)) {
+					$discoveredClasses[] = $fc;
+				}
+			}
+			sort($discoveredClasses);
+
+			// Filter out standard built-in classes (already managed separately)
+			$availableForCustom = array_values(
+				array_filter($discoveredClasses, function (string $cls) {
+					return !in_array($cls, Application::SUPPORTED_CI_CLASSES, true);
+				})
+			);
+
+			// Return discovered classes + currently configured custom classes
+			$currentCustomClasses = Application::getCustomCIClasses($this->config);
+			$classesForIcons = array_values(array_unique(array_merge($availableForCustom, $currentCustomClasses)));
+
+			// Best-effort warmup: fetch class icon from iTop and cache in appdata
+			$this->warmupCustomClassIcons($classesForIcons, $adminInstanceUrl, $applicationToken);
+
+			$classIcons = [];
+			foreach ($classesForIcons as $className) {
+				$classIcons[$className] = $this->urlGenerator->linkToRoute('integration_itop.config.getCIClassIcon', ['class' => $className]);
+			}
+
+			return new DataResponse([
+				'available_classes' => $availableForCustom,
+				'custom_classes' => $currentCustomClasses,
+				'supported_classes' => Application::SUPPORTED_CI_CLASSES,
+				'class_icons' => $classIcons,
+			]);
+
+		} catch (\Exception $e) {
+			$this->logger->error('Failed to fetch available iTop classes: ' . $e->getMessage(), [
+				'app' => Application::APP_ID
+			]);
+			return new DataResponse([
+				'error' => $this->l10n->t('Connection failed: %s', [$e->getMessage()])
+			], Http::STATUS_SERVICE_UNAVAILABLE);
+		}
+	}
+
+	/**
+	 * Save the list of custom CI classes chosen by the admin.
+	 *
+	 * Custom classes are iTop FunctionalCI subclasses not in SUPPORTED_CI_CLASSES
+	 * (e.g. Monitor, Scanner). They are stored in a separate config key and merged
+	 * with standard classes at runtime by Application::getAllCIClasses().
+	 *
+	 * @param array $customClasses Array of iTop class names to treat as custom CI classes
+	 * @return DataResponse
+	 */
+	public function saveCustomCIClasses(array $customClasses): DataResponse {
+		// Sanitize: class names must be non-empty alphanumeric strings
+		$sanitized = [];
+		foreach ($customClasses as $cls) {
+			$cls = trim((string)$cls);
+			// iTop class names are CamelCase identifiers (letters, digits)
+			if ($cls !== '' && preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $cls)) {
+				// Must not duplicate a standard class
+				if (!in_array($cls, Application::SUPPORTED_CI_CLASSES, true)) {
+					$sanitized[] = $cls;
+				}
+			}
+		}
+		$sanitized = array_values(array_unique($sanitized));
+
+		// Persist the custom class list
+		$this->config->setAppValue(Application::APP_ID, 'custom_ci_classes', json_encode($sanitized));
+
+		// Clean up ci_class_config: remove entries for classes that are no longer
+		// custom (neither standard nor in the new custom list)
+		$allKnown = array_merge(Application::SUPPORTED_CI_CLASSES, $sanitized);
+		$configJson = $this->config->getAppValue(Application::APP_ID, 'ci_class_config', '');
+		if ($configJson !== '') {
+			$classConfig = json_decode($configJson, true);
+			if (is_array($classConfig)) {
+				$cleaned = array_filter($classConfig, function (string $cls) use ($allKnown) {
+					return in_array($cls, $allKnown, true);
+				}, ARRAY_FILTER_USE_KEY);
+				$this->config->setAppValue(Application::APP_ID, 'ci_class_config', json_encode($cleaned));
+			}
+		}
+
+		// Best-effort warmup: cache icons for currently configured custom classes
+		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		$encryptedToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+		if (!empty($adminInstanceUrl) && !empty($encryptedToken)) {
+			try {
+				$applicationToken = $this->crypto->decrypt($encryptedToken);
+				$this->warmupCustomClassIcons($sanitized, $adminInstanceUrl, $applicationToken);
+			} catch (\Exception $e) {
+				$this->logger->warning('Could not warm up custom CI class icons after save: ' . $e->getMessage(), [
+					'app' => Application::APP_ID,
+				]);
+			}
+		}
+
+		$this->logger->info('Custom CI classes updated', [
+			'app' => Application::APP_ID,
+			'custom_classes' => $sanitized
+		]);
+
+		return new DataResponse([
+			'message' => $this->l10n->t('Custom CI classes saved successfully'),
+			'custom_classes' => $sanitized,
+		]);
+	}
+
+	/**
+	 * Best-effort icon warmup for custom classes.
+	 * Attempts to fetch class icon from iTop datamodel UI and cache it in appdata.
+	 *
+	 * @param array $classes
+	 * @param string $adminInstanceUrl
+	 * @param string $applicationToken
+	 * @return void
+	 */
+	private function warmupCustomClassIcons(array $classes, string $adminInstanceUrl, string $applicationToken): void {
+		foreach ($classes as $className) {
+			try {
+				$this->cacheClassIconFromItop((string)$className, $adminInstanceUrl, $applicationToken);
+			} catch (\Exception $e) {
+				// Best effort only; keep UI functional with fallback icon endpoint
+				$this->logger->debug('Skipping icon warmup for class ' . $className . ': ' . $e->getMessage(), [
+					'app' => Application::APP_ID,
+				]);
+			}
+		}
+	}
+
+	/**
+	 * Cache a class icon from iTop into appdata if not already cached.
+	 *
+	 * @param string $class
+	 * @param string $adminInstanceUrl
+	 * @param string $applicationToken
+	 * @return void
+	 */
+	private function cacheClassIconFromItop(string $class, string $adminInstanceUrl, string $applicationToken): void {
+		$class = preg_replace('/[^A-Za-z0-9_]/', '', $class);
+		if ($class === '') {
+			return;
+		}
+
+		// Already cached
+		if ($this->getCachedClassIconFile($class) !== null) {
+			return;
+		}
+
+		$iconUrl = $this->discoverClassIconUrl($class, $adminInstanceUrl, $applicationToken);
+		if ($iconUrl === null) {
+			return;
+		}
+
+		$downloaded = $this->downloadClassIcon($iconUrl, $applicationToken);
+		if ($downloaded === null) {
+			return;
+		}
+
+		$this->storeClassIconContent($class, $downloaded['content'], $downloaded['extension']);
+	}
+
+	/**
+	 * Discover class icon URL using datamodel metadata first, then schema page fallback.
+	 *
+	 * @param string $class
+	 * @param string $adminInstanceUrl
+	 * @param string $applicationToken
+	 * @return string|null
+	 */
+	private function discoverClassIconUrl(string $class, string $adminInstanceUrl, string $applicationToken): ?string {
+		$iconUrl = $this->discoverClassIconUrlFromDatamodel($class, $adminInstanceUrl, $applicationToken);
+		if ($iconUrl !== null) {
+			return $iconUrl;
+		}
+
+		return $this->discoverClassIconUrlFromSchema($class, $adminInstanceUrl, $applicationToken);
+	}
+
+	/**
+	 * Discover class icon URL from iTop datamodel XML files.
+	 *
+	 * @param string $class
+	 * @param string $adminInstanceUrl
+	 * @param string $applicationToken
+	 * @return string|null
+	 */
+	private function discoverClassIconUrlFromDatamodel(string $class, string $adminInstanceUrl, string $applicationToken): ?string {
+		$classDefinitions = $this->getItopClassDefinitions($adminInstanceUrl, $applicationToken);
+		if (empty($classDefinitions)) {
+			return null;
+		}
+
+		$iconPath = $this->resolveClassIconPath($class, $classDefinitions);
+		if ($iconPath === null) {
+			return null;
+		}
+
+		return $this->buildAbsoluteItopIconUrl($adminInstanceUrl, $iconPath);
+	}
+
+	/**
+	 * Build and cache a class definition map from iTop datamodel XML files.
+	 *
+	 * @param string $adminInstanceUrl
+	 * @param string $applicationToken
+	 * @return array<string, array{parent:?string, icon:?string}>
+	 */
+	private function getItopClassDefinitions(string $adminInstanceUrl, string $applicationToken): array {
+		if (isset($this->itopClassDefinitionsCache[$adminInstanceUrl])) {
+			return $this->itopClassDefinitionsCache[$adminInstanceUrl];
+		}
+
+		$classDefinitions = [];
+		$xmlUrls = $this->getItopDatamodelXmlUrls($adminInstanceUrl, $applicationToken);
+		foreach ($xmlUrls as $xmlUrl) {
+			$xmlContent = $this->downloadTextResource($xmlUrl, $applicationToken);
+			if ($xmlContent === null) {
+				continue;
+			}
+			$this->mergeClassDefinitionsFromXml($xmlContent, $classDefinitions);
+		}
+
+		$this->itopClassDefinitionsCache[$adminInstanceUrl] = $classDefinitions;
+		return $classDefinitions;
+	}
+
+	/**
+	 * List datamodel XML URLs from iTop directory indexes.
+	 *
+	 * @param string $adminInstanceUrl
+	 * @param string $applicationToken
+	 * @return array<int, string>
+	 */
+	private function getItopDatamodelXmlUrls(string $adminInstanceUrl, string $applicationToken): array {
+		$baseDatamodelUrl = rtrim($adminInstanceUrl, '/') . '/datamodels/2.x/';
+		$indexHtml = $this->downloadTextResource($baseDatamodelUrl, $applicationToken);
+		if ($indexHtml === null) {
+			return [];
+		}
+
+		preg_match_all("#href=[\"']([^\"']+/)[\"']#i", $indexHtml, $moduleMatches);
+		$modules = [];
+		foreach ($moduleMatches[1] ?? [] as $href) {
+			$decodedHref = html_entity_decode($href, ENT_QUOTES | ENT_HTML5);
+			if ($decodedHref === '' || str_contains($decodedHref, '..') || str_contains($decodedHref, '?') || str_contains($decodedHref, '#')) {
+				continue;
+			}
+			$module = trim($decodedHref, '/');
+			if ($module === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $module)) {
+				continue;
+			}
+			$modules[$module] = true;
+		}
+
+		$xmlUrls = [rtrim($adminInstanceUrl, '/') . '/core/datamodel.core.xml'];
+		$moduleNames = array_keys($modules);
+		sort($moduleNames);
+
+		foreach ($moduleNames as $moduleName) {
+			$moduleUrl = $baseDatamodelUrl . rawurlencode($moduleName) . '/';
+			$moduleHtml = $this->downloadTextResource($moduleUrl, $applicationToken);
+			if ($moduleHtml === null) {
+				continue;
+			}
+
+			preg_match_all("#href=[\"'](datamodel[^\"']*\\.xml)[\"']#i", $moduleHtml, $fileMatches);
+			foreach ($fileMatches[1] ?? [] as $xmlFileName) {
+				$decodedFileName = html_entity_decode($xmlFileName, ENT_QUOTES | ENT_HTML5);
+				if ($decodedFileName === '') {
+					continue;
+				}
+				$xmlUrls[] = $moduleUrl . ltrim($decodedFileName, '/');
+			}
+		}
+
+		$xmlUrls = array_values(array_unique($xmlUrls));
+		sort($xmlUrls);
+		return $xmlUrls;
+	}
+
+	/**
+	 * Download a text resource from iTop, trying with token first and without token as fallback.
+	 *
+	 * @param string $url
+	 * @param string $applicationToken
+	 * @return string|null
+	 */
+	private function downloadTextResource(string $url, string $applicationToken): ?string {
+		$client = $this->clientService->newClient();
+		$response = null;
+
+		try {
+			$response = $client->get($url, [
+				'headers' => [
+					'Auth-Token' => $applicationToken,
+					'User-Agent' => 'Nextcloud-iTop-Integration/1.0',
+				],
+				'timeout' => 8,
+			]);
+		} catch (\Exception $e) {
+			try {
+				$response = $client->get($url, [
+					'headers' => [
+						'User-Agent' => 'Nextcloud-iTop-Integration/1.0',
+					],
+					'timeout' => 8,
+				]);
+			} catch (\Exception $e2) {
+				return null;
+			}
+		}
+
+		if ($response === null) {
+			return null;
+		}
+
+		$content = (string)$response->getBody();
+		return $content === '' ? null : $content;
+	}
+
+	/**
+	 * Merge class definitions from one datamodel XML content block.
+	 *
+	 * @param string $xmlContent
+	 * @param array<string, array{parent:?string, icon:?string}> $classDefinitions
+	 * @return void
+	 */
+	private function mergeClassDefinitionsFromXml(string $xmlContent, array &$classDefinitions): void {
+		$dom = new \DOMDocument();
+		$loaded = @$dom->loadXML($xmlContent);
+		if ($loaded === false) {
+			return;
+		}
+
+		$xpath = new \DOMXPath($dom);
+		$classNodes = $xpath->query('//class[@id]');
+		if ($classNodes === false) {
+			return;
+		}
+
+		foreach ($classNodes as $classNode) {
+			$className = trim((string)$classNode->attributes?->getNamedItem('id')?->nodeValue);
+			if ($className === '') {
+				continue;
+			}
+
+			if (!isset($classDefinitions[$className])) {
+				$classDefinitions[$className] = [
+					'parent' => null,
+					'icon' => null,
+				];
+			}
+
+			$parentNode = $xpath->query('./parent', $classNode);
+			$parentClass = trim((string)($parentNode !== false ? $parentNode->item(0)?->textContent : ''));
+			if ($parentClass !== '') {
+				$classDefinitions[$className]['parent'] = $parentClass;
+			}
+
+			$iconNode = $xpath->query('./properties/style/icon', $classNode);
+			$iconPath = trim((string)($iconNode !== false ? $iconNode->item(0)?->textContent : ''));
+			if ($iconPath !== '') {
+				$classDefinitions[$className]['icon'] = $iconPath;
+			}
+		}
+	}
+
+	/**
+	 * Resolve icon path for class by following parent classes until an icon is found.
+	 *
+	 * @param string $class
+	 * @param array<string, array{parent:?string, icon:?string}> $classDefinitions
+	 * @return string|null
+	 */
+	private function resolveClassIconPath(string $class, array $classDefinitions): ?string {
+		$currentClass = $class;
+		$visited = [];
+
+		while ($currentClass !== '' && !isset($visited[$currentClass])) {
+			$visited[$currentClass] = true;
+			$definition = $classDefinitions[$currentClass] ?? null;
+			if ($definition === null) {
+				return null;
+			}
+
+			$iconPath = trim((string)($definition['icon'] ?? ''));
+			if ($iconPath !== '') {
+				return $iconPath;
+			}
+
+			$currentClass = trim((string)($definition['parent'] ?? ''));
+		}
+
+		return null;
+	}
+
+	/**
+	 * Build an absolute URL for an iTop class icon path.
+	 *
+	 * @param string $adminInstanceUrl
+	 * @param string $iconPath
+	 * @return string|null
+	 */
+	private function buildAbsoluteItopIconUrl(string $adminInstanceUrl, string $iconPath): ?string {
+		$iconPath = trim($iconPath);
+		if ($iconPath === '') {
+			return null;
+		}
+		if (preg_match('#^https?://#i', $iconPath)) {
+			return $iconPath;
+		}
+
+		$parts = parse_url($adminInstanceUrl);
+		$scheme = $parts['scheme'] ?? 'http';
+		$host = $parts['host'] ?? '';
+		$port = isset($parts['port']) ? ':' . $parts['port'] : '';
+		if ($host === '') {
+			return null;
+		}
+
+		$hostRoot = $scheme . '://' . $host . $port;
+		$basePath = trim($parts['path'] ?? '', '/');
+		$appRoot = $hostRoot . ($basePath !== '' ? '/' . $basePath : '');
+
+		$normalizedPath = preg_replace('#^([.]/)+#', '', $iconPath) ?? $iconPath;
+		while (str_starts_with($normalizedPath, '../')) {
+			$normalizedPath = substr($normalizedPath, 3);
+		}
+
+		if (str_starts_with($normalizedPath, '//')) {
+			return $scheme . ':' . $normalizedPath;
+		}
+		if (str_starts_with($normalizedPath, '/')) {
+			if ($basePath !== '' && str_starts_with($normalizedPath, '/' . $basePath . '/')) {
+				return $hostRoot . $normalizedPath;
+			}
+			return $basePath !== '' ? $appRoot . $normalizedPath : $hostRoot . $normalizedPath;
+		}
+
+		return $appRoot . '/' . ltrim($normalizedPath, '/');
+	}
+
+	/**
+	 * Discover class icon URL from iTop schema details page.
+	 *
+	 * @param string $class
+	 * @param string $adminInstanceUrl
+	 * @param string $applicationToken
+	 * @return string|null
+	 */
+	private function discoverClassIconUrlFromSchema(string $class, string $adminInstanceUrl, string $applicationToken): ?string {
+		$schemaUrl = rtrim($adminInstanceUrl, '/') . '/pages/schema.php?operation=details&class=' . rawurlencode($class);
+		$client = $this->clientService->newClient();
+
+		try {
+			$response = $client->get($schemaUrl, [
+				'headers' => [
+					'Auth-Token' => $applicationToken,
+					'User-Agent' => 'Nextcloud-iTop-Integration/1.0',
+				],
+				'timeout' => 20,
+			]);
+		} catch (\Exception $e) {
+			// If iTop does not allow token auth on UI endpoints, silently skip
+			return null;
+		}
+
+		$html = (string)$response->getBody();
+		if ($html === '' || stripos($html, 'iTop login') !== false) {
+			return null;
+		}
+
+		if (!preg_match_all('/<img[^>]+src=[\'"]([^\'"]+\.(?:svg|png|webp|jpe?g))[\'"]/i', $html, $matches)) {
+			return null;
+		}
+
+		$candidates = $matches[1] ?? [];
+		foreach ($candidates as $candidate) {
+			// Keep only likely class icon assets from iTop images/modules paths
+			if (stripos($candidate, '/images/') === false && stripos($candidate, '/modules/') === false && stripos($candidate, '/env-') === false) {
+				continue;
+			}
+			return $this->normalizeIconUrl($adminInstanceUrl, $candidate);
+		}
+
+		return null;
+	}
+
+	/**
+	 * Normalize absolute/relative icon URL using iTop base URL.
+	 *
+	 * @param string $baseUrl
+	 * @param string $iconUrl
+	 * @return string
+	 */
+	private function normalizeIconUrl(string $baseUrl, string $iconUrl): string {
+		$normalized = $this->buildAbsoluteItopIconUrl($baseUrl, $iconUrl);
+		return $normalized ?? $iconUrl;
+	}
+
+	/**
+	 * Download icon content from iTop and return content + file extension.
+	 *
+	 * @param string $iconUrl
+	 * @param string $applicationToken
+	 * @return array{content:string, extension:string}|null
+	 */
+	private function downloadClassIcon(string $iconUrl, string $applicationToken): ?array {
+		$client = $this->clientService->newClient();
+		$response = null;
+
+		try {
+			$response = $client->get($iconUrl, [
+				'headers' => [
+					'Auth-Token' => $applicationToken,
+					'User-Agent' => 'Nextcloud-iTop-Integration/1.0',
+				],
+				'timeout' => 20,
+			]);
+		} catch (\Exception $e) {
+			// Retry without token for publicly served static assets
+			try {
+				$response = $client->get($iconUrl, [
+					'headers' => [
+						'User-Agent' => 'Nextcloud-iTop-Integration/1.0',
+					],
+					'timeout' => 20,
+				]);
+			} catch (\Exception $e2) {
+				return null;
+			}
+		}
+
+		if ($response === null) {
+			return null;
+		}
+
+		$content = (string)$response->getBody();
+		if ($content === '' || strlen($content) > 524288) {
+			return null;
+		}
+
+		$extension = strtolower(pathinfo(parse_url($iconUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
+		if (!in_array($extension, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
+			$contentType = strtolower((string)($response->getHeader('Content-Type')[0] ?? ''));
+			if (str_contains($contentType, 'svg')) {
+				$extension = 'svg';
+			} elseif (str_contains($contentType, 'png')) {
+				$extension = 'png';
+			} elseif (str_contains($contentType, 'jpeg') || str_contains($contentType, 'jpg')) {
+				$extension = 'jpg';
+			} elseif (str_contains($contentType, 'webp')) {
+				$extension = 'webp';
+			}
+		}
+
+		if (!in_array($extension, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
+			return null;
+		}
+
+		// Lightweight content sanity checks
+		if ($extension === 'svg') {
+			$stripped = ltrim($content, " \t\n\r\0\x0B\xEF\xBB\xBF");
+			if (stripos($stripped, '<svg') === false) {
+				return null;
+			}
+		}
+
+		return [
+			'content' => $content,
+			'extension' => $extension,
+		];
+	}
+
+	/**
+	 * Store class icon in appdata and remove stale icons with other extensions.
+	 *
+	 * @param string $class
+	 * @param string $content
+	 * @param string $extension
+	 * @return void
+	 * @throws NotFoundException
+	 */
+	private function storeClassIconContent(string $class, string $content, string $extension): void {
+		$appData = $this->appDataFactory->get(Application::APP_ID);
+		try {
+			$folder = $appData->getFolder('ci_class_icons');
+		} catch (NotFoundException $e) {
+			$folder = $appData->newFolder('ci_class_icons');
+		}
+
+		// Remove old variants before writing new one
+		foreach (['svg', 'png', 'jpg', 'jpeg', 'webp'] as $ext) {
+			if ($ext === $extension) {
+				continue;
+			}
+			try {
+				$folder->getFile($class . '.' . $ext)->delete();
+			} catch (NotFoundException $e) {
+				// ignore
+			}
+		}
+
+		$fileName = $class . '.' . $extension;
+		try {
+			$file = $folder->getFile($fileName);
+			$file->putContent($content);
+		} catch (NotFoundException $e) {
+			$file = $folder->newFile($fileName);
+			$file->putContent($content);
+		}
+	}
+
+	/**
+	 * Resolve cached icon file and extension for class if present.
+	 *
+	 * @param string $class
+	 * @return array{file:\OCP\Files\File, extension:string}|null
+	 */
+	private function getCachedClassIconFile(string $class): ?array {
+		try {
+			$appData = $this->appDataFactory->get(Application::APP_ID);
+			$folder = $appData->getFolder('ci_class_icons');
+			foreach (['svg', 'png', 'jpg', 'jpeg', 'webp'] as $ext) {
+				try {
+					$file = $folder->getFile($class . '.' . $ext);
+					return [
+						'file' => $file,
+						'extension' => $ext,
+					];
+				} catch (NotFoundException $e) {
+					// continue
+				}
+			}
+		} catch (\Exception $e) {
+			// ignore and fallback
+		}
+		return null;
+	}
+
+	/**
+	 * Upload a custom SVG icon for a CI class (admin only).
+	 *
+	 * The SVG is stored in appdata so it survives app updates and does not
+	 * pollute the app's img/ directory (which is part of the distributed package).
+	 *
+	 * @param string $class CI class name (e.g. "Monitor", "Scanner")
+	 * @return DataResponse
+	 */
+	public function uploadCIClassIcon(string $class): DataResponse {
+		// Validate class name
+		$class = trim($class);
+		if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $class)) {
+			return new DataResponse(['error' => $this->l10n->t('Invalid class name')], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Read raw SVG from request body
+		$svgContent = file_get_contents('php://input');
+		if ($svgContent === false || strlen($svgContent) === 0) {
+			return new DataResponse(['error' => $this->l10n->t('No file content received')], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Size guard (max 256 KB)
+		if (strlen($svgContent) > 262144) {
+			return new DataResponse(['error' => $this->l10n->t('Icon file too large (max 256 KB)')], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Basic SVG content check (strip BOM + leading whitespace before looking for <svg)
+		$stripped = ltrim($svgContent, " \t\n\r\0\x0B\xEF\xBB\xBF");
+		if (stripos($stripped, '<svg') === false) {
+			return new DataResponse(['error' => $this->l10n->t('File does not appear to be a valid SVG')], Http::STATUS_BAD_REQUEST);
+		}
+
+		try {
+			$appData = $this->appDataFactory->get(Application::APP_ID);
+			try {
+				$folder = $appData->getFolder('ci_class_icons');
+			} catch (NotFoundException $e) {
+				$folder = $appData->newFolder('ci_class_icons');
+			}
+			try {
+				$file = $folder->getFile($class . '.svg');
+				$file->putContent($svgContent);
+			} catch (NotFoundException $e) {
+				$file = $folder->newFile($class . '.svg');
+				$file->putContent($svgContent);
+			}
+		} catch (\Exception $e) {
+			$this->logger->error('Failed to save CI class icon for ' . $class . ': ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+			]);
+			return new DataResponse(['error' => $this->l10n->t('Failed to save icon')], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+
+		return new DataResponse(['message' => $this->l10n->t('Icon saved successfully')]);
+	}
+
+	/**
+	 * Serve the SVG icon for a CI class.
+	 *
+	 * Looks for a custom icon uploaded via uploadCIClassIcon() in appdata first.
+	 * Falls back to Peripheral.svg from the app's img/ directory when none exists.
+	 *
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 * @param string $class CI class name
+	 * @return DataDisplayResponse
+	 */
+	public function getCIClassIcon(string $class): DataDisplayResponse {
+		// Strip anything that could form a path traversal
+		$class = preg_replace('/[^A-Za-z0-9_]/', '', $class);
+
+		// Try custom icon from appdata
+		try {
+			$cached = $this->getCachedClassIconFile($class);
+			if ($cached !== null) {
+				$mimeByExt = [
+					'svg' => 'image/svg+xml',
+					'png' => 'image/png',
+					'jpg' => 'image/jpeg',
+					'jpeg' => 'image/jpeg',
+					'webp' => 'image/webp',
+				];
+				$mime = $mimeByExt[$cached['extension']] ?? 'application/octet-stream';
+				return new DataDisplayResponse($cached['file']->getContent(), Http::STATUS_OK, ['Content-Type' => $mime]);
+			}
+		} catch (NotFoundException $e) {
+			// No custom icon uploaded — fall through to Peripheral.svg
+		} catch (\Exception $e) {
+			$this->logger->warning('Could not read custom CI class icon for ' . $class . ': ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+			]);
+		}
+
+		// Fallback: Peripheral.svg bundled with the app
+		$appPath = $this->appManager->getAppPath(Application::APP_ID);
+		$fallbackPath = $appPath . '/img/Peripheral.svg';
+		if (file_exists($fallbackPath)) {
+			return new DataDisplayResponse(
+				file_get_contents($fallbackPath),
+				Http::STATUS_OK,
+				['Content-Type' => 'image/svg+xml']
+			);
+		}
+
+		return new DataDisplayResponse('', Http::STATUS_NOT_FOUND);
+	}
+
+	/**
+	 * Delete the custom SVG icon for a CI class (admin only).
+	 *
+	 * After deletion the icon endpoint will automatically fall back to Peripheral.svg.
+	 *
+	 * @param string $class CI class name
+	 * @return DataResponse
+	 */
+	public function deleteCIClassIcon(string $class): DataResponse {
+		$class = preg_replace('/[^A-Za-z0-9_]/', '', $class);
+		if ($class === '') {
+			return new DataResponse(['error' => $this->l10n->t('Invalid class name')], Http::STATUS_BAD_REQUEST);
+		}
+
+		try {
+			$appData = $this->appDataFactory->get(Application::APP_ID);
+			$folder = $appData->getFolder('ci_class_icons');
+			foreach (['svg', 'png', 'jpg', 'jpeg', 'webp'] as $ext) {
+				try {
+					$folder->getFile($class . '.' . $ext)->delete();
+				} catch (NotFoundException $e) {
+					// continue
+				}
+			}
+		} catch (NotFoundException $e) {
+			// Already gone — treat as success
+		} catch (\Exception $e) {
+			$this->logger->error('Failed to delete CI class icon for ' . $class . ': ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+			]);
+			return new DataResponse(['error' => $this->l10n->t('Failed to delete icon')], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+
+		return new DataResponse(['message' => $this->l10n->t('Icon deleted successfully')]);
 	}
 
 	/**

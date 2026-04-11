@@ -262,6 +262,10 @@ class ItopAPIController extends Controller {
 			// Get admin-configured display name
 			$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
 
+			// Ticket system type (itil / simple) for the Vue widget
+			$ticketSystemType = $this->itopAPIService->getEffectiveTicketSystemType($this->userId);
+			$simpleTypeField = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_type_field', '');
+
 			// Calculate type-specific counts for detailed breakdown
 			$myIncidents = count(array_filter($myTickets, fn($t) => $t['type'] === 'Incident'));
 			$myRequests = count(array_filter($myTickets, fn($t) => $t['type'] === 'UserRequest'));
@@ -269,10 +273,15 @@ class ItopAPIController extends Controller {
 			$teamIncidents = count(array_filter($teamTickets, fn($t) => $t['type'] === 'Incident'));
 			$teamRequests = count(array_filter($teamTickets, fn($t) => $t['type'] === 'UserRequest'));
 
+			// In simple mode without an enum field the split doesn't exist – surface totals only
+			$showSplitCounts = ($ticketSystemType !== 'simple') || ($simpleTypeField !== '');
+
 			$response = [
 				'myTickets' => $myTickets,
 				'teamTickets' => $teamTickets,
 				'upcomingChanges' => $upcomingChanges,
+				'ticket_system_type' => $ticketSystemType,
+				'show_split_counts' => $showSplitCounts,
 				'counts' => [
 					'my_tickets' => count($myTickets),
 					'my_incidents' => $myIncidents,
