@@ -75,7 +75,7 @@ OC.L10N.register(
     "Connection failed: %s": "Connection failed: %s",
     "Connection test failed:": "Connection test failed:",
     "Connection test failed: %s": "Connection test failed: %s",
-    "Connection test successful! \\ud83c\\udf89": "Connection test successful! \\ud83c\\udf89",
+    "Connection test successful! 🎉": "Connection test successful! 🎉",
     "Connection warning:": "Connection warning:",
     "Copy the generated token immediately (it won't be shown again)": "Copy the generated token immediately (it won't be shown again)",
     "Could not extract Person ID from iTop response": "Could not extract Person ID from iTop response",

@@ -47,6 +47,9 @@ This release combines three feature branches to add Configuration Item class man
 - **CI Icon Resolution for Custom Classes**: Custom CI class icons now served via `getCIClassIcon` controller route (appdata) instead of failing on missing SVGs in `img/` directory, which caused the entire search to return empty results
 - **Software Search Field Name**: Corrected OQL field `vendor_name` to `vendor` matching the iTop data model
 - **Personal Settings CI Icons**: Custom CI classes now display correct icons instead of falling back to the notification bell icon
+- **Missing Translations**: Added 54 v1.4.0 translatable strings (ticket system detection, custom CI classes, newsroom mirroring, icon management) to all locale files (en, de, de_DE, fr)
+- **Translation Coverage**: Added 15 remaining strings with proper German Informal (Du-form) and German Formal (Sie-form) translations to de and de_DE, and 14 strings to fr — all 4 locales now fully cover the English source strings
+- **Locale File Consistency**: Normalized emoji encoding in en.json and fr.json, regenerated .js locale files from .json sources to ensure frontend translations stay in sync
 
 ---
 

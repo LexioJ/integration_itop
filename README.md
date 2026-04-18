@@ -374,13 +374,11 @@ src/
 
 ## 🌍 Internationalization (l10n)
 
-**280 translatable strings** across the entire application:
+**502 translatable strings** across the entire application, with full coverage in all 4 locales (en, de, de_DE, fr):
 
-### Supported Languages
-- **English** (en) - Base language
-- **German Informal** (de) - Du-form for casual environments
-- **German Formal** (de_DE) - Sie-form for professional environments
-- **French** (fr) - Formal vous-form
+- **German Informal (de)**: 100% coverage, Du-form throughout (e.g., *"deine Tickets"*, *"Melde dich an"*, *"Wähle"*)
+- **German Formal (de_DE)**: 100% coverage, Sie-form throughout (e.g., *"Ihre Tickets"*, *"Melden Sie sich an"*, *"Wählen Sie"*)
+- **French (fr)**: 100% coverage, formal *vous*-form
 
 ### Translation Coverage
 - Admin settings (all labels, hints, errors)
@@ -447,6 +445,9 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
 - **CI Icon Resolution**: Custom CI class icons now served via controller route (appdata) instead of failing on missing SVGs in img/
 - **Software Search**: Corrected `vendor_name` field to `vendor` matching iTop data model
 - **Personal Settings Icons**: Custom CI classes now display correctly (no more bell icon fallback)
+- **Missing Translations**: Added 54 v1.4.0 translatable strings (ticket system detection, custom CI classes, newsroom mirroring, icon management) to all locale files (en, de, de_DE, fr)
+- **Translation Coverage**: Completed all remaining strings with proper German Informal (Du-form) and German Formal (Sie-form) translations — 45 strings now correctly differentiate between de (Du) and de_DE (Sie)
+- **Locale File Consistency**: Normalized emoji encoding and regenerated .js locale files from .json sources
 
 ### Previous Release: v1.3.0 - Intelligent Notification System
 

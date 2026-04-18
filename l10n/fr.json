@@ -74,7 +74,7 @@
     "Connection failed: %s": "Échec de la connexion : %s",
     "Connection test failed:": "Échec du test de connexion :",
     "Connection test failed: %s": "Échec du test de connexion : %s",
-    "Connection test successful! \\ud83c\\udf89": "Test de connexion réussi ! \\ud83c\\udf89",
+    "Connection test successful! 🎉": "Test de connexion réussi ! 🎉",
     "Connection warning:": "Avertissement de connexion :",
     "Copy the generated token immediately (it won't be shown again)": "Copiez le jeton généré immédiatement (il ne sera plus affiché)",
     "Could not extract Person ID from iTop response": "Impossible d'extraire l'ID de personne de la réponse iTop",
@@ -524,7 +524,21 @@
     "Connection failed": "Échec de la connexion",
     "Failed to save custom CI classes": "Impossible d'enregistrer les classes CI personnalisées",
     "Custom CI class removed": "Classe CI personnalisée supprimée",
-    "Failed to remove custom CI class": "Impossible de supprimer la classe CI personnalisée"
+    "Failed to remove custom CI class": "Impossible de supprimer la classe CI personnalisée",
+    "Escalated": "Escaladé",
+    "Failed to load agent dashboard": "Échec du chargement du tableau de bord agent",
+    "In {days} days": "Dans {days} jours",
+    "Incident": "Incident",
+    "Open iTop search": "Ouvrir la recherche iTop",
+    "Open in iTop": "Ouvrir dans iTop",
+    "Request": "Demande",
+    "SLA Warning": "Avertissement SLA",
+    "Today": "Aujourd'hui",
+    "Tomorrow": "Demain",
+    "Untitled change": "Changement sans titre",
+    "Upcoming Changes": "Changements à venir",
+    "ticket": "ticket",
+    "tickets": "tickets"
   },
   "pluralForm": "nplurals=2; plural=(n > 1);"
 }

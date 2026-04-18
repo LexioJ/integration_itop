@@ -525,6 +525,21 @@ OC.L10N.register(
     "Connection failed": "Verbindung fehlgeschlagen",
     "Failed to save custom CI classes": "Benutzerdefinierte CI-Klassen konnten nicht gespeichert werden",
     "Custom CI class removed": "Benutzerdefinierte CI-Klasse entfernt",
-    "Failed to remove custom CI class": "Benutzerdefinierte CI-Klasse konnte nicht entfernt werden"
+    "Failed to remove custom CI class": "Benutzerdefinierte CI-Klasse konnte nicht entfernt werden",
+    "Escalated": "Eskaliert",
+    "Failed to load agent dashboard": "Agenten-Dashboard konnte nicht geladen werden",
+    "In {days} days": "In {days} Tagen",
+    "Open iTop search": "iTop-Suche öffnen",
+    "Open in iTop": "In iTop öffnen",
+    "REST Services User": "REST-Services-Benutzer",
+    "SLA Warning": "SLA-Warnung",
+    "Test Connection": "Verbindung testen",
+    "Test Token": "Token testen",
+    "Today": "Heute",
+    "Tomorrow": "Morgen",
+    "Untitled change": "Unbenannte Änderung",
+    "Upcoming Changes": "Anstehende Änderungen",
+    "ticket": "Ticket",
+    "tickets": "Tickets"
 },
     "nplurals=2; plural=(n != 1);");
