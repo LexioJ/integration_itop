@@ -539,7 +539,12 @@
     "Untitled change": "Unbenannte Änderung",
     "Upcoming Changes": "Anstehende Änderungen",
     "ticket": "Ticket",
-    "tickets": "Tickets"
+    "tickets": "Tickets",
+    "⚠️ iTop Configuration Required": "⚠️ iTop-Konfiguration erforderlich",
+    "By default, only Administrators can create personal tokens in iTop. To allow agents (e.g. Service Desk Agents, Service Managers) to create their own tokens, you must add the following to the $MyModuleSettings array in iTop's Configuration File Editor": "Standardmäßig können nur Administratoren persönliche Token in iTop erstellen. Um Agenten (z. B. Service Desk Agents, Service Manager) das Erstellen eigener Token zu erlauben, müssen Sie Folgendes zum $MyModuleSettings-Array im Konfigurationsdatei-Editor von iTop hinzufügen",
+    "The example above is for reference only — adjust the profile list to match the iTop profiles used in your organisation. After saving, affected users need to log out and back into iTop for the change to take effect.": "Das obige Beispiel dient nur als Referenz — passen Sie die Profilliste an die in Ihrer Organisation verwendeten iTop-Profile an. Nach dem Speichern müssen betroffene Benutzer sich in iTop ab- und wieder anmelden, damit die Änderung wirksam wird.",
+    "Can't create a personal token?": "Können Sie kein persönliches Token erstellen?",
+    "If the \"Personal Tokens\" option is missing from your %s account, your iTop profile may not be allowed to create tokens. Ask your iTop administrator to add your profile to personal_tokens_allowed_profiles in the iTop Configuration File Editor.": "Wenn die Option \"Personal Tokens\" in Ihrem %s-Konto fehlt, ist Ihr iTop-Profil möglicherweise nicht zum Erstellen von Token berechtigt. Bitten Sie Ihren iTop-Administrator, Ihr Profil zu personal_tokens_allowed_profiles im iTop-Konfigurationsdatei-Editor hinzuzufügen."
   },
   "pluralForm": "nplurals=2; plural=(n != 1);"
 }

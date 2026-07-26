@@ -314,6 +314,65 @@ input.password-style {
     font-weight: 600;
 }
 
+/* User Permission Requirements (expandable, inside Connection Configuration) */
+.permission-details {
+    margin-top: 20px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-background-hover);
+}
+
+.permission-details summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+    padding: 14px 16px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.permission-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.permission-details summary::before {
+    content: '▸';
+    font-size: 14px;
+    color: var(--color-text-maxcontrast);
+    transition: transform 0.15s ease;
+}
+
+.permission-details[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.permission-summary-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-main-text);
+}
+
+.permission-summary-hint {
+    font-size: 13px;
+    color: var(--color-text-maxcontrast);
+}
+
+.permission-details .info-cards {
+    padding: 0 16px 16px 16px;
+}
+
+/* Stacked variant: one card per row */
+.info-cards.info-cards-stacked {
+    grid-template-columns: 1fr;
+}
+
+.info-cards-stacked .info-card {
+    background: var(--color-main-background);
+    border: 1px solid var(--color-border);
+}
+
 /* Info Cards */
 .info-cards {
     display: grid;
@@ -941,6 +1000,64 @@ input.password-style {
     .header-content h2 {
         font-size: 24px;
     }
+}
+
+/* iTop Config Editor Hint (inside token-requirements card) */
+.itop-config-editor-hint {
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: var(--color-warning-hover, #fff3cd);
+    border: 1px solid var(--color-warning, #e9c46a);
+    border-left: 4px solid var(--color-warning, #e9c46a);
+    border-radius: 6px;
+}
+
+.itop-config-editor-hint h5 {
+    margin: 0 0 8px 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-main-text);
+}
+
+.itop-config-editor-hint p {
+    font-size: 13px;
+    color: var(--color-main-text);
+    margin: 0 0 10px 0;
+    line-height: 1.5;
+}
+
+.itop-config-editor-hint code {
+    background: rgba(0,0,0,0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.itop-config-example {
+    margin: 0 0 10px 0;
+    padding: 12px 14px;
+    background: var(--color-main-background);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.itop-config-example code {
+    background: none;
+    padding: 0;
+    color: var(--color-main-text);
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    white-space: pre;
+}
+
+.itop-config-disclaimer {
+    font-style: italic;
+    font-size: 12px !important;
+    color: var(--color-text-maxcontrast) !important;
+    margin-bottom: 0 !important;
 }
 
 /* Ticket system type selector */

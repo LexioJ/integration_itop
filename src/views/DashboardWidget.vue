@@ -349,8 +349,6 @@ export default {
 			// Trigger Nextcloud unified search filtered to iTop integration
 			// Focus the search input which triggers the search modal
 			const searchInput = document.querySelector('input[type="search"].unified-search__input')
-			// eslint-disable-next-line no-console
-			console.log('[ITOP DEBUG] Unified search input element:', searchInput)
 			if (searchInput) {
 				searchInput.focus()
 				// Optionally set a search term to filter by iTop

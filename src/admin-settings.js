@@ -1006,10 +1006,22 @@
 				// Ensure remove controls are visible and normalized
 				ensureCustomClassRemoveButtons()
 
-				// Clear browser checkboxes
+				// Remove the newly added classes from the browser panel above
+				newClasses.forEach(cls => {
+					const cb = document.getElementById('browser-check-' + cls)
+					const browserRow = cb ? cb.closest('.ci-class-config-row') : null
+					if (browserRow) browserRow.remove()
+				})
+
+				// Clear remaining browser checkboxes and show empty state if nothing is left
 				document.querySelectorAll('#itop-class-browser-list input[type="checkbox"]').forEach(cb => {
 					cb.checked = false
 				})
+				const browserList = document.getElementById('itop-class-browser-list')
+				const browserEmpty = document.getElementById('itop-class-browser-empty')
+				if (browserList && browserEmpty && browserList.children.length === 0) {
+					browserEmpty.style.display = ''
+				}
 
 				// Update empty state
 				updateCustomCIEmptyState()

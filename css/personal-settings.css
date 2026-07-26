@@ -1140,3 +1140,42 @@ body[data-theme-dark] .itop-personal-configured {
     padding: 10px 12px;
 }
 
+/* Config editor hint (personal settings - for users who can't create tokens) */
+.itop-personal-config-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(255, 193, 7, 0.1);
+    border: 1px solid var(--color-warning, #e9c46a);
+    border-left: 4px solid var(--color-warning, #e9c46a);
+    border-radius: 6px;
+    margin-top: 20px;
+}
+
+.itop-personal-config-hint .icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.itop-personal-config-hint strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.itop-personal-config-hint p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.itop-personal-config-hint code {
+    background: rgba(0,0,0,0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+

@@ -230,7 +230,7 @@ class ItopAPIService {
 		// Debug: log raw API response structure
 		if (isset($userRequestResult['objects']) && count($userRequestResult['objects']) > 0) {
 			$firstTicket = array_values($userRequestResult['objects'])[0];
-			\OC::$server->get(\Psr\Log\LoggerInterface::class)->debug(
+			$this->logger->debug(
 				'First UserRequest full structure: ' . json_encode($firstTicket),
 				['app' => Application::APP_ID]
 			);
@@ -355,7 +355,7 @@ class ItopAPIService {
 		}
 
 		// Debug: log raw statuses
-		\OC::$server->get(\Psr\Log\LoggerInterface::class)->debug(
+		$this->logger->debug(
 			'getUserTicketsByStatus: Raw statuses found: ' . json_encode($rawStatuses),
 			['app' => Application::APP_ID]
 		);

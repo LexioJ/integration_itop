@@ -188,6 +188,60 @@ $ciClassLabels = [
 						<?php p($l->t('Save Configuration')); ?>
 					</button>
 				</div>
+
+				<!-- User Permission Requirements (expandable) -->
+				<details class="permission-details">
+					<summary>
+						<span class="permission-summary-title"><?php p($l->t('⚙️ User Permission Requirements')); ?></span>
+						<span class="permission-summary-hint"><?php p($l->t('Important: Configure these iTop user permissions to prevent connection issues')); ?></span>
+					</summary>
+					<div class="info-cards info-cards-stacked">
+						<div class="info-card permission-steps">
+							<div class="info-icon">📋</div>
+							<div class="info-content">
+								<h4><?php p($l->t('How to Configure User Permissions')); ?></h4>
+								<ol>
+									<li><strong><?php p($l->t('Admin Setup')); ?>:</strong> <?php p($l->t('Log into %s', ['iTop'])); ?></li>
+									<li><strong><?php p($l->t('User Profiles')); ?>:</strong> <?php p($l->t('Admin Tools → User Management → User Accounts')); ?></li>
+									<li><strong><?php p($l->t('Edit User')); ?>:</strong> <?php p($l->t('Each user must create a Personal Token with specific settings')); ?></li>
+									<li><strong><?php p($l->t('Add Profile')); ?>:</strong> <?php p($l->t('Profiles')); ?></li>
+									<li><strong><?php p($l->t('Save User')); ?>:</strong> <?php p($l->t('Save User')); ?></li>
+									<li><strong><?php p($l->t('User Token')); ?>:</strong> <?php p($l->t('Each user must create a Personal Token with specific settings')); ?></li>
+									<li><strong><?php p($l->t('⚠️ CRITICAL')); ?>:</strong> <?php p($l->t('"REST API"')); ?></li>
+								</ol>
+							</div>
+						</div>
+
+						<div class="info-card token-requirements">
+							<div class="info-icon">🔑</div>
+							<div class="info-content">
+								<h4><?php p($l->t('Personal Token Requirements')); ?></h4>
+								<p><strong><?php p($l->t('Each user must create a Personal Token with specific settings')); ?>:</strong></p>
+								<ul>
+									<li><strong><?php p($l->t('Location')); ?>:</strong> <?php p($l->t('Navigate to "My Account" → "Personal Tokens"')); ?></li>
+									<li><strong><?php p($l->t('Application Name')); ?>:</strong> <?php p($l->t('Nextcloud Integration')); ?></li>
+									<li><strong><?php p($l->t('⚠️ REQUIRED')); ?>:</strong> <?php p($l->t('REST/JSON (Required!)')); ?></li>
+									<li><strong><?php p($l->t('Expiration')); ?>:</strong> <?php p($l->t('Choose based on your policy')); ?></li>
+									<li><strong><?php p($l->t('Important')); ?>:</strong> <?php p($l->t('Copy the generated token immediately (it won\'t be shown again)')); ?></li>
+								</ul>
+								<div class="itop-config-editor-hint">
+									<h5><?php p($l->t('⚠️ iTop Configuration Required')); ?></h5>
+									<p><?php p($l->t('By default, only Administrators can create personal tokens in iTop. To allow agents (e.g. Service Desk Agents, Service Managers) to create their own tokens, you must add the following to the $MyModuleSettings array in iTop\'s Configuration File Editor')); ?>:</p>
+									<pre class="itop-config-example"><code>$MyModuleSettings = array(
+    'authent-token' => array(
+        'personal_tokens_allowed_profiles' => array(
+            0 => 'Administrator',
+            1 => 'Service Manager',
+            2 => 'Service Desk Agent',
+        ),
+    ),
+);</code></pre>
+									<p class="itop-config-disclaimer"><?php p($l->t('The example above is for reference only — adjust the profile list to match the iTop profiles used in your organisation. After saving, affected users need to log out and back into iTop for the change to take effect.')); ?></p>
+								</div>
+							</div>
+						</div>
+					</div>
+				</details>
 			</div>
 		</div>
 
@@ -280,46 +334,6 @@ $ciClassLabels = [
 			</div>
 		</div>
 
-		<!-- User Permission Requirements Section -->
-		<div class="settings-section">
-			<div class="section-header">
-				<h3><?php p($l->t('⚙️ User Permission Requirements')); ?></h3>
-				<p class="section-description"><?php p($l->t('Important: Configure these iTop user permissions to prevent connection issues')); ?></p>
-			</div>
-			<div class="info-cards">
-				<div class="info-card permission-steps">
-					<div class="info-icon">📋</div>
-					<div class="info-content">
-						<h4><?php p($l->t('How to Configure User Permissions')); ?></h4>
-						<ol>
-							<li><strong><?php p($l->t('Admin Setup')); ?>:</strong> <?php p($l->t('Log into %s', ['iTop'])); ?></li>
-							<li><strong><?php p($l->t('User Profiles')); ?>:</strong> <?php p($l->t('Admin Tools → User Management → User Accounts')); ?></li>
-							<li><strong><?php p($l->t('Edit User')); ?>:</strong> <?php p($l->t('Each user must create a Personal Token with specific settings')); ?></li>
-							<li><strong><?php p($l->t('Add Profile')); ?>:</strong> <?php p($l->t('Profiles')); ?></li>
-							<li><strong><?php p($l->t('Save User')); ?>:</strong> <?php p($l->t('Save User')); ?></li>
-							<li><strong><?php p($l->t('User Token')); ?>:</strong> <?php p($l->t('Each user must create a Personal Token with specific settings')); ?></li>
-							<li><strong><?php p($l->t('⚠️ CRITICAL')); ?>:</strong> <?php p($l->t('"REST API"')); ?></li>
-						</ol>
-					</div>
-				</div>
-
-				<div class="info-card token-requirements">
-					<div class="info-icon">🔑</div>
-					<div class="info-content">
-						<h4><?php p($l->t('Personal Token Requirements')); ?></h4>
-						<p><strong><?php p($l->t('Each user must create a Personal Token with specific settings')); ?>:</strong></p>
-						<ul>
-							<li><strong><?php p($l->t('Location')); ?>:</strong> <?php p($l->t('Navigate to "My Account" → "Personal Tokens"')); ?></li>
-							<li><strong><?php p($l->t('Application Name')); ?>:</strong> <?php p($l->t('Nextcloud Integration')); ?></li>
-							<li><strong><?php p($l->t('⚠️ REQUIRED')); ?>:</strong> <?php p($l->t('REST/JSON (Required!)')); ?></li>
-							<li><strong><?php p($l->t('Expiration')); ?>:</strong> <?php p($l->t('Choose based on your policy')); ?></li>
-							<li><strong><?php p($l->t('Important')); ?>:</strong> <?php p($l->t('Copy the generated token immediately (it won\'t be shown again)')); ?></li>
-						</ul>
-					</div>
-				</div>
-			</div>
-		</div>
-
 		<!-- Notification Configuration Section -->
 		<div class="settings-section">
 			<div class="section-header">
@@ -368,7 +382,7 @@ $ciClassLabels = [
 						$currentState = $_['portal_notification_config'][$notificationType] ?? 'user_choice';
 						$label = $portalNotificationLabels[$notificationType] ?? $notificationType;
 						$iconFile = isset($portalNotificationIcons[$notificationType]) ? $portalNotificationIcons[$notificationType] : 'notification.svg';
-						$iconPath = \OC::$server->getURLGenerator()->imagePath($appId, $iconFile);
+						$iconPath = \OCP\Server::get(\OCP\IURLGenerator::class)->imagePath($appId, $iconFile);
 					?>
 					<div class="notification-config-row">
 						<div class="notification-info">
@@ -426,7 +440,7 @@ $ciClassLabels = [
 						$currentState = $_['agent_notification_config'][$notificationType] ?? 'user_choice';
 						$label = $agentNotificationLabels[$notificationType] ?? $notificationType;
 						$iconFile = isset($agentNotificationIcons[$notificationType]) ? $agentNotificationIcons[$notificationType] : 'notification.svg';
-						$iconPath = \OC::$server->getURLGenerator()->imagePath($appId, $iconFile);
+						$iconPath = \OCP\Server::get(\OCP\IURLGenerator::class)->imagePath($appId, $iconFile);
 					?>
 					<div class="notification-config-row">
 						<div class="notification-info">
@@ -590,7 +604,7 @@ $ciClassLabels = [
 						<?php
 							$currentState = $_['ci_class_config'][$className] ?? 'disabled';
 							$classLabel = $ciClassLabels[$className] ?? $className;
-							$iconPath = \OC::$server->getURLGenerator()->imagePath($appId, $className . '.svg');
+							$iconPath = \OCP\Server::get(\OCP\IURLGenerator::class)->imagePath($appId, $className . '.svg');
 						?>
 						<div class="ci-class-config-row">
 							<div class="ci-class-info">
@@ -680,7 +694,7 @@ $ciClassLabels = [
 					<?php foreach ($_['custom_ci_classes'] as $customClass): ?>
 						<?php
 							$currentState = $_['ci_class_config'][$customClass] ?? 'disabled';
-							$customIconPath = \OC::$server->getURLGenerator()->linkToRoute('integration_itop.config.getCIClassIcon', ['class' => $customClass]);
+							$customIconPath = \OCP\Server::get(\OCP\IURLGenerator::class)->linkToRoute('integration_itop.config.getCIClassIcon', ['class' => $customClass]);
 						?>
 						<div class="ci-class-config-row" id="custom-ci-row-<?php p($customClass); ?>">
 							<div class="ci-class-info">

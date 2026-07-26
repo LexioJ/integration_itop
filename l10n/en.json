@@ -501,7 +501,12 @@
     "Connection failed": "Connection failed",
     "Failed to save custom CI classes": "Failed to save custom CI classes",
     "Custom CI class removed": "Custom CI class removed",
-    "Failed to remove custom CI class": "Failed to remove custom CI class"
+    "Failed to remove custom CI class": "Failed to remove custom CI class",
+    "⚠️ iTop Configuration Required": "⚠️ iTop Configuration Required",
+    "By default, only Administrators can create personal tokens in iTop. To allow agents (e.g. Service Desk Agents, Service Managers) to create their own tokens, you must add the following to the $MyModuleSettings array in iTop's Configuration File Editor": "By default, only Administrators can create personal tokens in iTop. To allow agents (e.g. Service Desk Agents, Service Managers) to create their own tokens, you must add the following to the $MyModuleSettings array in iTop's Configuration File Editor",
+    "The example above is for reference only — adjust the profile list to match the iTop profiles used in your organisation. After saving, affected users need to log out and back into iTop for the change to take effect.": "The example above is for reference only — adjust the profile list to match the iTop profiles used in your organisation. After saving, affected users need to log out and back into iTop for the change to take effect.",
+    "Can't create a personal token?": "Can't create a personal token?",
+    "If the \"Personal Tokens\" option is missing from your %s account, your iTop profile may not be allowed to create tokens. Ask your iTop administrator to add your profile to personal_tokens_allowed_profiles in the iTop Configuration File Editor.": "If the \"Personal Tokens\" option is missing from your %s account, your iTop profile may not be allowed to create tokens. Ask your iTop administrator to add your profile to personal_tokens_allowed_profiles in the iTop Configuration File Editor."
   },
   "pluralForm": "nplurals=2; plural=(n != 1);",
   "Ticket status changed": "Ticket status changed",

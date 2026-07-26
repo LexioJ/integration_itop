@@ -201,7 +201,7 @@ $ciClassLabels = [
 						$isDisabled = $allPortalDisabled || (is_array($disabledPortal) && in_array($type, $disabledPortal));
 						$isChecked = !$isDisabled;
 						$iconFile = isset($portalNotificationIcons[$type]) ? $portalNotificationIcons[$type] : 'notification.svg';
-						$iconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', $iconFile);
+						$iconPath = \OCP\Server::get(\OCP\IURLGenerator::class)->imagePath('integration_itop', $iconFile);
 						?>
 						<div class="notification-user-toggle">
 							<input id="notify-portal-<?php p($type); ?>" 
@@ -274,7 +274,7 @@ $ciClassLabels = [
 						$isDisabled = $allAgentDisabled || (is_array($disabledAgent) && in_array($type, $disabledAgent));
 						$isChecked = !$isDisabled;
 						$iconFile = isset($agentNotificationIcons[$type]) ? $agentNotificationIcons[$type] : 'notification.svg';
-						$iconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', $iconFile);
+						$iconPath = \OCP\Server::get(\OCP\IURLGenerator::class)->imagePath('integration_itop', $iconFile);
 						?>
 						<div class="notification-user-toggle">
 							<input id="notify-agent-<?php p($type); ?>" 
@@ -327,9 +327,9 @@ $ciClassLabels = [
 				// getCIClassIcon controller which checks appdata and falls back to Peripheral.svg.
 				$isStandardClass = in_array($className, \OCA\Itop\AppInfo\Application::SUPPORTED_CI_CLASSES, true);
 				if ($isStandardClass) {
-					$ciClassIconPath = \OC::$server->getURLGenerator()->imagePath('integration_itop', $className . '.svg');
+					$ciClassIconPath = \OCP\Server::get(\OCP\IURLGenerator::class)->imagePath('integration_itop', $className . '.svg');
 				} else {
-					$ciClassIconPath = \OC::$server->getURLGenerator()->linkToRoute('integration_itop.config.getCIClassIcon', ['class' => $className]);
+					$ciClassIconPath = \OCP\Server::get(\OCP\IURLGenerator::class)->linkToRoute('integration_itop.config.getCIClassIcon', ['class' => $className]);
 				}
 				?>
 				<div class="ci-class-user-toggle">
@@ -363,6 +363,16 @@ $ciClassLabels = [
 			<span class="icon"></span>
 			<span class="message"></span>
 		</div>
+		<?php if (!empty($_['admin_url'])): ?>
+		<div class="itop-personal-config-hint">
+			<span class="icon icon-info"></span>
+			<div>
+				<strong><?php p($l->t('Can\'t create a personal token?')); ?></strong>
+				<p><?php p($l->t('If the "Personal Tokens" option is missing from your %s account, your iTop profile may not be allowed to create tokens. Ask your iTop administrator to add your profile to personal_tokens_allowed_profiles in the iTop Configuration File Editor.', [$_['display_name']])); ?></p>
+			</div>
+		</div>
+		<?php endif; ?>
+
 	</div>
 
 	<div class="itop-personal-info">

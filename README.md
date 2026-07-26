@@ -2,7 +2,7 @@
 
 🎟️ **Complete iTop ITSM & CMDB Integration** - Seamlessly access tickets, incidents, and Configuration Items from your Nextcloud environment
 
-[![Version](https://img.shields.io/badge/version-1.4.0-blue)](https://github.com/lexioj/integration_itop/releases)
+[![Version](https://img.shields.io/badge/version-1.4.1-blue)](https://github.com/lexioj/integration_itop/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 [![Nextcloud](https://img.shields.io/badge/Nextcloud-30+-blue)](https://nextcloud.com)
 
@@ -425,9 +425,22 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
 
 ---
 
-## 📋 What's New in v1.4.0
+## 📋 What's New in v1.4.1
 
-**Custom CI Classes, Ticket System Detection & Newsroom Mirroring** 🎉
+**Nextcloud 34 Compatibility, Token Setup Guidance & Release Polish** 🔧
+
+### Added
+- **iTop Configuration Hint**: Admin settings now explain the `personal_tokens_allowed_profiles` prerequisite with a ready-to-adapt `$MyModuleSettings` example for iTop's Configuration File Editor
+- **Personal Token Help**: Personal settings show a hint when the "Personal Tokens" option is missing from the user's iTop account
+
+### Fixed
+- **Nextcloud 34 Compatibility**: Settings pages crashed with an Internal Server Error on NC 34 due to removed legacy `\OC::$server` shortcut methods — migrated to `\OCP\Server::get()` and raised max-version to 34
+- **Admin Settings CSS**: Removed a stray unclosed rule that broke styling of the new configuration hint card
+- **Template Translations**: Translatable strings now match the locale catalogs exactly (German hint texts resolve correctly) and the instance name substitution works
+- **Locale Consistency**: Synced new strings into .json catalogs for en, de, and de_DE
+- **Cleanup**: Removed a debug `console.log` from the dashboard widget
+
+### Previous Release: v1.4.0 - Custom CI Classes, Ticket System Detection & Newsroom Mirroring 🎉
 
 ### Added
 - **Custom CI Classes**: Add any iTop FunctionalCI subclass (Cluster, Monitor, NetworkDevice, etc.) beyond the 11 built-in types
@@ -565,6 +578,10 @@ curl -X POST https://itop.company.com/webservices/rest.php \
 - [x] Ticket system type detection (ITIL/simple/auto)
 - [x] Newsroom mirroring for broadcast notifications
 - [ ] Advanced search filters (date ranges, custom fields)
+
+### v1.4.1 (Released 2026-07-26) ✅
+- [x] In-app guidance for iTop personal token prerequisites (admin + personal settings)
+- [x] CSS, translation, and cleanup fixes from pre-release review
 
 ### Future
 - [ ] Ticket creation from Nextcloud

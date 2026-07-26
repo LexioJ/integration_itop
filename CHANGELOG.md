@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.1] - 2026-07-26
+
+### 🔧 Nextcloud 34 Compatibility, Token Setup Guidance & Release Polish
+
+This release restores compatibility with Nextcloud 34, adds in-app guidance for the iTop personal token prerequisites, and fixes several issues found during the pre-release review of v1.4.0.
+
+### Added
+- **iTop Configuration Hint (Admin Settings)**: New warning card explaining that agents need `personal_tokens_allowed_profiles` configured in iTop's Configuration File Editor before they can create personal tokens, including a ready-to-adapt `$MyModuleSettings` example
+- **Personal Token Help (Personal Settings)**: Info hint shown when the "Personal Tokens" option is missing from the user's iTop account, pointing them to their iTop administrator
+
+### Fixed
+- **Nextcloud 34 Compatibility**: Replaced removed legacy `\OC::$server->getURLGenerator()` / `getDatabaseConnection()` calls with the modern `\OCP\Server::get()` API — the deprecated shortcut methods were removed in Nextcloud 34, causing the admin and personal settings pages to abort mid-render with an Internal Server Error; also raised the supported max-version to 34
+- **Broken Admin Settings CSS**: Removed a stray unclosed `.ticket-type-options` rule that swallowed the new config-hint styles and duplicated an existing selector
+- **Template Translation Mismatch**: Removed embedded HTML from translatable strings in admin and personal settings templates so they match the locale catalogs (German translations now resolve correctly), and fixed a missing `%s` substitution that displayed literally instead of the instance name
+- **Locale File Consistency**: Synced 5 new strings from .js locale files into the .json catalogs for en, de, and de_DE (server-side rendering reads .json — the strings would otherwise fall back to English)
+- **Slow Custom CI Class Discovery**: The `ci-class-available` endpoint re-crawled the entire iTop datamodel (one HTTP request per module directory and XML file) on every call — the parsed class-definition map and a negative cache for undiscoverable icons are now persisted in appdata with a 24h TTL, reducing repeat loads from ~37s to under a second
+- **Class Browser Not Updating**: Newly added custom CI classes now disappear from the selection panel immediately after saving instead of remaining listed
+- **Debug Leftover**: Removed a stray `console.log` from the dashboard widget and rebuilt the frontend bundle
+
+---
+
 ## [1.4.0] - 2026-04-10
 
 ### Custom CI Classes, Ticket System Detection & Newsroom Mirroring

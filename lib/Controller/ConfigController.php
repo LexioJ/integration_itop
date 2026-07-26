@@ -38,6 +38,9 @@ class ConfigController extends Controller {
 	 *
 	 * @var array<string, array<string, array{parent:?string, icon:?string}>>
 	 */
+	/** TTL for persisted icon discovery caches (datamodel map + negative cache), in seconds */
+	private const ICON_CACHE_TTL = 86400;
+
 	private array $itopClassDefinitionsCache = [];
 
 	public function __construct(
@@ -1254,15 +1257,85 @@ class ConfigController extends Controller {
 	 * @return void
 	 */
 	private function warmupCustomClassIcons(array $classes, string $adminInstanceUrl, string $applicationToken): void {
+		$misses = $this->loadIconCacheMeta('icon_discovery_misses.json');
+		$missesChanged = false;
+
 		foreach ($classes as $className) {
+			$className = (string)$className;
+			// Skip classes whose icon discovery recently failed — avoids re-crawling
+			// the iTop datamodel on every settings page load (negative cache, 24h TTL)
+			if (isset($misses[$className]) && (time() - (int)$misses[$className]) < self::ICON_CACHE_TTL) {
+				continue;
+			}
 			try {
-				$this->cacheClassIconFromItop((string)$className, $adminInstanceUrl, $applicationToken);
+				if ($this->cacheClassIconFromItop($className, $adminInstanceUrl, $applicationToken)) {
+					if (isset($misses[$className])) {
+						unset($misses[$className]);
+						$missesChanged = true;
+					}
+				} else {
+					$misses[$className] = time();
+					$missesChanged = true;
+				}
 			} catch (\Exception $e) {
 				// Best effort only; keep UI functional with fallback icon endpoint
 				$this->logger->debug('Skipping icon warmup for class ' . $className . ': ' . $e->getMessage(), [
 					'app' => Application::APP_ID,
 				]);
+				$misses[$className] = time();
+				$missesChanged = true;
 			}
+		}
+
+		if ($missesChanged) {
+			$this->saveIconCacheMeta('icon_discovery_misses.json', $misses);
+		}
+	}
+
+	/**
+	 * Load a JSON metadata file from the ci_class_icons appdata folder.
+	 *
+	 * @param string $fileName
+	 * @return array
+	 */
+	private function loadIconCacheMeta(string $fileName): array {
+		try {
+			$appData = $this->appDataFactory->get(Application::APP_ID);
+			$folder = $appData->getFolder('ci_class_icons');
+			$content = $folder->getFile($fileName)->getContent();
+			$data = json_decode($content, true);
+			return is_array($data) ? $data : [];
+		} catch (\Exception $e) {
+			return [];
+		}
+	}
+
+	/**
+	 * Save a JSON metadata file into the ci_class_icons appdata folder.
+	 *
+	 * @param string $fileName
+	 * @param array $data
+	 * @return void
+	 */
+	private function saveIconCacheMeta(string $fileName, array $data): void {
+		try {
+			$appData = $this->appDataFactory->get(Application::APP_ID);
+			try {
+				$folder = $appData->getFolder('ci_class_icons');
+			} catch (NotFoundException $e) {
+				$folder = $appData->newFolder('ci_class_icons');
+			}
+			$json = json_encode($data);
+			try {
+				$folder->getFile($fileName)->putContent($json);
+			} catch (NotFoundException $e) {
+				$folder->newFile($fileName)->putContent($json);
+			}
+		} catch (\Exception $e) {
+			// Best effort only
+			$this->logger->debug('Could not persist icon cache metadata: ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+			]);
 		}
 	}
 
@@ -1272,30 +1345,31 @@ class ConfigController extends Controller {
 	 * @param string $class
 	 * @param string $adminInstanceUrl
 	 * @param string $applicationToken
-	 * @return void
+	 * @return bool true if the icon is cached (already or newly), false if discovery/download failed
 	 */
-	private function cacheClassIconFromItop(string $class, string $adminInstanceUrl, string $applicationToken): void {
+	private function cacheClassIconFromItop(string $class, string $adminInstanceUrl, string $applicationToken): bool {
 		$class = preg_replace('/[^A-Za-z0-9_]/', '', $class);
 		if ($class === '') {
-			return;
+			return false;
 		}
 
 		// Already cached
 		if ($this->getCachedClassIconFile($class) !== null) {
-			return;
+			return true;
 		}
 
 		$iconUrl = $this->discoverClassIconUrl($class, $adminInstanceUrl, $applicationToken);
 		if ($iconUrl === null) {
-			return;
+			return false;
 		}
 
 		$downloaded = $this->downloadClassIcon($iconUrl, $applicationToken);
 		if ($downloaded === null) {
-			return;
+			return false;
 		}
 
 		$this->storeClassIconContent($class, $downloaded['content'], $downloaded['extension']);
+		return true;
 	}
 
 	/**
@@ -1349,6 +1423,16 @@ class ConfigController extends Controller {
 			return $this->itopClassDefinitionsCache[$adminInstanceUrl];
 		}
 
+		// Persistent cache: the datamodel crawl is expensive (one HTTP request per
+		// module directory + one per XML file), so reuse the parsed map for 24h
+		$persisted = $this->loadIconCacheMeta('class_definitions.json');
+		if (($persisted['url'] ?? '') === $adminInstanceUrl
+			&& is_array($persisted['definitions'] ?? null)
+			&& (time() - (int)($persisted['timestamp'] ?? 0)) < self::ICON_CACHE_TTL) {
+			$this->itopClassDefinitionsCache[$adminInstanceUrl] = $persisted['definitions'];
+			return $persisted['definitions'];
+		}
+
 		$classDefinitions = [];
 		$xmlUrls = $this->getItopDatamodelXmlUrls($adminInstanceUrl, $applicationToken);
 		foreach ($xmlUrls as $xmlUrl) {
@@ -1360,6 +1444,11 @@ class ConfigController extends Controller {
 		}
 
 		$this->itopClassDefinitionsCache[$adminInstanceUrl] = $classDefinitions;
+		$this->saveIconCacheMeta('class_definitions.json', [
+			'url' => $adminInstanceUrl,
+			'timestamp' => time(),
+			'definitions' => $classDefinitions,
+		]);
 		return $classDefinitions;
 	}
 
@@ -2047,7 +2136,7 @@ class ConfigController extends Controller {
 	private function getConnectedUsersCount(): int {
 		try {
 			// Count users who have person_id configured (indicates completed setup)
-			$query = \OC::$server->getDatabaseConnection()->getQueryBuilder();
+			$query = \OCP\Server::get(\OCP\IDBConnection::class)->getQueryBuilder();
 			$result = $query->select($query->func()->count('*', 'count'))
 				->from('preferences')
 				->where($query->expr()->eq('appid', $query->createNamedParameter(Application::APP_ID)))
