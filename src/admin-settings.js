@@ -209,12 +209,13 @@
 			removeCustomCIClass(className, btn)
 		})
 
-		// Upload custom CI class icon button (delegated)
+		// Upload/overwrite a custom CI class icon by clicking the icon image (delegated)
 		document.addEventListener('click', function(e) {
-			const btn = e.target.closest('.upload-custom-class-icon')
-			if (!btn) return
+			const iconEl = e.target.closest('#custom-ci-class-config-grid .ci-class-icon')
+			if (!iconEl) return
 			e.preventDefault()
-			uploadCustomClassIcon(btn.dataset.class)
+			const row = iconEl.closest('.ci-class-config-row')
+			uploadCustomClassIcon(iconEl.dataset.class || (row ? row.id.replace('custom-ci-row-', '') : ''))
 		})
 
 		// Custom CI classes: browse button
@@ -1150,16 +1151,13 @@
 			removeBtn.textContent = '✕ ' + t('integration_itop', 'Remove')
 			removeBtn.removeAttribute('style')
 
-			let uploadBtn = row.querySelector('.upload-custom-class-icon')
-			if (!uploadBtn) {
-				uploadBtn = document.createElement('button')
-				uploadBtn.type = 'button'
-				uploadBtn.className = 'upload-custom-class-icon custom-ci-remove-btn custom-ci-remove-badge-btn'
-				infoContainer.insertBefore(uploadBtn, removeBtn)
+			// Make the class icon clickable for manual SVG upload/overwrite
+			const iconEl = row.querySelector('.ci-class-icon')
+			if (iconEl) {
+				iconEl.classList.add('ci-class-icon-uploadable')
+				iconEl.dataset.class = className
+				iconEl.title = t('integration_itop', 'Upload icon (SVG)')
 			}
-			uploadBtn.dataset.class = className
-			uploadBtn.title = t('integration_itop', 'Upload icon (SVG)')
-			uploadBtn.textContent = '📤 ' + t('integration_itop', 'Icon')
 		})
 	}
 

@@ -571,6 +571,17 @@ input.password-style {
     font-weight: 600;
 }
 
+/* Clickable custom CI class icon (upload/overwrite via file picker) */
+.ci-class-icon-uploadable {
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.ci-class-icon-uploadable:hover {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
 /* Form Info Box */
 .form-info-box {
     margin-top: 8px;
