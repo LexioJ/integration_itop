@@ -925,6 +925,12 @@ class ItopAPIService {
 					$this->logger->debug('SearchCIs: Found ' . count($result['objects']) . ' results for class ' . $class, ['app' => Application::APP_ID]);
 					foreach ($result['objects'] as $key => $ci) {
 					$fields = $ci['fields'] ?? [];
+					// The numeric object id is not part of output_fields='*' responses —
+					// it comes from the object's 'key' property (or the 'Class::id' array key)
+					$ciId = $fields['id'] ?? $ci['key'] ?? null;
+					if (($ciId === null || $ciId === '') && is_string($key) && str_contains($key, '::')) {
+						$ciId = substr($key, strpos($key, '::') + 2);
+					}
 					// Robust title fallback across CI families
 					$name = $fields['name']
 						?? $fields['friendlyname']
@@ -933,7 +939,7 @@ class ItopAPIService {
 						?? '';
 					$entry = [
 						'class' => $class,
-						'id' => $fields['id'] ?? null,
+						'id' => $ciId,
 						'name' => $name,
 						'status' => $fields['status'] ?? '',
 						'business_criticity' => $fields['business_criticity'] ?? '',
@@ -943,7 +949,7 @@ class ItopAPIService {
 						'asset_number' => $fields['asset_number'] ?? '',
 						'brand_model' => trim(($fields['brand_id_friendlyname'] ?? '') . ' ' . ($fields['model_id_friendlyname'] ?? '')),
 						'description' => strip_tags($fields['description'] ?? ''),
-						'url' => $itopUrl . '/pages/UI.php?operation=details&class=' . urlencode($class) . '&id=' . ($fields['id'] ?? '')
+						'url' => $itopUrl . '/pages/UI.php?operation=details&class=' . urlencode($class) . '&id=' . urlencode((string)($ciId ?? ''))
 					];
 					// Class-specific enrichments for subline rendering
 					if ($class === 'WebApplication') {
