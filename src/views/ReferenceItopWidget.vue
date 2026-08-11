@@ -375,22 +375,31 @@ export default {
 			return parts.join(' > ')
 		},
 		createdAtFormatted() {
-			return moment(this.richObject.creation_date).format('LLL')
+			const m = moment(this.richObject.creation_date)
+			return m.isValid() ? m.format('LLL') : this.richObject.creation_date
 		},
 		closedAtFormatted() {
-			return moment(this.richObject.close_date).format('LLL')
+			const m = moment(this.richObject.close_date)
+			return m.isValid() ? m.format('LLL') : this.richObject.close_date
 		},
 		updatedAtFormatted() {
-			return moment(this.richObject.last_update).format('LLL')
+			const m = moment(this.richObject.last_update)
+			return m.isValid() ? m.format('LLL') : this.richObject.last_update
 		},
 		createdAtText() {
-			return t('integration_itop', 'created {relativeDate}', { relativeDate: moment(this.richObject.creation_date).fromNow() })
+			const m = moment(this.richObject.creation_date)
+			if (!m.isValid()) return t('integration_itop', 'created {relativeDate}', { relativeDate: this.richObject.creation_date })
+			return t('integration_itop', 'created {relativeDate}', { relativeDate: m.fromNow() })
 		},
 		closedAtText() {
-			return t('integration_itop', 'closed {relativeDate}', { relativeDate: moment(this.richObject.close_date).fromNow() })
+			const m = moment(this.richObject.close_date)
+			if (!m.isValid()) return t('integration_itop', 'closed {relativeDate}', { relativeDate: this.richObject.close_date })
+			return t('integration_itop', 'closed {relativeDate}', { relativeDate: m.fromNow() })
 		},
 		updatedAtText() {
-			return t('integration_itop', 'updated {relativeDate}', { relativeDate: moment(this.richObject.last_update).fromNow() })
+			const m = moment(this.richObject.last_update)
+			if (!m.isValid()) return t('integration_itop', 'updated {relativeDate}', { relativeDate: this.richObject.last_update })
+			return t('integration_itop', 'updated {relativeDate}', { relativeDate: m.fromNow() })
 		},
 	},
 

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.2] - 2026-08-11
+
+### 🔧 Compatibility Fixes
+
+### Fixed
+- **Localized iTop Date Formats**: iTop installations with a customized `date_and_time_format` (e.g. `d.m.Y`) delivered localized date strings via the REST API, causing "Invalid Date" in the dashboard widgets, wrong ticket sorting, and broken SLA deadline calculations — all REST responses are now normalized to `Y-m-d H:i:s` regardless of the server's locale configuration (supports `.`, `/`, and `-` separators in day-first, month-first, and year-first order), and the widgets fall back to the raw string instead of rendering "Invalid Date" for unparseable values
+
+---
+
 ## [1.4.1] - 2026-07-26
 
 ### 🔧 Nextcloud 34 Compatibility, Token Setup Guidance & Release Polish
