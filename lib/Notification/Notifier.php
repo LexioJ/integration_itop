@@ -12,13 +12,13 @@
 
 namespace OCA\Itop\Notification;
 
-use InvalidArgumentException;
 use OCA\Itop\AppInfo\Application;
 use OCP\IConfig;
 use OCP\IURLGenerator;
 use OCP\L10N\IFactory;
 use OCP\Notification\INotification;
 use OCP\Notification\INotifier;
+use OCP\Notification\UnknownNotificationException;
 
 class Notifier implements INotifier {
 
@@ -80,13 +80,13 @@ class Notifier implements INotifier {
 	 * @param INotification $notification
 	 * @param string $languageCode The code of the language that should be used to prepare the notification
 	 * @return INotification
-	 * @throws InvalidArgumentException When the notification was not prepared by a notifier
+	 * @throws UnknownNotificationException When the notification is not known to this notifier
 	 * @since 9.0.0
 	 */
 	public function prepare(INotification $notification, string $languageCode): INotification {
 		if ($notification->getApp() !== 'integration_itop') {
 			// Not my app => throw
-			throw new InvalidArgumentException();
+			throw new UnknownNotificationException();
 		}
 
 		$l = $this->factory->get('integration_itop', $languageCode);
@@ -358,7 +358,7 @@ class Notifier implements INotifier {
 
 			default:
 				// Unknown subject => Unknown notification => throw
-				throw new InvalidArgumentException();
+				throw new UnknownNotificationException();
 		}
 	}
 }
