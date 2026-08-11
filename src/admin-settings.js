@@ -891,7 +891,7 @@
 		if (!className) return
 		const input = document.createElement('input')
 		input.type = 'file'
-		input.accept = '.svg,image/svg+xml'
+		input.accept = '.svg,.png,image/svg+xml,image/png'
 		input.addEventListener('change', function() {
 			const file = input.files && input.files[0]
 			if (!file) return
@@ -899,12 +899,13 @@
 				showNotification(t('integration_itop', 'Icon file too large (max 256 KB)'), true)
 				return
 			}
-			file.text()
+			const isPng = file.type === 'image/png' || /\.png$/i.test(file.name)
+			file.arrayBuffer()
 				.then(content => fetch(getCustomClassIconUrl(className), {
 					method: 'POST',
 					headers: {
 						requesttoken: OC.requestToken,
-						'Content-Type': 'image/svg+xml',
+						'Content-Type': isPng ? 'image/png' : 'image/svg+xml',
 					},
 					body: content,
 				}))
@@ -1156,7 +1157,7 @@
 			if (iconEl) {
 				iconEl.classList.add('ci-class-icon-uploadable')
 				iconEl.dataset.class = className
-				iconEl.title = t('integration_itop', 'Upload icon (SVG)')
+				iconEl.title = t('integration_itop', 'Upload icon (SVG or PNG)')
 			}
 		})
 	}

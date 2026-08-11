@@ -1933,9 +1933,9 @@ class ConfigController extends Controller {
 	}
 
 	/**
-	 * Upload a custom SVG icon for a CI class (admin only).
+	 * Upload a custom icon (SVG or PNG) for a CI class (admin only).
 	 *
-	 * The SVG is stored in appdata so it survives app updates and does not
+	 * The icon is stored in appdata so it survives app updates and does not
 	 * pollute the app's img/ directory (which is part of the distributed package).
 	 *
 	 * @param string $class CI class name (e.g. "Monitor", "Scanner")
@@ -1948,37 +1948,30 @@ class ConfigController extends Controller {
 			return new DataResponse(['error' => $this->l10n->t('Invalid class name')], Http::STATUS_BAD_REQUEST);
 		}
 
-		// Read raw SVG from request body
-		$svgContent = file_get_contents('php://input');
-		if ($svgContent === false || strlen($svgContent) === 0) {
+		// Read raw icon content from request body
+		$iconContent = file_get_contents('php://input');
+		if ($iconContent === false || strlen($iconContent) === 0) {
 			return new DataResponse(['error' => $this->l10n->t('No file content received')], Http::STATUS_BAD_REQUEST);
 		}
 
 		// Size guard (max 256 KB)
-		if (strlen($svgContent) > 262144) {
+		if (strlen($iconContent) > 262144) {
 			return new DataResponse(['error' => $this->l10n->t('Icon file too large (max 256 KB)')], Http::STATUS_BAD_REQUEST);
 		}
 
-		// Basic SVG content check (strip BOM + leading whitespace before looking for <svg)
-		$stripped = ltrim($svgContent, " \t\n\r\0\x0B\xEF\xBB\xBF");
-		if (stripos($stripped, '<svg') === false) {
-			return new DataResponse(['error' => $this->l10n->t('File does not appear to be a valid SVG')], Http::STATUS_BAD_REQUEST);
+		// Detect format: PNG by magic bytes, SVG by root element (strip BOM + leading whitespace)
+		if (str_starts_with($iconContent, "\x89PNG\r\n\x1a\n")) {
+			$extension = 'png';
+		} else {
+			$stripped = ltrim($iconContent, " \t\n\r\0\x0B\xEF\xBB\xBF");
+			if (stripos($stripped, '<svg') === false) {
+				return new DataResponse(['error' => $this->l10n->t('File does not appear to be a valid SVG or PNG')], Http::STATUS_BAD_REQUEST);
+			}
+			$extension = 'svg';
 		}
 
 		try {
-			$appData = $this->appDataFactory->get(Application::APP_ID);
-			try {
-				$folder = $appData->getFolder('ci_class_icons');
-			} catch (NotFoundException $e) {
-				$folder = $appData->newFolder('ci_class_icons');
-			}
-			try {
-				$file = $folder->getFile($class . '.svg');
-				$file->putContent($svgContent);
-			} catch (NotFoundException $e) {
-				$file = $folder->newFile($class . '.svg');
-				$file->putContent($svgContent);
-			}
+			$this->storeClassIconContent($class, $iconContent, $extension);
 		} catch (\Exception $e) {
 			$this->logger->error('Failed to save CI class icon for ' . $class . ': ' . $e->getMessage(), [
 				'app' => Application::APP_ID,
