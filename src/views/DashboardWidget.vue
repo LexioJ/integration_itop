@@ -317,6 +317,7 @@ export default {
 
 			try {
 				const date = new Date(dateString)
+				if (isNaN(date.getTime())) return dateString
 				const now = new Date()
 				const diffMs = now - date
 				const diffSecs = Math.floor(diffMs / 1000)

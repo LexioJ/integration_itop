@@ -1128,6 +1128,11 @@ class ItopAPIService {
 				return ['error' => $this->l10n->t('Invalid JSON response from iTop')];
 			}
 
+			// Normalize localized date formats (e.g. 'd.m.Y H:i:s' from a customized
+			// 'date_and_time_format' iTop config) to the default 'Y-m-d H:i:s' that all
+			// consumers (frontend widgets, sorting, SLA logic) expect
+			$result = $this->normalizeResponseDates($result);
+
 			// Cache successful responses with configurable TTL
 			if ($useCache && !isset($result['error'])) {
 				// Get TTL from config or use default (60 seconds)
@@ -1166,6 +1171,110 @@ class ItopAPIService {
 		} catch (ConnectException $e) {
 			return ['error' => $e->getMessage()];
 		}
+	}
+
+	/**
+	 * Normalize all date attribute values in an iTop REST response to 'Y-m-d H:i:s'.
+	 *
+	 * iTop formats date attributes in REST responses according to its
+	 * 'date_and_time_format' configuration, so installations with a localized
+	 * format (e.g. 'd.m.Y') deliver dates the rest of the app cannot parse.
+	 *
+	 * @param array $result Decoded REST response
+	 * @return array Response with normalized date fields
+	 */
+	private function normalizeResponseDates(array $result): array {
+		if (empty($result['objects']) || !is_array($result['objects'])) {
+			return $result;
+		}
+
+		foreach ($result['objects'] as &$object) {
+			if (empty($object['fields']) || !is_array($object['fields'])) {
+				continue;
+			}
+			foreach ($object['fields'] as $attCode => &$value) {
+				if (is_string($value) && $value !== '' && $this->isDateAttribute($attCode)) {
+					$value = $this->normalizeItopDateString($value);
+				}
+			}
+			unset($value);
+		}
+		unset($object);
+
+		return $result;
+	}
+
+	/**
+	 * Whether an iTop attribute code holds a date/datetime value
+	 *
+	 * @param string $attCode Attribute code
+	 * @return bool
+	 */
+	private function isDateAttribute(string $attCode): bool {
+		return $attCode === 'last_update'
+			|| str_contains($attCode, 'date')
+			|| str_contains($attCode, 'deadline');
+	}
+
+	/**
+	 * Convert a date string in any iTop output format to 'Y-m-d H:i:s' (or 'Y-m-d'
+	 * for date-only values). Returns the input unchanged if it cannot be parsed,
+	 * so unexpected formats degrade gracefully instead of corrupting data.
+	 *
+	 * Supported: ISO 'Y-m-d', and day/month/year or year/month/day with '.', '/', or '-'
+	 * separators, each with optional 'H:i' or 'H:i:s' time. Ambiguous 'a/b/Y' values
+	 * (both components <= 12) are treated as day-first, matching iTop's European
+	 * localized formats; values with a component > 12 disambiguate themselves.
+	 *
+	 * @param string $value Date string from iTop
+	 * @return string Normalized date string, or the original value if unparseable
+	 */
+	private function normalizeItopDateString(string $value): string {
+		$value = trim($value);
+
+		// Already normalized: Y-m-d with optional time
+		if (preg_match('/^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$/', $value)) {
+			return str_replace('T', ' ', $value);
+		}
+
+		$time = '';
+		$datePart = $value;
+		// Split off optional time component
+		if (preg_match('/^(.+?)[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/', $value, $tm)) {
+			$datePart = $tm[1];
+			$time = sprintf(' %02d:%02d:%02d', (int)$tm[2], (int)$tm[3], (int)($tm[4] ?? 0));
+		}
+
+		$year = $month = $day = null;
+		if (preg_match('/^(\d{1,2})([.\/-])(\d{1,2})\2(\d{4})$/', $datePart, $m)) {
+			// day-first or month-first with 4-digit year last
+			$a = (int)$m[1];
+			$b = (int)$m[3];
+			$year = (int)$m[4];
+			if ($a > 12 && $b <= 12) {
+				[$day, $month] = [$a, $b];
+			} elseif ($b > 12 && $a <= 12) {
+				[$day, $month] = [$b, $a];
+			} else {
+				// Ambiguous: assume day-first (d.m.Y / d/m/Y / d-m-Y)
+				[$day, $month] = [$a, $b];
+			}
+		} elseif (preg_match('/^(\d{4})([.\/])(\d{1,2})\2(\d{1,2})$/', $datePart, $m)) {
+			// year-first: Y/m/d or Y.m.d
+			$year = (int)$m[1];
+			$month = (int)$m[3];
+			$day = (int)$m[4];
+		}
+
+		if ($year !== null && checkdate($month, $day, $year)) {
+			return sprintf('%04d-%02d-%02d', $year, $month, $day) . $time;
+		}
+
+		$this->logger->debug('Unrecognized iTop date format, passing through unchanged', [
+			'app' => Application::APP_ID,
+			'value' => $value,
+		]);
+		return $value;
 	}
 
 	/**

@@ -322,6 +322,7 @@ export default {
 
 			try {
 				const date = new Date(dateStr)
+				if (isNaN(date.getTime())) return dateStr
 				const now = new Date()
 				const diff = date - now
 				const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
@@ -345,6 +346,7 @@ export default {
 
 			try {
 				const date = new Date(dateStr)
+				if (isNaN(date.getTime())) return dateStr
 				const now = new Date()
 				const diff = date - now
 				const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
@@ -425,6 +427,7 @@ export default {
 
 			try {
 				const date = new Date(dateStr)
+				if (isNaN(date.getTime())) return dateStr
 				// Format as dd.mm. hh:MM (compact format without year and seconds)
 				const day = String(date.getDate()).padStart(2, '0')
 				const month = String(date.getMonth() + 1).padStart(2, '0')
