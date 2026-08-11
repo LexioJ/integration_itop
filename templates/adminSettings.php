@@ -687,6 +687,15 @@ $ciClassLabels = [
 				</div>
 			</div>
 
+			<?php if (!empty($_['ci_icon_discovery_failed_classes'])): ?>
+				<!-- Icon auto-discovery failed for some classes (e.g. datamodel XMLs blocked on the iTop server) -->
+				<div class="form-info-box" style="margin-top: 16px;">
+					<strong><?php p($l->t('⚠️ Automatic class icons unavailable')); ?></strong><br>
+					<?php p($l->t('Icons for some custom CI classes could not be fetched because the iTop server blocks access to its datamodel XML files (datamodels/2.x/). A generic fallback icon is shown instead. Allow the Nextcloud server to read the datamodel XML files and reload this page, or upload icons manually via the ci-class-icon API endpoint.')); ?><br>
+					<span style="color: var(--color-text-maxcontrast);"><?php p(implode(', ', $_['ci_icon_discovery_failed_classes'])); ?></span>
+				</div>
+			<?php endif; ?>
+
 			<!-- Currently configured custom classes -->
 			<div id="custom-ci-classes-section" style="margin-top: 16px; <?php echo empty($_['custom_ci_classes']) ? 'display:none;' : ''; ?>">
 				<h4 style="margin-bottom: 12px;"><?php p($l->t('Configured Custom CI Classes')); ?></h4>

@@ -15,6 +15,7 @@ namespace OCA\Itop\Settings;
 use OCA\Itop\AppInfo\Application;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\Files\AppData\IAppDataFactory;
 use OCP\IConfig;
 use OCP\IL10N;
 use OCP\Settings\ISettings;
@@ -27,6 +28,7 @@ class Admin implements ISettings {
 		private IL10N $l10n,
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
+		private IAppDataFactory $appDataFactory,
 	) {
 		$this->logger->info('iTop Admin settings constructor called', ['app' => Application::APP_ID]);
 	}
@@ -60,6 +62,20 @@ class Admin implements ISettings {
 		$ciClassConfig = Application::getCIClassConfig($this->config);
 		$customCIClasses = Application::getCustomCIClasses($this->config);
 
+		// Custom classes whose icon auto-discovery recently failed (negative cache
+		// written by ConfigController::warmupCustomClassIcons) — used to surface a
+		// hint instead of silently showing the generic fallback icon
+		$iconDiscoveryFailedClasses = [];
+		try {
+			$folder = $this->appDataFactory->get(Application::APP_ID)->getFolder('ci_class_icons');
+			$misses = json_decode($folder->getFile('icon_discovery_misses.json')->getContent(), true);
+			if (is_array($misses)) {
+				$iconDiscoveryFailedClasses = array_values(array_intersect($customCIClasses, array_keys($misses)));
+			}
+		} catch (\Exception $e) {
+			// No cache folder or no misses recorded — nothing to warn about
+		}
+
 		// Get ticket system type configuration
 		$ticketSystemType = $this->config->getAppValue(Application::APP_ID, 'ticket_system_type', Application::TICKET_SYSTEM_TYPE_ITIL);
 		$simpleTicketTypeField = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_type_field', '');
@@ -90,6 +106,7 @@ class Admin implements ISettings {
 			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES,
 			// Custom CI classes (admin-added, e.g. Monitor, Scanner)
 			'custom_ci_classes' => $customCIClasses,
+			'ci_icon_discovery_failed_classes' => $iconDiscoveryFailedClasses,
 			'connected_users' => 0, // Will be populated by JavaScript via AJAX
 			// Ticket system type configuration
 			'ticket_system_type' => $ticketSystemType,
