@@ -691,7 +691,7 @@ $ciClassLabels = [
 				<!-- Icon auto-discovery failed for some classes (e.g. datamodel XMLs blocked on the iTop server) -->
 				<div class="form-info-box" style="margin-top: 16px;">
 					<strong><?php p($l->t('⚠️ Automatic class icons unavailable')); ?></strong><br>
-					<?php p($l->t('Icons for some custom CI classes could not be fetched because the iTop server blocks access to its datamodel XML files (datamodels/2.x/). A generic fallback icon is shown instead. Allow the Nextcloud server to read the datamodel XML files and reload this page, or upload icons manually via the ci-class-icon API endpoint.')); ?><br>
+					<?php p($l->t('Icons for some custom CI classes could not be fetched because the iTop server blocks access to its datamodel XML files (datamodels/2.x/). A generic fallback icon is shown instead. Allow the Nextcloud server to read the datamodel XML files and reload this page, or upload an SVG icon manually using the "Icon" button on each class below.')); ?><br>
 					<span style="color: var(--color-text-maxcontrast);"><?php p(implode(', ', $_['ci_icon_discovery_failed_classes'])); ?></span>
 				</div>
 			<?php endif; ?>
@@ -712,6 +712,7 @@ $ciClassLabels = [
 								</span>
 								<span class="ci-class-label"><?php p($customClass); ?></span>
 								<span class="custom-class-badge"><?php p($l->t('custom')); ?></span>
+								<button type="button" class="upload-custom-class-icon custom-ci-remove-btn custom-ci-remove-badge-btn" data-class="<?php p($customClass); ?>" title="<?php p($l->t('Upload icon (SVG)')); ?>">📤 <?php p($l->t('Icon')); ?></button>
 								<button type="button" class="remove-custom-class custom-ci-remove-btn custom-ci-remove-badge-btn" data-class="<?php p($customClass); ?>" title="<?php p($l->t('Remove')); ?>">✕ <?php p($l->t('Remove')); ?></button>
 							</div>
 							<div class="state-toggle-group" data-class="<?php p($customClass); ?>">

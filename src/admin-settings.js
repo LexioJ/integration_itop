@@ -209,6 +209,14 @@
 			removeCustomCIClass(className, btn)
 		})
 
+		// Upload custom CI class icon button (delegated)
+		document.addEventListener('click', function(e) {
+			const btn = e.target.closest('.upload-custom-class-icon')
+			if (!btn) return
+			e.preventDefault()
+			uploadCustomClassIcon(btn.dataset.class)
+		})
+
 		// Custom CI classes: browse button
 		const browseButton = document.getElementById('browse-itop-classes')
 		if (browseButton) {
@@ -874,6 +882,52 @@
 	}
 
 	/**
+	 * Let the admin pick an SVG file and upload it as the icon for a custom CI class.
+	 *
+	 * @param {string} className
+	 */
+	function uploadCustomClassIcon(className) {
+		if (!className) return
+		const input = document.createElement('input')
+		input.type = 'file'
+		input.accept = '.svg,image/svg+xml'
+		input.addEventListener('change', function() {
+			const file = input.files && input.files[0]
+			if (!file) return
+			if (file.size > 262144) {
+				showNotification(t('integration_itop', 'Icon file too large (max 256 KB)'), true)
+				return
+			}
+			file.text()
+				.then(content => fetch(getCustomClassIconUrl(className), {
+					method: 'POST',
+					headers: {
+						requesttoken: OC.requestToken,
+						'Content-Type': 'image/svg+xml',
+					},
+					body: content,
+				}))
+				.then(response => response.json().then(data => ({ ok: response.ok, data })))
+				.then(({ ok, data }) => {
+					if (!ok) {
+						showNotification(data.error || t('integration_itop', 'Failed to save icon'), true)
+						return
+					}
+					showNotification(t('integration_itop', 'Icon saved successfully'), false)
+					// Refresh the row's icon, bypassing the browser cache
+					const img = document.querySelector('#custom-ci-row-' + className + ' .ci-class-icon img')
+					if (img) {
+						img.src = getCustomClassIconUrl(className) + '?v=' + Date.now()
+					}
+				})
+				.catch(() => {
+					showNotification(t('integration_itop', 'Failed to save icon'), true)
+				})
+		})
+		input.click()
+	}
+
+	/**
 	 * Browse available iTop CI classes (FunctionalCI subclasses not in built-in list)
 	 */
 	function browseItopClasses() {
@@ -1095,6 +1149,17 @@
 			removeBtn.title = t('integration_itop', 'Remove')
 			removeBtn.textContent = '✕ ' + t('integration_itop', 'Remove')
 			removeBtn.removeAttribute('style')
+
+			let uploadBtn = row.querySelector('.upload-custom-class-icon')
+			if (!uploadBtn) {
+				uploadBtn = document.createElement('button')
+				uploadBtn.type = 'button'
+				uploadBtn.className = 'upload-custom-class-icon custom-ci-remove-btn custom-ci-remove-badge-btn'
+				infoContainer.insertBefore(uploadBtn, removeBtn)
+			}
+			uploadBtn.dataset.class = className
+			uploadBtn.title = t('integration_itop', 'Upload icon (SVG)')
+			uploadBtn.textContent = '📤 ' + t('integration_itop', 'Icon')
 		})
 	}
 
