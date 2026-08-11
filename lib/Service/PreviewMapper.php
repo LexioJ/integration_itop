@@ -43,6 +43,11 @@ class PreviewMapper {
 	 */
 	public function mapCIToPreview(array $ciData, string $class): array {
 		$fields = $ciData['fields'] ?? $ciData;
+		// The numeric object id is not part of output_fields='*' responses —
+		// take it from the object's 'key' property when the fields lack it
+		if (empty($fields['id']) && !empty($ciData['key'])) {
+			$fields['id'] = $ciData['key'];
+		}
 
 
 		// Build preview DTO structure

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Deprecated Exception in Notifier** (#6): `Notifier::prepare()` now throws `OCP\Notification\UnknownNotificationException` instead of the deprecated plain `InvalidArgumentException` when a notification is not known to this notifier — Nextcloud ≥ 30 logged a deprecation warning on every notifications API poll (e.g. from mobile clients or Unified Push) whenever other apps' notifications were processed
+- **CI Links Missing Object ID**: Smart picker and search results for Configuration Items produced iTop URLs with an empty `id=` parameter (only UserRequest links worked) — CI queries use `output_fields=*`, which does not include the object id in iTop REST responses; the id is now taken from the response's `key` property in both the CI search and the preview mapper, so inserted links and previews point to the actual object
 - **Localized iTop Date Formats**: iTop installations with a customized `date_and_time_format` (e.g. `d.m.Y`) delivered localized date strings via the REST API, causing "Invalid Date" in the dashboard widgets, wrong ticket sorting, and broken SLA deadline calculations — all REST responses are now normalized to `Y-m-d H:i:s` regardless of the server's locale configuration (supports `.`, `/`, and `-` separators in day-first, month-first, and year-first order), and the widgets fall back to the raw string instead of rendering "Invalid Date" for unparseable values
 
 ---
