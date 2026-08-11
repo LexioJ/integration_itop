@@ -2,7 +2,7 @@
 
 🎟️ **Complete iTop ITSM & CMDB Integration** - Seamlessly access tickets, incidents, and Configuration Items from your Nextcloud environment
 
-[![Version](https://img.shields.io/badge/version-1.4.1-blue)](https://github.com/lexioj/integration_itop/releases)
+[![Version](https://img.shields.io/badge/version-1.4.2-blue)](https://github.com/lexioj/integration_itop/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 [![Nextcloud](https://img.shields.io/badge/Nextcloud-30+-blue)](https://nextcloud.com)
 
