@@ -1444,11 +1444,19 @@ class ConfigController extends Controller {
 		}
 
 		$this->itopClassDefinitionsCache[$adminInstanceUrl] = $classDefinitions;
-		$this->saveIconCacheMeta('class_definitions.json', [
-			'url' => $adminInstanceUrl,
-			'timestamp' => time(),
-			'definitions' => $classDefinitions,
-		]);
+		// Only persist a non-empty map: an empty result means discovery failed
+		// (e.g. all datamodel URLs blocked) and must be retried, not cached for 24h
+		if (!empty($classDefinitions)) {
+			$this->saveIconCacheMeta('class_definitions.json', [
+				'url' => $adminInstanceUrl,
+				'timestamp' => time(),
+				'definitions' => $classDefinitions,
+			]);
+		} else {
+			$this->logger->warning('CI class icon discovery found no datamodel definitions — the iTop server may block access to /datamodels/2.x/ and /core/datamodel.core.xml; class icons will use the fallback until icons are uploaded manually or access is allowed', [
+				'app' => Application::APP_ID,
+			]);
+		}
 		return $classDefinitions;
 	}
 
@@ -1461,23 +1469,31 @@ class ConfigController extends Controller {
 	 */
 	private function getItopDatamodelXmlUrls(string $adminInstanceUrl, string $applicationToken): array {
 		$baseDatamodelUrl = rtrim($adminInstanceUrl, '/') . '/datamodels/2.x/';
-		$indexHtml = $this->downloadTextResource($baseDatamodelUrl, $applicationToken);
-		if ($indexHtml === null) {
-			return [];
+
+		// Preferred source: installed module list via the REST API. This works on
+		// hardened production servers where directory listing is disabled
+		// (Options -Indexes), which the HTML index scraping below depends on.
+		$modules = [];
+		foreach ($this->fetchItopModuleNamesViaRest($adminInstanceUrl, $applicationToken) as $moduleName) {
+			$modules[$moduleName] = true;
 		}
 
-		preg_match_all("#href=[\"']([^\"']+/)[\"']#i", $indexHtml, $moduleMatches);
-		$modules = [];
-		foreach ($moduleMatches[1] ?? [] as $href) {
-			$decodedHref = html_entity_decode($href, ENT_QUOTES | ENT_HTML5);
-			if ($decodedHref === '' || str_contains($decodedHref, '..') || str_contains($decodedHref, '?') || str_contains($decodedHref, '#')) {
-				continue;
+		// Enhancement: HTML directory index, when the server still allows it.
+		// Catches modules without a ModuleInstallation record.
+		$indexHtml = $this->downloadTextResource($baseDatamodelUrl, $applicationToken);
+		if ($indexHtml !== null) {
+			preg_match_all("#href=[\"']([^\"']+/)[\"']#i", $indexHtml, $moduleMatches);
+			foreach ($moduleMatches[1] ?? [] as $href) {
+				$decodedHref = html_entity_decode($href, ENT_QUOTES | ENT_HTML5);
+				if ($decodedHref === '' || str_contains($decodedHref, '..') || str_contains($decodedHref, '?') || str_contains($decodedHref, '#')) {
+					continue;
+				}
+				$module = trim($decodedHref, '/');
+				if ($module === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $module)) {
+					continue;
+				}
+				$modules[$module] = true;
 			}
-			$module = trim($decodedHref, '/');
-			if ($module === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $module)) {
-				continue;
-			}
-			$modules[$module] = true;
 		}
 
 		$xmlUrls = [rtrim($adminInstanceUrl, '/') . '/core/datamodel.core.xml'];
@@ -1487,23 +1503,73 @@ class ConfigController extends Controller {
 		foreach ($moduleNames as $moduleName) {
 			$moduleUrl = $baseDatamodelUrl . rawurlencode($moduleName) . '/';
 			$moduleHtml = $this->downloadTextResource($moduleUrl, $applicationToken);
-			if ($moduleHtml === null) {
-				continue;
-			}
-
-			preg_match_all("#href=[\"'](datamodel[^\"']*\\.xml)[\"']#i", $moduleHtml, $fileMatches);
-			foreach ($fileMatches[1] ?? [] as $xmlFileName) {
-				$decodedFileName = html_entity_decode($xmlFileName, ENT_QUOTES | ENT_HTML5);
-				if ($decodedFileName === '') {
+			if ($moduleHtml !== null) {
+				preg_match_all("#href=[\"'](datamodel[^\"']*\\.xml)[\"']#i", $moduleHtml, $fileMatches);
+				$found = false;
+				foreach ($fileMatches[1] ?? [] as $xmlFileName) {
+					$decodedFileName = html_entity_decode($xmlFileName, ENT_QUOTES | ENT_HTML5);
+					if ($decodedFileName === '') {
+						continue;
+					}
+					$xmlUrls[] = $moduleUrl . ltrim($decodedFileName, '/');
+					$found = true;
+				}
+				if ($found) {
 					continue;
 				}
-				$xmlUrls[] = $moduleUrl . ltrim($decodedFileName, '/');
 			}
+			// No directory listing available: fall back to the iTop naming
+			// convention datamodels/2.x/<module>/datamodel.<module>.xml
+			$xmlUrls[] = $moduleUrl . 'datamodel.' . rawurlencode($moduleName) . '.xml';
 		}
 
 		$xmlUrls = array_values(array_unique($xmlUrls));
 		sort($xmlUrls);
 		return $xmlUrls;
+	}
+
+	/**
+	 * Fetch installed iTop module names via the REST API (ModuleInstallation class).
+	 * Returns an empty array when the query fails or REST is unavailable.
+	 *
+	 * @param string $adminInstanceUrl
+	 * @param string $applicationToken
+	 * @return array<int, string>
+	 */
+	private function fetchItopModuleNamesViaRest(string $adminInstanceUrl, string $applicationToken): array {
+		try {
+			$client = $this->clientService->newClient();
+			$response = $client->post(rtrim($adminInstanceUrl, '/') . '/webservices/rest.php?version=1.3', [
+				'headers' => [
+					'Auth-Token' => $applicationToken,
+					'User-Agent' => 'Nextcloud-iTop-Integration/1.0',
+				],
+				'form_params' => [
+					'json_data' => json_encode([
+						'operation' => 'core/get',
+						'class' => 'ModuleInstallation',
+						'key' => 'SELECT ModuleInstallation',
+						'output_fields' => 'name',
+					]),
+				],
+				'timeout' => 20,
+			]);
+			$result = json_decode((string)$response->getBody(), true);
+			$names = [];
+			foreach (($result['objects'] ?? []) as $object) {
+				$name = trim((string)($object['fields']['name'] ?? ''));
+				// The datamodel directory name matches the module name
+				if ($name !== '' && preg_match('/^[A-Za-z0-9._-]+$/', $name)) {
+					$names[$name] = true;
+				}
+			}
+			return array_keys($names);
+		} catch (\Exception $e) {
+			$this->logger->debug('Could not fetch iTop module list via REST: ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+			]);
+			return [];
+		}
 	}
 
 	/**
