@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.2] - 2026-08-11
+
+### 🔧 Notification Compatibility Fix
+
+### Fixed
+- **Deprecated Exception in Notifier** (#6): `Notifier::prepare()` now throws `OCP\Notification\UnknownNotificationException` instead of the deprecated plain `InvalidArgumentException` when a notification is not known to this notifier — Nextcloud ≥ 30 logged a deprecation warning on every notifications API poll (e.g. from mobile clients or Unified Push) whenever other apps' notifications were processed
+
+---
+
 ## [1.4.1] - 2026-07-26
 
 ### 🔧 Nextcloud 34 Compatibility, Token Setup Guidance & Release Polish
