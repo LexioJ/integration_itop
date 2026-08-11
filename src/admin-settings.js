@@ -209,6 +209,15 @@
 			removeCustomCIClass(className, btn)
 		})
 
+		// Upload/overwrite a custom CI class icon by clicking the icon image (delegated)
+		document.addEventListener('click', function(e) {
+			const iconEl = e.target.closest('#custom-ci-class-config-grid .ci-class-icon')
+			if (!iconEl) return
+			e.preventDefault()
+			const row = iconEl.closest('.ci-class-config-row')
+			uploadCustomClassIcon(iconEl.dataset.class || (row ? row.id.replace('custom-ci-row-', '') : ''))
+		})
+
 		// Custom CI classes: browse button
 		const browseButton = document.getElementById('browse-itop-classes')
 		if (browseButton) {
@@ -874,6 +883,53 @@
 	}
 
 	/**
+	 * Let the admin pick an SVG file and upload it as the icon for a custom CI class.
+	 *
+	 * @param {string} className
+	 */
+	function uploadCustomClassIcon(className) {
+		if (!className) return
+		const input = document.createElement('input')
+		input.type = 'file'
+		input.accept = '.svg,.png,image/svg+xml,image/png'
+		input.addEventListener('change', function() {
+			const file = input.files && input.files[0]
+			if (!file) return
+			if (file.size > 262144) {
+				showNotification(t('integration_itop', 'Icon file too large (max 256 KB)'), true)
+				return
+			}
+			const isPng = file.type === 'image/png' || /\.png$/i.test(file.name)
+			file.arrayBuffer()
+				.then(content => fetch(getCustomClassIconUrl(className), {
+					method: 'POST',
+					headers: {
+						requesttoken: OC.requestToken,
+						'Content-Type': isPng ? 'image/png' : 'image/svg+xml',
+					},
+					body: content,
+				}))
+				.then(response => response.json().then(data => ({ ok: response.ok, data })))
+				.then(({ ok, data }) => {
+					if (!ok) {
+						showNotification(data.error || t('integration_itop', 'Failed to save icon'), true)
+						return
+					}
+					showNotification(t('integration_itop', 'Icon saved successfully'), false)
+					// Refresh the row's icon, bypassing the browser cache
+					const img = document.querySelector('#custom-ci-row-' + className + ' .ci-class-icon img')
+					if (img) {
+						img.src = getCustomClassIconUrl(className) + '?v=' + Date.now()
+					}
+				})
+				.catch(() => {
+					showNotification(t('integration_itop', 'Failed to save icon'), true)
+				})
+		})
+		input.click()
+	}
+
+	/**
 	 * Browse available iTop CI classes (FunctionalCI subclasses not in built-in list)
 	 */
 	function browseItopClasses() {
@@ -1095,6 +1151,14 @@
 			removeBtn.title = t('integration_itop', 'Remove')
 			removeBtn.textContent = '✕ ' + t('integration_itop', 'Remove')
 			removeBtn.removeAttribute('style')
+
+			// Make the class icon clickable for manual SVG upload/overwrite
+			const iconEl = row.querySelector('.ci-class-icon')
+			if (iconEl) {
+				iconEl.classList.add('ci-class-icon-uploadable')
+				iconEl.dataset.class = className
+				iconEl.title = t('integration_itop', 'Upload icon (SVG or PNG)')
+			}
 		})
 	}
 
