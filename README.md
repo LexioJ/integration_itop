@@ -2,7 +2,7 @@
 
 🎟️ **Complete iTop ITSM & CMDB Integration** - Seamlessly access tickets, incidents, and Configuration Items from your Nextcloud environment
 
-[![Version](https://img.shields.io/badge/version-1.4.2-blue)](https://github.com/lexioj/integration_itop/releases)
+[![Version](https://img.shields.io/badge/version-1.4.3-blue)](https://github.com/lexioj/integration_itop/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 [![Nextcloud](https://img.shields.io/badge/Nextcloud-30+-blue)](https://nextcloud.com)
 
@@ -425,9 +425,22 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
 
 ---
 
-## 📋 What's New in v1.4.1
+## 📋 What's New in v1.4.3
 
-**Nextcloud 34 Compatibility, Token Setup Guidance & Release Polish** 🔧
+**Nextcloud 35 Compatibility** 🔧
+
+### Changed
+- **Nextcloud 35 Support**: Raised the supported max-version to 35 — verified to run on Nextcloud 35
+
+### Previous Release: v1.4.2 - Compatibility Fixes 🔧
+
+### Fixed
+- **Deprecated Exception in Notifier**: `Notifier::prepare()` now throws `UnknownNotificationException` instead of the deprecated `InvalidArgumentException`
+- **CI Links Missing Object ID**: Smart picker and search results for Configuration Items now produce iTop URLs with the correct object id
+- **Custom CI Class Icons on Hardened Servers**: Icon auto-discovery now works on servers with directory listings disabled, with manual upload as fallback
+- **Localized iTop Date Formats**: REST responses are normalized regardless of the server's `date_and_time_format`, fixing "Invalid Date" in dashboard widgets
+
+### Previous Release: v1.4.1 - Nextcloud 34 Compatibility, Token Setup Guidance & Release Polish 🔧
 
 ### Added
 - **iTop Configuration Hint**: Admin settings now explain the `personal_tokens_allowed_profiles` prerequisite with a ready-to-adapt `$MyModuleSettings` example for iTop's Configuration File Editor
@@ -582,6 +595,12 @@ curl -X POST https://itop.company.com/webservices/rest.php \
 ### v1.4.1 (Released 2026-07-26) ✅
 - [x] In-app guidance for iTop personal token prerequisites (admin + personal settings)
 - [x] CSS, translation, and cleanup fixes from pre-release review
+
+### v1.4.2 (Released 2026-08-11) ✅
+- [x] Compatibility fixes: notifier exception, CI link ids, icon discovery on hardened servers, localized date formats
+
+### v1.4.3 (Released 2026-09-26) ✅
+- [x] Nextcloud 35 compatibility
 
 ### Future
 - [ ] Ticket creation from Nextcloud
