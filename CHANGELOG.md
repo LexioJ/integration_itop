@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.3] - 2026-09-26
+
+### 🔧 Nextcloud 35 Compatibility
+
+### Changed
+- **Nextcloud 35 Support**: Raised the supported max-version to 35 — the app has been verified to run on Nextcloud 35 without code changes
+
+---
+
 ## [1.4.2] - 2026-08-11
 
 ### 🔧 Compatibility Fixes
