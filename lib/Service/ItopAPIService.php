@@ -535,8 +535,8 @@ class ItopAPIService {
 			return [];
 		}
 
-		// Escape single quotes in search query for OQL
-		$escapedQuery = str_replace("'", "\\'", $query);
+		$escapedQuery = $this->escapeOQLString($query);
+		$escapedFullName = $this->escapeOQLString($fullName);
 
 		$searchResults = [];
 		$itopUrl = $this->getItopUrl($userId);
@@ -545,7 +545,7 @@ class ItopAPIService {
 		// Also search by ref (ticket ID like R-000001)
 		// Note: Contact relationship search added separately below
 		$userRequestQuery = "SELECT UserRequest WHERE "
-			. "(caller_id_friendlyname = '$fullName' OR agent_id_friendlyname = '$fullName') "
+			. "(caller_id_friendlyname = '$escapedFullName' OR agent_id_friendlyname = '$escapedFullName') "
 			. "AND (title LIKE '%$escapedQuery%' OR description LIKE '%$escapedQuery%' OR ref LIKE '%$escapedQuery%')";
 
 		$userRequestParams = [
@@ -584,7 +584,7 @@ class ItopAPIService {
 		// Also search by ref (ticket ID like I-000006)
 		// Note: Contact relationship search added separately below
 		$incidentQuery = "SELECT Incident WHERE "
-			. "(caller_id_friendlyname = '$fullName' OR agent_id_friendlyname = '$fullName') "
+			. "(caller_id_friendlyname = '$escapedFullName' OR agent_id_friendlyname = '$escapedFullName') "
 			. "AND (title LIKE '%$escapedQuery%' OR description LIKE '%$escapedQuery%' OR ref LIKE '%$escapedQuery%')";
 
 		$incidentParams = [
@@ -789,7 +789,7 @@ class ItopAPIService {
 
 		$searchResults = [];
 		$itopUrl = $this->getItopUrl($userId);
-		$escapedTerm = str_replace("'", "\\'", $term);
+		$escapedTerm = $this->escapeOQLString($term);
 
 		// Get person ID for portal-only filtering
 		$personId = null;
