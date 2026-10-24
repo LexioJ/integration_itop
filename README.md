@@ -2,7 +2,7 @@
 
 🎟️ **Complete iTop ITSM & CMDB Integration** - Seamlessly access tickets, incidents, and Configuration Items from your Nextcloud environment
 
-[![Version](https://img.shields.io/badge/version-1.5.0-blue)](https://github.com/lexioj/integration_itop/releases)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue)](https://github.com/lexioj/integration_itop/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 [![Nextcloud](https://img.shields.io/badge/Nextcloud-32+-blue)](https://nextcloud.com)
 
@@ -425,7 +425,7 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
 
 ---
 
-## 📋 What's New in v1.5.0
+## 📋 What's New in v1.6.0
 
 **Deprecated API Cleanup** 🧹
 
