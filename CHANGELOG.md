@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.0] - 2026-10-24
+
+### 🧹 Deprecated API Cleanup
+
+### ⚠️ Breaking
+- **Minimum Nextcloud version is now 32**: `OCP\Config\IUserConfig` is only available from Nextcloud 32 onwards, so the user preference migration below raises `min-version` from 30 to 32. Nextcloud 30 and 31 are no longer supported
+
+### Changed
+- **Migrated off deprecated `IConfig` value APIs**: `IConfig::get/set/deleteAppValue` has been deprecated since Nextcloud 29 in favour of `IAppConfig`, and the matching user preference methods since Nextcloud 33 in favour of `IUserConfig`. All ~200 call sites now use `IAppConfig::getValueString`/`setValueString`/`deleteKey` and `IUserConfig::getValueString`/`setValueString`/`deleteUserConfig`. `IConfig` is still used for `getSystemValue`, which is not deprecated
+- **String accessors used deliberately**: the typed `getValueInt`/`getValueBool` variants are intentionally not used. Existing values are stored as `VALUE_MIXED`, which reads safely under any getter, but the first typed *write* pins a config key's type permanently — a single missed call site would then raise `AppConfigTypeConflictException` at runtime. The string accessors preserve the previous behaviour exactly and leave typed accessors as a safe per-key follow-up
+- **Notifier registration moved to the bootstrap context**: `IManager::registerNotifierService()` has been deprecated since Nextcloud 22; the notifier is now registered via `IRegistrationContext`, which also removes a service container lookup from the `Application` constructor
+- **Replaced legacy `OC` globals in the settings bundles**: `OC.generateUrl` → `generateUrl` (`@nextcloud/router`), `OC.requestToken` → `getRequestToken()` (`@nextcloud/auth`), `OC.Notification.showTemporary` → `showSuccess`/`showError` (`@nextcloud/dialogs`), and the `window.t` fallback → `translate` (`@nextcloud/l10n`). The request token is now read when each request's headers are built rather than cached at module load, so a rotated token is picked up
+
+---
+
 ## [1.4.3] - 2026-09-26
 
 ### 🔧 Nextcloud 35 Compatibility
