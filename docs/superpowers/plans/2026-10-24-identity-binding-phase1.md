@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Minimum Nextcloud version is **32**; `max-version` is **35**. Do not use APIs newer than 32.
-- Config access uses **`getValueString` / `setValueString` only** — never the typed `getValueInt` / `getValueBool` variants. The first typed write pins a key's type permanently and a later string write raises `AppConfigTypeConflictException`. See CHANGELOG 1.6.0.
+- Config access uses **`getValueString` / `setValueString` only** — never the typed `getValueInt` / `getValueBool` variants. The first typed write pins a key's type permanently and a later string write raises `AppConfigTypeConflictException`. See CHANGELOG 1.5.0.
 - App id constant is `Application::APP_ID` (`'integration_itop'`). Never hard-code the string.
 - `declare(strict_types=1)` is **not** used anywhere in `lib/`. Do not introduce it — it would change coercion behaviour in existing call paths.
 - Constructor dependencies use **promoted properties**, matching every existing service.
@@ -1642,7 +1642,7 @@ not issue personal tokens to them."
 
 - [ ] **Step 1: Add the changelog entry**
 
-In `CHANGELOG.md`, inside the existing `## [1.6.0] - 2026-10-24` section, add a new `### Added` block directly beneath the heading `### 🧹 Deprecated API Cleanup`:
+In `CHANGELOG.md`, inside the existing `## [1.5.0] - 2026-10-24` section, add a new `### Added` block directly beneath the heading `### 🧹 Deprecated API Cleanup`:
 
 ```markdown
 ### Added
@@ -1651,7 +1651,7 @@ In `CHANGELOG.md`, inside the existing `## [1.6.0] - 2026-10-24` section, add a 
 
 - [ ] **Step 2: Add the README release note**
 
-In `README.md`, under `## 📋 What's New in v1.6.0`, add above the existing `### ⚠️ Breaking` block:
+In `README.md`, under `## 📋 What's New in v1.5.0`, add above the existing `### ⚠️ Breaking` block:
 
 ```markdown
 ### Added
@@ -1662,7 +1662,7 @@ In `README.md`, under `## 📋 What's New in v1.6.0`, add above the existing `##
 
 ```bash
 git add CHANGELOG.md README.md
-git commit -m "Document admin-side identity binding in 1.6.0"
+git commit -m "Document admin-side identity binding in 1.5.0"
 ```
 
 ---
