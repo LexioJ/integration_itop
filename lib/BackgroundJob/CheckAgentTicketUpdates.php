@@ -16,6 +16,8 @@ use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\ItopAPIService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IUser;
 use OCP\IUserManager;
@@ -41,6 +43,8 @@ class CheckAgentTicketUpdates extends TimedJob {
 		ITimeFactory $time,
 		private ItopAPIService $itopService,
 		private IUserManager $userManager,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 		private IConfig $config,
 		private INotificationManager $notificationManager,
 		private LoggerInterface $logger,
@@ -59,7 +63,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 		$startTime = microtime(true);
 		
 		// Get admin configured default interval (in seconds)
-		$adminDefaultInterval = (int)$this->config->getAppValue(
+		$adminDefaultInterval = (int)$this->appConfig->getValueString(
 			Application::APP_ID,
 			'default_notification_interval',
 			'60'
@@ -104,31 +108,31 @@ class CheckAgentTicketUpdates extends TimedJob {
 	 */
 	private function shouldCheckUser(string $userId, int $adminDefaultInterval): bool {
 		// Check master toggle
-		$enabled = $this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0') === '1';
+		$enabled = $this->userConfig->getValueString($userId, Application::APP_ID, 'notification_enabled', '0') === '1';
 		if (!$enabled) {
 			return false;
 		}
 
 		// Check person_id configured
-		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+		$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
 		if (empty($personId)) {
 			return false;
 		}
 		
 		// Check if user is portal-only (skip agent notifications for portal-only users)
-		$isPortalOnly = $this->config->getUserValue($userId, Application::APP_ID, 'is_portal_only', '0') === '1';
+		$isPortalOnly = $this->userConfig->getValueString($userId, Application::APP_ID, 'is_portal_only', '0') === '1';
 		if ($isPortalOnly) {
 			return false;
 		}
 		
 		// Check if all agent notifications are disabled
-		$disabledAgent = $this->config->getUserValue($userId, Application::APP_ID, 'disabled_agent_notifications', '');
+		$disabledAgent = $this->userConfig->getValueString($userId, Application::APP_ID, 'disabled_agent_notifications', '');
 		if ($disabledAgent === 'all') {
 			return false;
 		}
 
 		// Get user's custom interval (fallback to admin default)
-		$userInterval = (int)$this->config->getUserValue(
+		$userInterval = (int)$this->userConfig->getValueString(
 			$userId, 
 			Application::APP_ID, 
 			'notification_check_interval', 
@@ -136,7 +140,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 		) * 60; // Convert minutes to seconds
 
 		// Check interval using Unix timestamp
-		$lastCheck = $this->config->getUserValue($userId, Application::APP_ID, 'notification_last_agent_check', '');
+		$lastCheck = $this->userConfig->getValueString($userId, Application::APP_ID, 'notification_last_agent_check', '');
 
 		if (empty($lastCheck)) {
 			return true; // First run
@@ -160,15 +164,15 @@ class CheckAgentTicketUpdates extends TimedJob {
 
 		try {
 			// Get last check Unix timestamp
-			$lastCheckStr = $this->config->getUserValue($userId, Application::APP_ID, 'notification_last_agent_check', '');
+			$lastCheckStr = $this->userConfig->getValueString($userId, Application::APP_ID, 'notification_last_agent_check', '');
 			$lastCheckTimestamp = empty($lastCheckStr) ? (time() - (30 * 24 * 60 * 60)) : (int)$lastCheckStr; // Default 30 days ago
 			
 			// Get effective enabled agent notifications (respects admin config and user preferences)
-			$enabledNotifications = Application::getEffectiveEnabledAgentNotifications($this->config, $userId);
+			$enabledNotifications = Application::getEffectiveEnabledAgentNotifications($this->appConfig, $this->userConfig, $userId);
 			
 			if (empty($enabledNotifications)) {
 				// No notifications enabled, update timestamp and return
-				$this->config->setUserValue($userId, Application::APP_ID, 'notification_last_agent_check', (string)time());
+				$this->userConfig->setValueString($userId, Application::APP_ID, 'notification_last_agent_check', (string)time());
 				return 0;
 			}
 
@@ -248,7 +252,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 			}
 
 			// Update last check timestamp to current Unix timestamp
-			$this->config->setUserValue(
+			$this->userConfig->setValueString(
 				$userId,
 				Application::APP_ID,
 				'notification_last_agent_check',
@@ -279,7 +283,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 		$count = 0;
 		
 		// Get person_id for this user
-		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+		$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
 		if (empty($personId)) {
 			return 0;
 		}
@@ -592,7 +596,7 @@ class CheckAgentTicketUpdates extends TimedJob {
 		$logChanges = $this->itopService->getCaseLogChanges($userId, $ticketIds, $lastCheckTimestamp, ['public_log', 'private_log']);
 
 		// Get user's iTop user_id to filter out self-comments
-		$userItopId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id', '');
+		$userItopId = $this->userConfig->getValueString($userId, Application::APP_ID, 'user_id', '');
 
 		foreach ($logChanges as $change) {
 			// Skip if no user attribution (system entry)

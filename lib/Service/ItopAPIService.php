@@ -21,8 +21,10 @@ use OCA\Itop\AppInfo\Application;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
+use OCP\Config\IUserConfig;
 use OCP\ICache;
 use OCP\ICacheFactory;
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IUser;
@@ -50,6 +52,8 @@ class ItopAPIService {
 		private IUserManager $userManager,
 		private LoggerInterface $logger,
 		private IL10N $l10n,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 		private IConfig $config,
 		private INotificationManager $notificationManager,
 		private ICrypto $crypto,
@@ -61,8 +65,8 @@ class ItopAPIService {
 	}
 
 	public function getItopUrl(string $userId): string {
-		$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url');
-		return $this->config->getUserValue($userId, Application::APP_ID, 'url') ?: $adminItopUrl;
+		$adminItopUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url');
+		return $this->userConfig->getValueString($userId, Application::APP_ID, 'url') ?: $adminItopUrl;
 	}
 
 	/**
@@ -80,7 +84,7 @@ class ItopAPIService {
 		$itopUrl = $this->getItopUrl($userId);
 
 		// Check if user is portal-only (cached by ProfileService)
-		$isPortalOnly = $this->config->getUserValue($userId, Application::APP_ID, 'is_portal_only', '0') === '1';
+		$isPortalOnly = $this->userConfig->getValueString($userId, Application::APP_ID, 'is_portal_only', '0') === '1';
 
 		if ($isPortalOnly) {
 			// Portal user - use portal URL format
@@ -97,7 +101,7 @@ class ItopAPIService {
 	 * @return string|null Decrypted application token or null if not configured
 	 */
 	private function getApplicationToken(): ?string {
-		$encryptedToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+		$encryptedToken = $this->appConfig->getValueString(Application::APP_ID, 'application_token', '');
 
 		if (empty($encryptedToken)) {
 			return null;
@@ -118,7 +122,7 @@ class ItopAPIService {
 	 * @return string|null Person ID or null if not configured
 	 */
 	private function getPersonId(string $userId): ?string {
-		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+		$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
 		return $personId !== '' ? $personId : null;
 	}
 
@@ -203,7 +207,7 @@ class ItopAPIService {
 		$itopUrl = $this->getItopUrl($userId);
 
 	// Get person_id for more precise queries
-	$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+	$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
 
 	// Query UserRequest tickets where user is caller OR contact
 	// Note: ORDER BY in complex queries with subqueries may not work, so we sort in PHP
@@ -443,7 +447,7 @@ class ItopAPIService {
 	 */
 	public function getCurrentUser(string $userId): array {
 		// Check if user has configured their Person ID manually
-		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+		$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
 
 		// If no Person ID configured, try to get it from a UserRequest
 		if (!$personId) {
@@ -784,7 +788,7 @@ class ItopAPIService {
 	public function searchCIs(string $userId, string $term, array $classes = [], bool $isPortalOnly = false, int $limit = 10): array {
 		// Default to effective enabled CI classes (admin-enabled minus user-disabled)
 			if (empty($classes)) {
-				$classes = Application::getEffectiveEnabledCIClasses($this->config, $userId);
+				$classes = Application::getEffectiveEnabledCIClasses($this->appConfig, $this->userConfig, $userId);
 			}
 
 		$searchResults = [];
@@ -1143,7 +1147,7 @@ class ItopAPIService {
 			if ($useCache && !isset($result['error'])) {
 				// Get TTL from config or use default (60 seconds)
 				$defaultTTL = 60;
-				$ttl = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_api_query', $defaultTTL);
+				$ttl = (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_api_query', (string)$defaultTTL);
 				if ($ttl > 0) {
 					// Add timestamp and TTL metadata to cache data for explicit validation
 					$cacheData = array_merge($result, [
@@ -1300,7 +1304,7 @@ class ItopAPIService {
 	 * @return string 'itil' or 'simple'
 	 */
 	public function getEffectiveTicketSystemType(string $userId): string {
-		$configured = $this->config->getAppValue(
+		$configured = $this->appConfig->getValueString(
 			Application::APP_ID,
 			'ticket_system_type',
 			Application::TICKET_SYSTEM_TYPE_ITIL
@@ -1328,7 +1332,7 @@ class ItopAPIService {
 	 */
 	private function detectTicketSystemType(string $userId): string {
 		// Use a cached detection result so we don't probe on every request
-		$cached = $this->config->getAppValue(Application::APP_ID, 'ticket_system_type_detected', '');
+		$cached = $this->appConfig->getValueString(Application::APP_ID, 'ticket_system_type_detected', '');
 		if ($cached === Application::TICKET_SYSTEM_TYPE_ITIL
 			|| $cached === Application::TICKET_SYSTEM_TYPE_SIMPLE) {
 			return $cached;
@@ -1356,7 +1360,7 @@ class ItopAPIService {
 		}
 
 		// Persist the detection so future calls skip the probe
-		$this->config->setAppValue(Application::APP_ID, 'ticket_system_type_detected', $detected);
+		$this->appConfig->setValueString(Application::APP_ID, 'ticket_system_type_detected', $detected);
 
 		$this->logger->info(
 			'Ticket system type auto-detected: ' . $detected,
@@ -1458,10 +1462,10 @@ class ItopAPIService {
 					// In simple mode resolve type via the enum field if configured
 					$type = $class;
 					if ($isSimple) {
-						$typeField = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_type_field', '');
+						$typeField = $this->appConfig->getValueString(Application::APP_ID, 'simple_ticket_type_field', '');
 						if ($typeField !== '') {
 							$enumVal = strtolower($ticket['fields'][$typeField] ?? '');
-							$incidentVal = strtolower($this->config->getAppValue(Application::APP_ID, 'simple_ticket_incident_value', 'incident'));
+							$incidentVal = strtolower($this->appConfig->getValueString(Application::APP_ID, 'simple_ticket_incident_value', 'incident'));
 							$type = ($enumVal === $incidentVal) ? 'Incident' : 'UserRequest';
 						}
 					}
@@ -1530,10 +1534,10 @@ class ItopAPIService {
 
 					$type = $class;
 					if ($isSimple) {
-						$typeField = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_type_field', '');
+						$typeField = $this->appConfig->getValueString(Application::APP_ID, 'simple_ticket_type_field', '');
 						if ($typeField !== '') {
 							$enumVal = strtolower($ticket['fields'][$typeField] ?? '');
-							$incidentVal = strtolower($this->config->getAppValue(Application::APP_ID, 'simple_ticket_incident_value', 'incident'));
+							$incidentVal = strtolower($this->appConfig->getValueString(Application::APP_ID, 'simple_ticket_incident_value', 'incident'));
 							$type = ($enumVal === $incidentVal) ? 'Incident' : 'UserRequest';
 						}
 					}

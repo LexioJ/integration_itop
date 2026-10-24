@@ -16,7 +16,8 @@ use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\ItopAPIService;
 use OCP\Dashboard\IConditionalWidget;
 use OCP\Dashboard\IWidget;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\Util;
@@ -27,7 +28,8 @@ class ItopWidget implements IWidget, IConditionalWidget {
 
 	public function __construct(
 		private IL10N $l10n,
-		private IConfig $config,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 		private IURLGenerator $urlGenerator,
 		private ItopAPIService $itopAPIService,
 		private LoggerInterface $logger,
@@ -48,7 +50,7 @@ class ItopWidget implements IWidget, IConditionalWidget {
 	 */
 	public function getTitle(): string {
 		// Use admin-configured display name (e.g., "ServicePoint") instead of hardcoded "iTop"
-		$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+		$displayName = $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
 		return $displayName;
 	}
 
@@ -89,7 +91,7 @@ class ItopWidget implements IWidget, IConditionalWidget {
 		}
 
 		// Check if user has person_id configured
-		$personId = $this->config->getUserValue($this->userId, Application::APP_ID, 'person_id', '');
+		$personId = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'person_id', '');
 		if ($personId === '') {
 			$this->logger->debug('ItopWidget disabled: person_id not set', [
 				'app' => Application::APP_ID,

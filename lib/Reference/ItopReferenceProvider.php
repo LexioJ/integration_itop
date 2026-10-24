@@ -21,7 +21,8 @@ use OCP\Collaboration\Reference\ADiscoverableReferenceProvider;
 use OCP\Collaboration\Reference\IReference;
 use OCP\Collaboration\Reference\ISearchableReferenceProvider;
 use OCP\Collaboration\Reference\Reference;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 
@@ -33,7 +34,8 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	private const RICH_OBJECT_TYPE_CI = Application::APP_ID . '_ci';
 
 	public function __construct(
-		private IConfig $config,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 		private IL10N $l10n,
 		private IURLGenerator $urlGenerator,
 		private ItopAPIService $itopAPIService,
@@ -57,7 +59,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 */
 	public function getTitle(): string {
 		// Use admin-configured display name, fallback to 'iTop'
-		$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+		$displayName = $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
 		return $displayName . ' tickets and CIs';
 	}
 
@@ -120,8 +122,8 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 */
 	public function matchReference(string $referenceText): bool {
 		if ($this->userId !== null) {
-			$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
-			$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
+			$adminItopUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
+			$userItopUrl = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'url', '');
 			$itopUrl = $userItopUrl ?: $adminItopUrl;
 
 			if ($itopUrl !== '') {
@@ -150,8 +152,8 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			'backtrace' => implode(' <- ', array_slice(array_map(function($t) { return ($t['class'] ?? '') . ($t['type'] ?? '') . ($t['function'] ?? ''); }, debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5)), 0, 5))
 		]);
 		if ($this->matchReference($referenceText) && $this->userId !== null) {
-			$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
-			$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
+			$adminItopUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
+			$userItopUrl = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'url', '');
 			$itopUrl = $userItopUrl ?: $adminItopUrl;
 
 			$parsed = $this->parseItopUrl($referenceText, $itopUrl);
@@ -165,7 +167,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			// Determine if this is a ticket or CI
 			if ($class === 'UserRequest' || $class === 'Incident') {
 				return $this->getTicketReference($id, $class, $referenceText);
-			} elseif (in_array($class, Application::getAllCIClasses($this->config), true)) {
+			} elseif (in_array($class, Application::getAllCIClasses($this->appConfig), true)) {
 				return $this->getCIReference($id, $class, $referenceText);
 			}
 		}
@@ -225,7 +227,7 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 			return [];
 		}
 
-		$accessToken = $this->config->getUserValue($this->userId, Application::APP_ID, 'token');
+		$accessToken = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'token');
 		if ($accessToken === '') {
 			return [];
 		}
@@ -270,8 +272,8 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 				$id = $ci['id'] ?? '';
 
 				// Build iTop URL
-				$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
-				$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
+				$adminItopUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
+				$userItopUrl = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'url', '');
 				$itopUrl = $userItopUrl ?: $adminItopUrl;
 				$url = $itopUrl . '/pages/UI.php?operation=details&class=' . urlencode($class) . '&id=' . urlencode($id);
 
@@ -621,8 +623,8 @@ class ItopReferenceProvider extends ADiscoverableReferenceProvider implements IS
 	 */
 	private function buildTicketReference(array $fields, string $url, string $class = ''): IReference {
 		// Get iTop URL for building links
-		$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
-		$userItopUrl = $this->config->getUserValue($this->userId, Application::APP_ID, 'url', '');
+		$adminItopUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
+		$userItopUrl = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'url', '');
 		$itopUrl = $userItopUrl ?: $adminItopUrl;
 
 		$reference = new Reference($url);

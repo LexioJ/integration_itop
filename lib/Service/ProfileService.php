@@ -13,7 +13,8 @@
 namespace OCA\Itop\Service;
 
 use OCA\Itop\AppInfo\Application;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -28,7 +29,8 @@ class ProfileService {
 	private const PORTAL_PROFILE_NAME = 'Portal user';
 
 	public function __construct(
-		private IConfig $config,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 		private ItopAPIService $itopAPIService,
 		private LoggerInterface $logger,
 	) {
@@ -40,7 +42,7 @@ class ProfileService {
 	 * @return int Cache TTL in seconds (default: 1800 = 30 minutes)
 	 */
 	private function getCacheTTL(): int {
-		return (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_profile', '1800');
+		return (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_profile', '1800');
 	}
 
 	/**
@@ -87,11 +89,11 @@ class ProfileService {
 	 */
 	public function getUserProfiles(string $userId): array {
 		// Get user_id from config (stored during personal token validation)
-		$itopUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id', '');
+		$itopUserId = $this->userConfig->getValueString($userId, Application::APP_ID, 'user_id', '');
 
 		if (empty($itopUserId)) {
 			// Fallback: Try to get via person_id
-			$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+			$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
 
 			if (empty($personId)) {
 				throw new \Exception('User not configured - missing person_id and user_id');
@@ -111,7 +113,7 @@ class ProfileService {
 			}
 
 			// Cache the user_id for future use
-			$this->config->setUserValue($userId, Application::APP_ID, 'user_id', $itopUserId);
+			$this->userConfig->setValueString($userId, Application::APP_ID, 'user_id', $itopUserId);
 		}
 
 		// Query User record to get profile_list
@@ -240,8 +242,8 @@ class ProfileService {
 	 */
 	public function refreshProfiles(string $userId): void {
 		// Delete cached status
-		$this->config->deleteUserValue($userId, Application::APP_ID, 'is_portal_only');
-		$this->config->deleteUserValue($userId, Application::APP_ID, 'profiles_last_check');
+		$this->userConfig->deleteUserConfig($userId, Application::APP_ID, 'is_portal_only');
+		$this->userConfig->deleteUserConfig($userId, Application::APP_ID, 'profiles_last_check');
 
 		$this->logger->info('Profile cache cleared for user', [
 			'app' => Application::APP_ID,
@@ -256,8 +258,8 @@ class ProfileService {
 	 * @return bool|null Cached status or null if not cached/expired
 	 */
 	private function getCachedProfileStatus(string $userId): ?bool {
-		$cachedStatus = $this->config->getUserValue($userId, Application::APP_ID, 'is_portal_only', '');
-		$lastCheck = $this->config->getUserValue($userId, Application::APP_ID, 'profiles_last_check', '');
+		$cachedStatus = $this->userConfig->getValueString($userId, Application::APP_ID, 'is_portal_only', '');
+		$lastCheck = $this->userConfig->getValueString($userId, Application::APP_ID, 'profiles_last_check', '');
 
 		if ($cachedStatus === '' || $lastCheck === '') {
 			return null;
@@ -282,8 +284,8 @@ class ProfileService {
 	 * @return void
 	 */
 	private function cacheProfileStatus(string $userId, bool $isPortalOnly): void {
-		$this->config->setUserValue($userId, Application::APP_ID, 'is_portal_only', $isPortalOnly ? '1' : '0');
-		$this->config->setUserValue($userId, Application::APP_ID, 'profiles_last_check', (string)time());
+		$this->userConfig->setValueString($userId, Application::APP_ID, 'is_portal_only', $isPortalOnly ? '1' : '0');
+		$this->userConfig->setValueString($userId, Application::APP_ID, 'profiles_last_check', (string)time());
 
 		$this->logger->debug('Profile status cached', [
 			'app' => Application::APP_ID,

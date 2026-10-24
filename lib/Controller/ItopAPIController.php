@@ -17,7 +17,7 @@ use OCA\Itop\Service\ItopAPIService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\IConfig;
+use OCP\IAppConfig;
 use OCP\IL10N;
 use OCP\IRequest;
 
@@ -29,7 +29,7 @@ class ItopAPIController extends Controller {
 		string $appName,
 		IRequest $request,
 		private ItopAPIService $itopAPIService,
-		private IConfig $config,
+		private IAppConfig $appConfig,
 		private IL10N $l10n,
 		private LoggerInterface $logger,
 		private ?string $userId
@@ -196,7 +196,7 @@ class ItopAPIController extends Controller {
 			$this->logger->debug('iTop URL: ' . $itopUrl, ['app' => Application::APP_ID]);
 
 			// Get admin-configured display name (e.g., "ServicePoint" instead of "iTop")
-			$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+			$displayName = $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
 
 			$response = [
 				'counts' => $counts,
@@ -260,11 +260,11 @@ class ItopAPIController extends Controller {
 			$itopUrl = $this->itopAPIService->getItopUrl($this->userId);
 
 			// Get admin-configured display name
-			$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+			$displayName = $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
 
 			// Ticket system type (itil / simple) for the Vue widget
 			$ticketSystemType = $this->itopAPIService->getEffectiveTicketSystemType($this->userId);
-			$simpleTypeField = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_type_field', '');
+			$simpleTypeField = $this->appConfig->getValueString(Application::APP_ID, 'simple_ticket_type_field', '');
 
 			// Calculate type-specific counts for detailed breakdown
 			$myIncidents = count(array_filter($myTickets, fn($t) => $t['type'] === 'Incident'));

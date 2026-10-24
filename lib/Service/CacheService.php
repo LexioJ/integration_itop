@@ -15,7 +15,7 @@ namespace OCA\Itop\Service;
 use OCA\Itop\AppInfo\Application;
 use OCP\ICache;
 use OCP\ICacheFactory;
-use OCP\IConfig;
+use OCP\IAppConfig;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -59,7 +59,7 @@ class CacheService {
 	public function __construct(
 		ICacheFactory $cacheFactory,
 		private LoggerInterface $logger,
-		private IConfig $config,
+		private IAppConfig $appConfig,
 	) {
 		// Use distributed cache for multi-server deployments
 		$this->cache = $cacheFactory->createDistributed(Application::APP_ID . '_ci_data');
@@ -71,7 +71,7 @@ class CacheService {
 	 * @return int TTL in seconds
 	 */
 	private function getCIPreviewTTL(): int {
-		return (int)$this->config->getAppValue(
+		return (int)$this->appConfig->getValueString(
 			Application::APP_ID,
 			'cache_ttl_ci_preview',
 			(string)self::DEFAULT_CI_PREVIEW_TTL
@@ -84,7 +84,7 @@ class CacheService {
 	 * @return int TTL in seconds
 	 */
 	private function getTicketInfoTTL(): int {
-		return (int)$this->config->getAppValue(
+		return (int)$this->appConfig->getValueString(
 			Application::APP_ID,
 			'cache_ttl_ticket_info',
 			(string)self::DEFAULT_TICKET_INFO_TTL
@@ -97,7 +97,7 @@ class CacheService {
 	 * @return int TTL in seconds
 	 */
 	private function getSearchTTL(): int {
-		return (int)$this->config->getAppValue(
+		return (int)$this->appConfig->getValueString(
 			Application::APP_ID,
 			'cache_ttl_search',
 			(string)self::DEFAULT_SEARCH_RESULTS_TTL
@@ -110,7 +110,7 @@ class CacheService {
 	 * @return int TTL in seconds
 	 */
 	private function getPickerTTL(): int {
-		return (int)$this->config->getAppValue(
+		return (int)$this->appConfig->getValueString(
 			Application::APP_ID,
 			'cache_ttl_picker',
 			(string)self::DEFAULT_PICKER_TTL

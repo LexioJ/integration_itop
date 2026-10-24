@@ -116,7 +116,7 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/admin-settings2.png</screenshot>
 
    <dependencies>
-		<nextcloud min-version="30" max-version="35" />
+		<nextcloud min-version="32" max-version="35" />
 	</dependencies>
 
 	<background-jobs>

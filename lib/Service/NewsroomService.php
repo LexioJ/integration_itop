@@ -13,6 +13,7 @@
 namespace OCA\Itop\Service;
 
 use OCA\Itop\AppInfo\Application;
+use OCP\Config\IUserConfig;
 use OCP\IConfig;
 use OCP\IUser;
 use OCP\IUserManager;
@@ -33,6 +34,7 @@ class NewsroomService {
 	public function __construct(
 		private ItopAPIService $itopService,
 		private IUserManager $userManager,
+		private IUserConfig $userConfig,
 		private IConfig $config,
 		private INotificationManager $notificationManager,
 		private LoggerInterface $logger,
@@ -93,7 +95,7 @@ class NewsroomService {
 		$nid = (int)$newsroomId;
 
 		// Get person_id for the security OQL filter
-		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+		$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
 		if (empty($personId) || !is_numeric($personId)) {
 			return ['success' => false, 'error' => 'User not configured (missing person_id)'];
 		}
@@ -123,12 +125,12 @@ class NewsroomService {
 	 *  2. newsroom_mirroring_enabled = '1' (opt-in)
 	 */
 	private function shouldProcessUser(string $userId): bool {
-		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+		$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
 		if (empty($personId)) {
 			return false;
 		}
 
-		$enabled = $this->config->getUserValue($userId, Application::APP_ID, 'newsroom_mirroring_enabled', '0');
+		$enabled = $this->userConfig->getValueString($userId, Application::APP_ID, 'newsroom_mirroring_enabled', '0');
 		return $enabled === '1';
 	}
 
@@ -138,13 +140,13 @@ class NewsroomService {
 	 * @return int Number of notifications created for this user
 	 */
 	private function processUser(string $userId): int {
-		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+		$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
 		if (!is_numeric($personId) || (int)$personId <= 0) {
 			return 0;
 		}
 
 		$personIdInt = (int)$personId;
-		$lastId = (int)$this->config->getUserValue($userId, Application::APP_ID, 'last_newsroom_id', '0');
+		$lastId = (int)$this->userConfig->getValueString($userId, Application::APP_ID, 'last_newsroom_id', '0');
 
 		try {
 			$items = $this->itopService->getNewsroomItems($userId, $personIdInt, $lastId);
@@ -171,7 +173,7 @@ class NewsroomService {
 				// a mid-run crash does not cause the same item to be notified twice.
 				if ($item['id'] > $lastId) {
 					$lastId = $item['id'];
-					$this->config->setUserValue($userId, Application::APP_ID, 'last_newsroom_id', (string)$lastId);
+					$this->userConfig->setValueString($userId, Application::APP_ID, 'last_newsroom_id', (string)$lastId);
 				}
 			} catch (\Exception $e) {
 				$this->logger->error('Newsroom: failed to create notification for item {id}', [

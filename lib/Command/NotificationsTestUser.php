@@ -13,7 +13,8 @@
 namespace OCA\Itop\Command;
 
 use OCA\Itop\AppInfo\Application;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -23,7 +24,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 class NotificationsTestUser extends Command {
 
 	public function __construct(
-		private IConfig $config,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 	) {
 		parent::__construct();
 	}
@@ -72,15 +74,15 @@ class NotificationsTestUser extends Command {
 		$output->writeln("<info>Resetting notification timestamps for user: $userId</info>");
 
 		// Reset portal check timestamp (Unix timestamp format)
-		$this->config->deleteUserValue($userId, Application::APP_ID, 'notification_last_portal_check');
+		$this->userConfig->deleteUserConfig($userId, Application::APP_ID, 'notification_last_portal_check');
 		$output->writeln('  ✓ Reset notification_last_portal_check');
 		
 		// Reset agent check timestamp
-		$this->config->deleteUserValue($userId, Application::APP_ID, 'notification_last_agent_check');
+		$this->userConfig->deleteUserConfig($userId, Application::APP_ID, 'notification_last_agent_check');
 		$output->writeln('  ✓ Reset notification_last_agent_check');
 		
 		// Clean up old timestamp format if it exists
-		$this->config->deleteUserValue($userId, Application::APP_ID, 'last_portal_check');
+		$this->userConfig->deleteUserConfig($userId, Application::APP_ID, 'last_portal_check');
 
 		$output->writeln('<info>Done! Next background job run will check all changes since 30 days ago.</info>');
 
@@ -93,10 +95,10 @@ class NotificationsTestUser extends Command {
 		$output->writeln('');
 
 		// Check configuration
-		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
-		$notificationEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0') === '1';
+		$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
+		$notificationEnabled = $this->userConfig->getValueString($userId, Application::APP_ID, 'notification_enabled', '0') === '1';
 		$lastCheckKey = $testAgent ? 'notification_last_agent_check' : 'notification_last_portal_check';
-		$lastCheckStr = $this->config->getUserValue($userId, Application::APP_ID, $lastCheckKey, '');
+		$lastCheckStr = $this->userConfig->getValueString($userId, Application::APP_ID, $lastCheckKey, '');
 
 		if (empty($personId)) {
 			$output->writeln('<error>Error: User has no person_id configured</error>');
@@ -129,13 +131,13 @@ class NotificationsTestUser extends Command {
 		
 		if ($testAgent) {
 			// Check if user is portal-only
-			$isPortalOnly = $this->config->getUserValue($userId, Application::APP_ID, 'is_portal_only', '0') === '1';
+			$isPortalOnly = $this->userConfig->getValueString($userId, Application::APP_ID, 'is_portal_only', '0') === '1';
 			if ($isPortalOnly) {
 				$output->writeln('  <error>User is portal-only (agent notifications not available)</error>');
 				return 1;
 			}
 			
-			$disabledAgentStr = $this->config->getUserValue($userId, Application::APP_ID, 'disabled_agent_notifications', '');
+			$disabledAgentStr = $this->userConfig->getValueString($userId, Application::APP_ID, 'disabled_agent_notifications', '');
 			if ($disabledAgentStr === 'all') {
 				$output->writeln('  <error>All agent notifications disabled</error>');
 			} else {
@@ -154,7 +156,7 @@ class NotificationsTestUser extends Command {
 				$output->writeln('  Comment: ' . (in_array('ticket_comment', $disabledAgent) ? '✗' : '✓'));
 			}
 		} else {
-			$disabledPortalStr = $this->config->getUserValue($userId, Application::APP_ID, 'disabled_portal_notifications', '');
+			$disabledPortalStr = $this->userConfig->getValueString($userId, Application::APP_ID, 'disabled_portal_notifications', '');
 			if ($disabledPortalStr === 'all') {
 				$output->writeln('  <error>All portal notifications disabled</error>');
 			} else {
@@ -171,8 +173,8 @@ class NotificationsTestUser extends Command {
 		}
 
 		// Get admin default interval and user's interval
-		$adminInterval = (int)$this->config->getAppValue(Application::APP_ID, 'default_notification_interval', '60');
-		$userInterval = (int)$this->config->getUserValue($userId, Application::APP_ID, 'notification_check_interval', (string)$adminInterval);
+		$adminInterval = (int)$this->appConfig->getValueString(Application::APP_ID, 'default_notification_interval', '60');
+		$userInterval = (int)$this->userConfig->getValueString($userId, Application::APP_ID, 'notification_check_interval', (string)$adminInterval);
 		$output->writeln('');
 		$output->writeln("Admin default interval: <comment>{$adminInterval} minutes</comment>");
 		$output->writeln("User interval: <comment>{$userInterval} minutes</comment>");
