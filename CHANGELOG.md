@@ -11,8 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🧹 Deprecated API Cleanup
 
+### ⚠️ Breaking
+- **Minimum Nextcloud version is now 32**: `OCP\Config\IUserConfig` is only available from Nextcloud 32 onwards, so the user preference migration below raises `min-version` from 30 to 32. Nextcloud 30 and 31 are no longer supported
+
 ### Added
 - **Admin-side identity binding (`occ itop:bind`)**: administrators can link Nextcloud accounts to their iTop person without those users touching iTop. This is the only route available to portal-only users, because iTop issues personal tokens to back-end users only. Matching is controlled by an admin-configured source attribute (Nextcloud email, user ID or display name) and target (`Person.email`, `Person.employee_number` or `User.login`), and results are graded: `exact` (attribute and name agree) is bindable, `review` (names differ) needs explicit confirmation, `ambiguous` (several candidates) is never guessed, `none` is reported. The command is dry-run by default and requires `--apply` to write; accounts can be excluded from matching entirely. A failing account is reported and skipped rather than aborting the batch, and the command warns when `--limit` leaves accounts unexamined.
+
+### Changed
+- **Migrated off deprecated `IConfig` value APIs**: `IConfig::get/set/deleteAppValue` has been deprecated since Nextcloud 29 in favour of `IAppConfig`, and the matching user preference methods since Nextcloud 33 in favour of `IUserConfig`. All ~200 call sites now use `IAppConfig::getValueString`/`setValueString`/`deleteKey` and `IUserConfig::getValueString`/`setValueString`/`deleteUserConfig`. `IConfig` is still used for `getSystemValue`, which is not deprecated
+- **String accessors used deliberately**: the typed `getValueInt`/`getValueBool` variants are intentionally not used. Existing values are stored as `VALUE_MIXED`, which reads safely under any getter, but the first typed *write* pins a config key's type permanently — a single missed call site would then raise `AppConfigTypeConflictException` at runtime. The string accessors preserve the previous behaviour exactly and leave typed accessors as a safe per-key follow-up
+- **Notifier registration moved to the bootstrap context**: `IManager::registerNotifierService()` has been deprecated since Nextcloud 22; the notifier is now registered via `IRegistrationContext`, which also removes a service container lookup from the `Application` constructor
+- **Replaced legacy `OC` globals in the settings bundles**: `OC.generateUrl` → `generateUrl` (`@nextcloud/router`), `OC.requestToken` → `getRequestToken()` (`@nextcloud/auth`), `OC.Notification.showTemporary` → `showSuccess`/`showError` (`@nextcloud/dialogs`), and the `window.t` fallback → `translate` (`@nextcloud/l10n`). The request token is now read when each request's headers are built rather than cached at module load, so a rotated token is picked up
+
+---
 
 ### Fixed
 - **Portal users with an additional profile were treated as back-end users**: iTop confines a user to the front-end portal as soon as the `Portal user` profile is assigned — the back office stays locked even when a back-end profile such as `Service Desk Agent` is also present. `ProfileService::isPortalOnly()` only reported portal-only when `Portal user` was the *sole* profile, so these users were misclassified. The consequences were that ticket links pointed at `/pages/UI.php` (the back office they cannot open) in widgets, rich previews and notifications; the agent dashboard widget and agent notifications were offered to them; and, because all queries run under the application token, `searchCIs()` and `getCIPreview()` skipped the contact-based scoping that portal users are meant to get and could return Configuration Items beyond the user's entitlement. Detection now keys on the profile being present at all. `Portal power user` is unaffected and still means a back-end user with portal access (typically `Service Desk Agent` + `Portal power user`), since the comparison is exact rather than a substring match
@@ -20,15 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known issue
 - `occ user:setting <uid> integration_itop <key> <value>` now fails with *"conflict between new type (mixed) and old type (string)"* for keys the app has already written. `IUserConfig::setValueString()` pins a key's type, while `occ user:setting` writes an untyped value; `setValueMixed()` is not public API, so this affects any app using `IUserConfig` on Nextcloud 32+. App behaviour is unaffected — only manual administration. Workaround: `occ user:setting <uid> integration_itop <key> --delete` first, then set the value
-
-### ⚠️ Breaking
-- **Minimum Nextcloud version is now 32**: `OCP\Config\IUserConfig` is only available from Nextcloud 32 onwards, so the user preference migration below raises `min-version` from 30 to 32. Nextcloud 30 and 31 are no longer supported
-
-### Changed
-- **Migrated off deprecated `IConfig` value APIs**: `IConfig::get/set/deleteAppValue` has been deprecated since Nextcloud 29 in favour of `IAppConfig`, and the matching user preference methods since Nextcloud 33 in favour of `IUserConfig`. All ~200 call sites now use `IAppConfig::getValueString`/`setValueString`/`deleteKey` and `IUserConfig::getValueString`/`setValueString`/`deleteUserConfig`. `IConfig` is still used for `getSystemValue`, which is not deprecated
-- **String accessors used deliberately**: the typed `getValueInt`/`getValueBool` variants are intentionally not used. Existing values are stored as `VALUE_MIXED`, which reads safely under any getter, but the first typed *write* pins a config key's type permanently — a single missed call site would then raise `AppConfigTypeConflictException` at runtime. The string accessors preserve the previous behaviour exactly and leave typed accessors as a safe per-key follow-up
-- **Notifier registration moved to the bootstrap context**: `IManager::registerNotifierService()` has been deprecated since Nextcloud 22; the notifier is now registered via `IRegistrationContext`, which also removes a service container lookup from the `Application` constructor
-- **Replaced legacy `OC` globals in the settings bundles**: `OC.generateUrl` → `generateUrl` (`@nextcloud/router`), `OC.requestToken` → `getRequestToken()` (`@nextcloud/auth`), `OC.Notification.showTemporary` → `showSuccess`/`showError` (`@nextcloud/dialogs`), and the `window.t` fallback → `translate` (`@nextcloud/l10n`). The request token is now read when each request's headers are built rather than cached at module load, so a rotated token is picked up
 
 ---
 
