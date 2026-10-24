@@ -14,6 +14,7 @@ namespace OCA\Itop\Controller;
 
 use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\ItopAPIService;
+use OCA\Itop\Service\Binding\IdentityBindingService;
 use OCA\Itop\Service\CacheService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
@@ -225,6 +226,13 @@ class ConfigController extends Controller {
 		$userId = $validation['user_id'];
 		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'person_id', $personId);
 		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'user_id', $userId);
+		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'binding_method', IdentityBindingService::METHOD_TOKEN);
+		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'binding_at', (string)time());
+		// This identity may differ from any previously bound one (e.g. an admin-bound
+		// account that later self-binds a different iTop person); drop the old
+		// identity's cached portal verdict so it doesn't leak into the new one.
+		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'is_portal_only');
+		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'profiles_last_check');
 		// Clean up any old token storage (Phase 1 leftover)
 		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'token');
 		$this->logger->info('iTop: Person ID ' . $personId . ' and User ID ' . $userId . ' configured for user ' . $this->userId, ['app' => Application::APP_ID]);
