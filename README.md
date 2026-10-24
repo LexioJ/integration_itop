@@ -432,6 +432,9 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
 ### ⚠️ Breaking
 - **Minimum Nextcloud version is now 32**: `IUserConfig` is only available from Nextcloud 32 onwards, so migrating user preferences off the deprecated API raises `min-version` from 30 to 32 — Nextcloud 30 and 31 are no longer supported
 
+### Added
+- **Admin-side identity binding**: link Nextcloud accounts to iTop people with `occ itop:bind`, without users needing an iTop personal token — the only route available to portal-only users. Dry-run by default; matches are graded exact / review / ambiguous so near-misses are never bound silently
+
 ### Fixed
 - **Portal users with an additional profile were treated as back-end users**: iTop locks a user out of the back office as soon as the `Portal user` profile is assigned, even alongside a profile such as `Service Desk Agent`. These users were previously given back-office ticket links they cannot open, the agent widget and agent notifications, and unscoped CI search results. Detection now keys on the profile being present rather than being the only one. `Portal power user` is unaffected — it still means a back-end user with portal access
 
