@@ -4,11 +4,13 @@
  * Personal settings JavaScript
  */
 
+import { getRequestToken } from '@nextcloud/auth'
+import { showSuccess } from '@nextcloud/dialogs'
+import { translate as t } from '@nextcloud/l10n'
+import { generateUrl } from '@nextcloud/router'
+
 (function() {
 	'use strict'
-
-	// Use Nextcloud's global translation function
-	const t = window.t || function(app, text) { return text }
 
 	document.addEventListener('DOMContentLoaded', function() {
 
@@ -61,10 +63,10 @@
 				return
 			}
 
-			fetch(OC.generateUrl('/apps/integration_itop/user-info'), {
+			fetch(generateUrl('/apps/integration_itop/user-info'), {
 				method: 'GET',
 				headers: {
-					requesttoken: OC.requestToken,
+					requesttoken: getRequestToken(),
 				},
 			})
 				.then(response => response.json())
@@ -141,10 +143,10 @@
 
 			ticketsValue.textContent = 'Loading...'
 
-			fetch(OC.generateUrl('/apps/integration_itop/tickets/count'), {
+			fetch(generateUrl('/apps/integration_itop/tickets/count'), {
 				method: 'GET',
 				headers: {
-					requesttoken: OC.requestToken,
+					requesttoken: getRequestToken(),
 				},
 			})
 				.then(response => response.json())
@@ -227,9 +229,7 @@
 				resultDiv.classList.remove('hidden')
 			} else {
 				// For success, only show Nextcloud notification
-				if (OC.Notification && OC.Notification.showTemporary) {
-					OC.Notification.showTemporary(message + ' ✅')
-				}
+				showSuccess(message)
 
 				// Clear token field after successful validation
 				personalTokenField.value = ''
@@ -339,8 +339,8 @@
 			}
 
 			const req = new XMLHttpRequest()
-			req.open('PUT', OC.generateUrl('/apps/integration_itop/config'))
-			req.setRequestHeader('requesttoken', OC.requestToken)
+			req.open('PUT', generateUrl('/apps/integration_itop/config'))
+			req.setRequestHeader('requesttoken', getRequestToken())
 			req.setRequestHeader('Content-Type', 'application/json')
 
 			req.onreadystatechange = function() {
