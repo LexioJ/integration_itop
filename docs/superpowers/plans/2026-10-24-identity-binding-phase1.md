@@ -17,6 +17,7 @@
 - Constructor dependencies use **promoted properties**, matching every existing service.
 - Services autowire. Only the two dashboard widgets are explicitly registered in `Application::register()`; do **not** add registrations for the classes in this plan.
 - **Tests are local-only and never committed.** `tests/`, `phpunit.xml` and `docs/testing.md` are gitignored. Write the tests, run them, but add only `lib/` files to commits.
+- Mocking an OCP interface in a test needs the `nextcloud/ocp` stubs, which are a `require-dev` dependency pinned to `^32.0` and mapped under **`autoload-dev`** (Nextcloud supplies OCP at runtime, so the stubs must never reach the production autoloader). This is already in place — do not re-add it, and do not downgrade the pin: the v29 stubs lack `OCP\Config\IUserConfig`, which is `@since 32` and is mocked in Task 6.
 - OQL values must be escaped with `ItopAPIService::escapeOQLString()`. OQL **field and class names** must come from an allowlist — escaping does not protect identifiers.
 - The lookup value is always derived server-side from the Nextcloud account. No code in this plan accepts an identity value from a request.
 
