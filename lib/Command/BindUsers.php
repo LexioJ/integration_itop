@@ -52,11 +52,20 @@ class BindUsers extends Command {
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$apply = (bool)$input->getOption('apply');
 		$includeReview = (bool)$input->getOption('include-review');
-		$limit = $input->getOption('limit') !== null ? (int)$input->getOption('limit') : null;
+		$limitOption = $input->getOption('limit');
+		$limit = null;
 
 		if ($includeReview && !$apply) {
 			$output->writeln('<error>--include-review only makes sense together with --apply</error>');
 			return 1;
+		}
+
+		if ($limitOption !== null) {
+			if (!ctype_digit((string)$limitOption) || (int)$limitOption < 1) {
+				$output->writeln(sprintf('<error>--limit must be a positive integer, got "%s"</error>', $limitOption));
+				return 1;
+			}
+			$limit = (int)$limitOption;
 		}
 
 		$output->writeln(sprintf(
@@ -67,6 +76,10 @@ class BindUsers extends Command {
 		));
 
 		$only = $input->getOption('user');
+		if ($only !== null && $this->userManager->get($only) === null) {
+			$output->writeln(sprintf('<error>No such Nextcloud user: %s</error>', $only));
+			return 1;
+		}
 		$users = $this->collectUsers($only);
 
 		if ($only === null) {

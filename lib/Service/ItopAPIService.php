@@ -17,6 +17,7 @@ use Exception;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\ServerException;
+use GuzzleHttp\Exception\TransferException;
 use OCA\Itop\AppInfo\Application;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClient;
@@ -1202,7 +1203,10 @@ class ItopAPIService {
 
 		$accessToken = $this->getApplicationToken();
 		if (!$accessToken) {
-			return ['error' => $this->l10n->t('Application token not configured')];
+			return [
+				'error' => $this->l10n->t('Application token not configured'),
+				'error_detail' => 'Administrator must configure the application token in Admin Settings → iTop Integration'
+			];
 		}
 
 		try {
@@ -1221,11 +1225,28 @@ class ItopAPIService {
 				return ['error' => $this->l10n->t('Invalid JSON response from iTop')];
 			}
 
+			// iTop answers HTTP 200 with {"code":N,"message":"..."} for not-authorised,
+			// unknown-class and malformed-OQL errors, so a successful HTTP response can
+			// still be a failed API call.
+			if (isset($result['code']) && $result['code'] !== 0) {
+				return ['error' => $result['message'] ?? 'iTop returned code ' . $result['code']];
+			}
+
 			return $this->normalizeResponseDates($result);
 		} catch (ServerException|ClientException $e) {
 			$this->logger->warning('iTop app request failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			$response = $e->getResponse();
+			$statusCode = $response->getStatusCode();
+			if ($statusCode === Http::STATUS_UNAUTHORIZED) {
+				return ['error' => $this->l10n->t('Bad credentials'), 'error-code' => $statusCode];
+			} elseif ($statusCode === Http::STATUS_FORBIDDEN) {
+				return ['error' => 'Forbidden'];
+			} elseif ($statusCode === Http::STATUS_NOT_FOUND) {
+				return ['error' => 'Not found'];
+			}
 			return ['error' => $e->getMessage()];
-		} catch (ConnectException $e) {
+		} catch (TransferException $e) {
+			$this->logger->warning('iTop app request failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return ['error' => $e->getMessage()];
 		}
 	}
