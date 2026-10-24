@@ -57,3 +57,6 @@ tests/
 # Environment files
 .env
 .env.local
+
+# Brainstorming companion
+.superpowers/

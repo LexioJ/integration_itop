@@ -13,7 +13,8 @@
 namespace OCA\Itop\Service;
 
 use OCA\Itop\AppInfo\Application;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -28,7 +29,8 @@ class ProfileService {
 	private const PORTAL_PROFILE_NAME = 'Portal user';
 
 	public function __construct(
-		private IConfig $config,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 		private ItopAPIService $itopAPIService,
 		private LoggerInterface $logger,
 	) {
@@ -40,17 +42,25 @@ class ProfileService {
 	 * @return int Cache TTL in seconds (default: 1800 = 30 minutes)
 	 */
 	private function getCacheTTL(): int {
-		return (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_profile', '1800');
+		return (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_profile', '1800');
 	}
 
 	/**
-	 * Check if user has only "Portal user" profile (no additional profiles)
+	 * Check whether the user is confined to the iTop front-end portal
+	 *
+	 * True when the "Portal user" profile is assigned, regardless of any other
+	 * profiles: iTop locks such a user out of the back office even when a back-end
+	 * profile is also present.
+	 *
+	 * "Portal power user" is a different profile and does NOT make a user portal-only.
+	 * It grants portal access to a back-end user, as in 'Service Desk Agent' +
+	 * 'Portal power user'.
 	 *
 	 * Portal-only users have restricted access - they can only see CIs where they are
-	 * listed as a contact. Users with additional profiles get full CMDB access within ACL.
+	 * listed as a contact. Back-end users get full CMDB access within ACL.
 	 *
 	 * @param string $userId Nextcloud user ID
-	 * @return bool True if user has ONLY Portal user profile, false if has additional profiles
+	 * @return bool True if the "Portal user" profile is assigned
 	 * @throws \Exception If profile detection fails
 	 */
 	public function isPortalOnly(string $userId): bool {
@@ -63,19 +73,38 @@ class ProfileService {
 		// Fetch fresh profile data
 		$profiles = $this->getUserProfiles($userId);
 
-		// Normalize for robust comparison
-		$normalized = array_map(static function($p) {
-			return mb_strtolower(trim((string)$p));
-		}, $profiles);
-		$portalName = mb_strtolower(self::PORTAL_PROFILE_NAME);
-
-		// Portal-only = exactly one profile and it matches the portal profile name
-		$isPortalOnly = (count($normalized) === 1 && $normalized[0] === $portalName);
+		$isPortalOnly = self::determinePortalOnly($profiles);
 
 		// Cache the result
 		$this->cacheProfileStatus($userId, $isPortalOnly);
 
 		return $isPortalOnly;
+	}
+
+	/**
+	 * Decide whether a profile list means "confined to the front-end portal"
+	 *
+	 * iTop locks a user out of the back office as soon as the "Portal user" profile
+	 * is assigned, even when a back-end profile such as "Service Desk Agent" is also
+	 * present. So the profile being present decides this, not it being the only one.
+	 *
+	 * The comparison is exact, which matters: "Portal power user" is a different
+	 * profile that grants portal access *to a back-end user* (typically
+	 * "Service Desk Agent" + "Portal power user"). It must not match here, and a
+	 * substring test would wrongly match it.
+	 *
+	 * Pure function of its input, with no API or cache access, so it is directly
+	 * unit-testable.
+	 *
+	 * @param array $profileNames Profile names as returned by iTop
+	 * @return bool True if the "Portal user" profile is assigned
+	 */
+	public static function determinePortalOnly(array $profileNames): bool {
+		$normalized = array_map(static function ($p) {
+			return mb_strtolower(trim((string)$p));
+		}, $profileNames);
+
+		return in_array(mb_strtolower(self::PORTAL_PROFILE_NAME), $normalized, true);
 	}
 
 	/**
@@ -87,11 +116,11 @@ class ProfileService {
 	 */
 	public function getUserProfiles(string $userId): array {
 		// Get user_id from config (stored during personal token validation)
-		$itopUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id', '');
+		$itopUserId = $this->userConfig->getValueString($userId, Application::APP_ID, 'user_id', '');
 
 		if (empty($itopUserId)) {
 			// Fallback: Try to get via person_id
-			$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+			$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
 
 			if (empty($personId)) {
 				throw new \Exception('User not configured - missing person_id and user_id');
@@ -111,7 +140,7 @@ class ProfileService {
 			}
 
 			// Cache the user_id for future use
-			$this->config->setUserValue($userId, Application::APP_ID, 'user_id', $itopUserId);
+			$this->userConfig->setValueString($userId, Application::APP_ID, 'user_id', $itopUserId);
 		}
 
 		// Query User record to get profile_list
@@ -240,8 +269,8 @@ class ProfileService {
 	 */
 	public function refreshProfiles(string $userId): void {
 		// Delete cached status
-		$this->config->deleteUserValue($userId, Application::APP_ID, 'is_portal_only');
-		$this->config->deleteUserValue($userId, Application::APP_ID, 'profiles_last_check');
+		$this->userConfig->deleteUserConfig($userId, Application::APP_ID, 'is_portal_only');
+		$this->userConfig->deleteUserConfig($userId, Application::APP_ID, 'profiles_last_check');
 
 		$this->logger->info('Profile cache cleared for user', [
 			'app' => Application::APP_ID,
@@ -256,8 +285,8 @@ class ProfileService {
 	 * @return bool|null Cached status or null if not cached/expired
 	 */
 	private function getCachedProfileStatus(string $userId): ?bool {
-		$cachedStatus = $this->config->getUserValue($userId, Application::APP_ID, 'is_portal_only', '');
-		$lastCheck = $this->config->getUserValue($userId, Application::APP_ID, 'profiles_last_check', '');
+		$cachedStatus = $this->userConfig->getValueString($userId, Application::APP_ID, 'is_portal_only', '');
+		$lastCheck = $this->userConfig->getValueString($userId, Application::APP_ID, 'profiles_last_check', '');
 
 		if ($cachedStatus === '' || $lastCheck === '') {
 			return null;
@@ -282,8 +311,8 @@ class ProfileService {
 	 * @return void
 	 */
 	private function cacheProfileStatus(string $userId, bool $isPortalOnly): void {
-		$this->config->setUserValue($userId, Application::APP_ID, 'is_portal_only', $isPortalOnly ? '1' : '0');
-		$this->config->setUserValue($userId, Application::APP_ID, 'profiles_last_check', (string)time());
+		$this->userConfig->setValueString($userId, Application::APP_ID, 'is_portal_only', $isPortalOnly ? '1' : '0');
+		$this->userConfig->setValueString($userId, Application::APP_ID, 'profiles_last_check', (string)time());
 
 		$this->logger->debug('Profile status cached', [
 			'app' => Application::APP_ID,

@@ -13,7 +13,8 @@
 namespace OCA\Itop\Notification;
 
 use OCA\Itop\AppInfo\Application;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use OCP\IURLGenerator;
 use OCP\L10N\IFactory;
 use OCP\Notification\INotification;
@@ -25,7 +26,8 @@ class Notifier implements INotifier {
 	public function __construct(
 		private IFactory $factory,
 		private IURLGenerator $url,
-		private IConfig $config,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 	) {
 	}
 
@@ -39,11 +41,11 @@ class Notifier implements INotifier {
 	 * @return string Full ticket URL
 	 */
 	private function buildTicketUrl(string $userId, string $class, string $id): string {
-		$adminItopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url');
-		$itopUrl = $this->config->getUserValue($userId, Application::APP_ID, 'url') ?: $adminItopUrl;
+		$adminItopUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url');
+		$itopUrl = $this->userConfig->getValueString($userId, Application::APP_ID, 'url') ?: $adminItopUrl;
 
 		// Check if user is portal-only
-		$isPortalOnly = $this->config->getUserValue($userId, Application::APP_ID, 'is_portal_only', '0') === '1';
+		$isPortalOnly = $this->userConfig->getValueString($userId, Application::APP_ID, 'is_portal_only', '0') === '1';
 
 		if ($isPortalOnly) {
 			// Portal user - use portal URL format

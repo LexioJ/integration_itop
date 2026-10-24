@@ -24,13 +24,13 @@ use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\Collaboration\Reference\RenderReferenceEvent;
 use OCP\App\IAppManager;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use OCP\IL10N;
 use OCP\INavigationManager;
 
 use OCP\IURLGenerator;
 use OCP\IUserSession;
-use OCP\Notification\IManager as INotificationManager;
 
 class Application extends App implements IBootstrap {
 
@@ -94,8 +94,6 @@ class Application extends App implements IBootstrap {
 	public const TICKET_SYSTEM_TYPE_SIMPLE = 'simple';
 	public const TICKET_SYSTEM_TYPE_AUTO = 'auto';
 
-	private IConfig $config;
-
 	/**
 	 * Get app version from info.xml
 	 *
@@ -110,11 +108,11 @@ class Application extends App implements IBootstrap {
 	 * Get the list of custom CI classes added by the admin
 	 * These are iTop classes not in SUPPORTED_CI_CLASSES (e.g., Monitor, Scanner)
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array List of custom class names
 	 */
-	public static function getCustomCIClasses(IConfig $config): array {
-		$json = $config->getAppValue(self::APP_ID, 'custom_ci_classes', '');
+	public static function getCustomCIClasses(IAppConfig $appConfig): array {
+		$json = $appConfig->getValueString(self::APP_ID, 'custom_ci_classes', '');
 		if ($json === '') {
 			return [];
 		}
@@ -125,11 +123,11 @@ class Application extends App implements IBootstrap {
 	/**
 	 * Get all CI classes: standard built-in classes plus admin-added custom classes
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array Combined list of all CI class names
 	 */
-	public static function getAllCIClasses(IConfig $config): array {
-		return array_merge(self::SUPPORTED_CI_CLASSES, self::getCustomCIClasses($config));
+	public static function getAllCIClasses(IAppConfig $appConfig): array {
+		return array_merge(self::SUPPORTED_CI_CLASSES, self::getCustomCIClasses($appConfig));
 	}
 
 	/**
@@ -137,12 +135,12 @@ class Application extends App implements IBootstrap {
 	 * Returns array mapping class names to their state (disabled/forced/user_choice)
 	 * Covers both standard SUPPORTED_CI_CLASSES and admin-added custom classes.
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array Map of class name => state
 	 */
-	public static function getCIClassConfig(IConfig $config): array {
-		$configJson = $config->getAppValue(self::APP_ID, 'ci_class_config', '');
-		$allClasses = self::getAllCIClasses($config);
+	public static function getCIClassConfig(IAppConfig $appConfig): array {
+		$configJson = $appConfig->getValueString(self::APP_ID, 'ci_class_config', '');
+		$allClasses = self::getAllCIClasses($appConfig);
 
 		if ($configJson === '') {
 			// Default: all classes disabled (opt-in model)
@@ -177,11 +175,11 @@ class Application extends App implements IBootstrap {
 	 * Get list of admin-enabled CI classes (forced + user_choice)
 	 * Includes both standard and custom classes.
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array List of enabled CI class names
 	 */
-	public static function getEnabledCIClasses(IConfig $config): array {
-		$classConfig = self::getCIClassConfig($config);
+	public static function getEnabledCIClasses(IAppConfig $appConfig): array {
+		$classConfig = self::getCIClassConfig($appConfig);
 		$enabled = [];
 
 		foreach ($classConfig as $class => $state) {
@@ -196,11 +194,11 @@ class Application extends App implements IBootstrap {
 	/**
 	 * Get list of classes where users can opt-out
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array List of CI class names with user_choice state
 	 */
-	public static function getUserChoiceCIClasses(IConfig $config): array {
-		$classConfig = self::getCIClassConfig($config);
+	public static function getUserChoiceCIClasses(IAppConfig $appConfig): array {
+		$classConfig = self::getCIClassConfig($appConfig);
 		$userChoice = [];
 
 		foreach ($classConfig as $class => $state) {
@@ -215,11 +213,11 @@ class Application extends App implements IBootstrap {
 	/**
 	 * Get list of forced CI classes (mandatory, user cannot disable)
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array List of CI class names with forced state
 	 */
-	public static function getForcedCIClasses(IConfig $config): array {
-		$classConfig = self::getCIClassConfig($config);
+	public static function getForcedCIClasses(IAppConfig $appConfig): array {
+		$classConfig = self::getCIClassConfig($appConfig);
 		$forced = [];
 
 		foreach ($classConfig as $class => $state) {
@@ -236,17 +234,18 @@ class Application extends App implements IBootstrap {
 	 * Forced classes: always included
 	 * User-choice classes: included unless user disabled them
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
+	 * @param IUserConfig $userConfig User config service
 	 * @param string $userId Nextcloud user ID
 	 * @return array List of effective enabled CI class names for this user
 	 */
-	public static function getEffectiveEnabledCIClasses(IConfig $config, string $userId): array {
-		$classConfig = self::getCIClassConfig($config);
-		$allClasses = self::getAllCIClasses($config);
+	public static function getEffectiveEnabledCIClasses(IAppConfig $appConfig, IUserConfig $userConfig, string $userId): array {
+		$classConfig = self::getCIClassConfig($appConfig);
+		$allClasses = self::getAllCIClasses($appConfig);
 		$effective = [];
 
 		// Get user-disabled classes
-		$userDisabledJson = $config->getUserValue($userId, self::APP_ID, 'disabled_ci_classes', '');
+		$userDisabledJson = $userConfig->getValueString($userId, self::APP_ID, 'disabled_ci_classes', '');
 		$userDisabled = [];
 		if ($userDisabledJson !== '') {
 			$userDisabled = json_decode($userDisabledJson, true);
@@ -279,11 +278,11 @@ class Application extends App implements IBootstrap {
 	 * Get portal notification configuration from admin settings
 	 * Returns array mapping notification types to their state (disabled/forced/user_choice)
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array Map of notification type => state
 	 */
-	public static function getPortalNotificationConfig(IConfig $config): array {
-		$configJson = $config->getAppValue(self::APP_ID, 'portal_notification_config', '');
+	public static function getPortalNotificationConfig(IAppConfig $appConfig): array {
+		$configJson = $appConfig->getValueString(self::APP_ID, 'portal_notification_config', '');
 
 		if ($configJson === '') {
 			// Default: all types enabled as user_choice
@@ -318,11 +317,11 @@ class Application extends App implements IBootstrap {
 	 * Get agent notification configuration from admin settings
 	 * Returns array mapping notification types to their state (disabled/forced/user_choice)
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array Map of notification type => state
 	 */
-	public static function getAgentNotificationConfig(IConfig $config): array {
-		$configJson = $config->getAppValue(self::APP_ID, 'agent_notification_config', '');
+	public static function getAgentNotificationConfig(IAppConfig $appConfig): array {
+		$configJson = $appConfig->getValueString(self::APP_ID, 'agent_notification_config', '');
 
 		if ($configJson === '') {
 			// Default: most types user_choice, SLA breach/critical forced
@@ -368,11 +367,11 @@ class Application extends App implements IBootstrap {
 	/**
 	 * Get list of portal notification types where users can opt-out
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array List of notification types with user_choice state
 	 */
-	public static function getUserChoicePortalNotifications(IConfig $config): array {
-		$notificationConfig = self::getPortalNotificationConfig($config);
+	public static function getUserChoicePortalNotifications(IAppConfig $appConfig): array {
+		$notificationConfig = self::getPortalNotificationConfig($appConfig);
 		$userChoice = [];
 
 		foreach ($notificationConfig as $type => $state) {
@@ -387,11 +386,11 @@ class Application extends App implements IBootstrap {
 	/**
 	 * Get list of agent notification types where users can opt-out
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array List of notification types with user_choice state
 	 */
-	public static function getUserChoiceAgentNotifications(IConfig $config): array {
-		$notificationConfig = self::getAgentNotificationConfig($config);
+	public static function getUserChoiceAgentNotifications(IAppConfig $appConfig): array {
+		$notificationConfig = self::getAgentNotificationConfig($appConfig);
 		$userChoice = [];
 
 		foreach ($notificationConfig as $type => $state) {
@@ -406,11 +405,11 @@ class Application extends App implements IBootstrap {
 	/**
 	 * Get list of forced (mandatory) portal notifications
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array List of notification types with forced state
 	 */
-	public static function getForcedPortalNotifications(IConfig $config): array {
-		$notificationConfig = self::getPortalNotificationConfig($config);
+	public static function getForcedPortalNotifications(IAppConfig $appConfig): array {
+		$notificationConfig = self::getPortalNotificationConfig($appConfig);
 		$forced = [];
 
 		foreach ($notificationConfig as $type => $state) {
@@ -425,11 +424,11 @@ class Application extends App implements IBootstrap {
 	/**
 	 * Get list of forced (mandatory) agent notifications
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
 	 * @return array List of notification types with forced state
 	 */
-	public static function getForcedAgentNotifications(IConfig $config): array {
-		$notificationConfig = self::getAgentNotificationConfig($config);
+	public static function getForcedAgentNotifications(IAppConfig $appConfig): array {
+		$notificationConfig = self::getAgentNotificationConfig($appConfig);
 		$forced = [];
 
 		foreach ($notificationConfig as $type => $state) {
@@ -446,21 +445,22 @@ class Application extends App implements IBootstrap {
 	 * Forced notifications: always included
 	 * User-choice notifications: included unless user disabled them
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
+	 * @param IUserConfig $userConfig User config service
 	 * @param string $userId Nextcloud user ID
 	 * @return array List of effective enabled notification types for this user
 	 */
-	public static function getEffectiveEnabledPortalNotifications(IConfig $config, string $userId): array {
-		$notificationConfig = self::getPortalNotificationConfig($config);
+	public static function getEffectiveEnabledPortalNotifications(IAppConfig $appConfig, IUserConfig $userConfig, string $userId): array {
+		$notificationConfig = self::getPortalNotificationConfig($appConfig);
 		$effective = [];
 
 		// Get user-disabled notifications
-		$userDisabledJson = $config->getUserValue($userId, self::APP_ID, 'disabled_portal_notifications', '');
+		$userDisabledJson = $userConfig->getValueString($userId, self::APP_ID, 'disabled_portal_notifications', '');
 		
 		// Check for master toggle off
 		if ($userDisabledJson === 'all') {
 			// Only forced notifications are active
-			return self::getForcedPortalNotifications($config);
+			return self::getForcedPortalNotifications($appConfig);
 		}
 		
 		$userDisabled = [];
@@ -492,21 +492,22 @@ class Application extends App implements IBootstrap {
 	 * Forced notifications: always included
 	 * User-choice notifications: included unless user disabled them
 	 *
-	 * @param IConfig $config Nextcloud config service
+	 * @param IAppConfig $appConfig App config service
+	 * @param IUserConfig $userConfig User config service
 	 * @param string $userId Nextcloud user ID
 	 * @return array List of effective enabled notification types for this user
 	 */
-	public static function getEffectiveEnabledAgentNotifications(IConfig $config, string $userId): array {
-		$notificationConfig = self::getAgentNotificationConfig($config);
+	public static function getEffectiveEnabledAgentNotifications(IAppConfig $appConfig, IUserConfig $userConfig, string $userId): array {
+		$notificationConfig = self::getAgentNotificationConfig($appConfig);
 		$effective = [];
 
 		// Get user-disabled notifications
-		$userDisabledJson = $config->getUserValue($userId, self::APP_ID, 'disabled_agent_notifications', '');
+		$userDisabledJson = $userConfig->getValueString($userId, self::APP_ID, 'disabled_agent_notifications', '');
 		
 		// Check for master toggle off
 		if ($userDisabledJson === 'all') {
 			// Only forced notifications are active
-			return self::getForcedAgentNotifications($config);
+			return self::getForcedAgentNotifications($appConfig);
 		}
 		
 		$userDisabled = [];
@@ -535,20 +536,17 @@ class Application extends App implements IBootstrap {
 
 	public function __construct(array $urlParams = []) {
 		parent::__construct(self::APP_ID, $urlParams);
-
-		$container = $this->getContainer();
-		$this->config = $container->get(IConfig::class);
-
-		$manager = $container->get(INotificationManager::class);
-		$manager->registerNotifierService(Notifier::class);
 	}
 
 	public function register(IRegistrationContext $context): void {
+		$context->registerNotifierService(Notifier::class);
+
 		// Register dashboard widgets with proper IL10N from app container
 		$context->registerService(ItopWidget::class, function ($c) {
 			return new ItopWidget(
 				$c->get(IL10N::class),
-				$c->get(IConfig::class),
+				$c->get(IAppConfig::class),
+				$c->get(IUserConfig::class),
 				$c->get(IURLGenerator::class),
 				$c->get(\OCA\Itop\Service\ItopAPIService::class),
 				$c->get(\Psr\Log\LoggerInterface::class),
@@ -558,7 +556,8 @@ class Application extends App implements IBootstrap {
 		$context->registerService(ItopAgentWidget::class, function ($c) {
 			return new ItopAgentWidget(
 				$c->get(IL10N::class),
-				$c->get(IConfig::class),
+				$c->get(IAppConfig::class),
+				$c->get(IUserConfig::class),
 				$c->get(IURLGenerator::class),
 				$c->get(\OCA\Itop\Service\ItopAPIService::class),
 				$c->get(\OCA\Itop\Service\ProfileService::class),
@@ -566,7 +565,7 @@ class Application extends App implements IBootstrap {
 				$c->get('userId')
 			);
 		});
-		
+
 		$context->registerDashboardWidget(ItopWidget::class);
 		$context->registerDashboardWidget(ItopAgentWidget::class);
 		$context->registerSearchProvider(ItopSearchProvider::class);
@@ -579,14 +578,14 @@ class Application extends App implements IBootstrap {
 		$context->injectFn(Closure::fromCallable([$this, 'registerNavigation']));
 	}
 
-	public function registerNavigation(IUserSession $userSession): void {
+	public function registerNavigation(IUserSession $userSession, IUserConfig $userConfig): void {
 		$user = $userSession->getUser();
 		if ($user !== null) {
 			$userId = $user->getUID();
 			$container = $this->getContainer();
 
-			if ($this->config->getUserValue($userId, self::APP_ID, 'navigation_enabled', '0') === '1') {
-				$itopUrl = $this->config->getUserValue($userId, self::APP_ID, 'url', '');
+			if ($userConfig->getValueString($userId, self::APP_ID, 'navigation_enabled', '0') === '1') {
+				$itopUrl = $userConfig->getValueString($userId, self::APP_ID, 'url', '');
 				if ($itopUrl !== '') {
 					$container->get(INavigationManager::class)->add(function () use ($container, $itopUrl) {
 						$urlGenerator = $container->get(IURLGenerator::class);

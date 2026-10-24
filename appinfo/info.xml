@@ -86,13 +86,13 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 
 ### 🔧 Technical Requirements
 - **iTop Server**: Version 3.0 or higher with REST API enabled
-- **Nextcloud**: Version 30.0 or higher
+- **Nextcloud**: Version 32.0 or higher
 - **PHP**: 8.1 or higher
 - **Optional**: [iTop Portal Personal Tokens Extension](https://github.com/LexioJ/itop-portal-personal-tokens) for enhanced Portal user support
 
 #### Start streamlining your ITSM workflow - Connect iTop with Nextcloud and experience unified IT service management!]]></description>
 
-	<version>1.4.3</version>
+	<version>1.6.0</version>
 	<licence>AGPL-3.0-or-later</licence>
 
 	<author>iTop Integration Team</author>
@@ -116,7 +116,7 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 	<screenshot>https://raw.githubusercontent.com/lexioj/integration_itop/main/docs/images/admin-settings2.png</screenshot>
 
    <dependencies>
-		<nextcloud min-version="30" max-version="35" />
+		<nextcloud min-version="32" max-version="35" />
 	</dependencies>
 
 	<background-jobs>
@@ -124,6 +124,12 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 		<job>OCA\Itop\BackgroundJob\CheckAgentTicketUpdates</job>
 		<job>OCA\Itop\BackgroundJob\NewsroomPollJob</job>
 	</background-jobs>
+
+	<repair-steps>
+		<post-migration>
+			<step>OCA\Itop\Migration\ClearProfileCache</step>
+		</post-migration>
+	</repair-steps>
 
 	<commands>
 		<command>OCA\Itop\Command\NotificationsTestUser</command>

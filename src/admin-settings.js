@@ -5,11 +5,13 @@
  * Handles events and dynamic updates for server-rendered HTML
  */
 
+import { getRequestToken } from '@nextcloud/auth'
+import { showError, showSuccess } from '@nextcloud/dialogs'
+import { translate as t } from '@nextcloud/l10n'
+import { generateUrl } from '@nextcloud/router'
+
 (function() {
 	'use strict'
-
-	// Translation function (will return English since OC.L10N._bundles is empty, but keeping for consistency)
-	const t = window.t || function(app, text) { return text }
 
 	// Wait for DOM to be ready
 	document.addEventListener('DOMContentLoaded', function() {
@@ -244,10 +246,10 @@
 	 *
 	 */
 	function loadConnectedUsersCount() {
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config'), {
+		fetch(generateUrl('/apps/integration_itop/admin-config'), {
 			method: 'GET',
 			headers: {
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 			},
 		})
 			.then(response => response.json())
@@ -313,11 +315,11 @@
 			requestData.values.application_token = token
 		}
 
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config'), {
+		fetch(generateUrl('/apps/integration_itop/admin-config'), {
 			method: 'PUT',
 			headers: {
 				'Content-Type': 'application/json',
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 			},
 			body: JSON.stringify(requestData),
 		})
@@ -395,11 +397,11 @@
 		statusElement.textContent = textTesting
 		if (statusCard) statusCard.className = 'status-card connection-status testing'
 
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config/test'), {
+		fetch(generateUrl('/apps/integration_itop/admin-config/test'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 			},
 			body: JSON.stringify({ url: currentUrl }),
 		})
@@ -448,11 +450,11 @@
 		const originalText = testButton.innerHTML
 		testButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Testing...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config/test-token'), {
+		fetch(generateUrl('/apps/integration_itop/admin-config/test-token'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 			},
 			body: JSON.stringify({ token }),
 		})
@@ -485,11 +487,11 @@
 		const originalText = saveButton.innerHTML
 		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/notification-settings'), {
+		fetch(generateUrl('/apps/integration_itop/notification-settings'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 			},
 			body: JSON.stringify({ portalInterval }),
 		})
@@ -541,11 +543,11 @@
 		const originalText = saveButton.innerHTML
 		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/notification-config'), {
+		fetch(generateUrl('/apps/integration_itop/notification-config'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 			},
 			body: JSON.stringify({
 				defaultInterval,
@@ -587,11 +589,11 @@
 		const originalText = saveButton.innerHTML
 		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/admin-config'), {
+		fetch(generateUrl('/apps/integration_itop/admin-config'), {
 			method: 'PUT',
 			headers: {
 				'Content-Type': 'application/json',
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 			},
 			body: JSON.stringify({ values }),
 		})
@@ -625,10 +627,10 @@
 		const originalText = clearButton.innerHTML
 		clearButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Clearing...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/clear-cache'), {
+		fetch(generateUrl('/apps/integration_itop/clear-cache'), {
 			method: 'DELETE',
 			headers: {
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 			},
 		})
 			.then(response => response.json())
@@ -665,11 +667,11 @@
 		const originalText = saveButton.innerHTML
 		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/ci-class-config'), {
+		fetch(generateUrl('/apps/integration_itop/ci-class-config'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 			},
 			body: JSON.stringify({ classConfig: config }),
 		})
@@ -768,10 +770,10 @@
 	 */
 	function checkAppVersion(currentVersion) {
 
-		fetch(OC.generateUrl('/apps/integration_itop/version-check'), {
+		fetch(generateUrl('/apps/integration_itop/version-check'), {
 			method: 'GET',
 			headers: {
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 			},
 		})
 			.then(response => response.json())
@@ -819,11 +821,11 @@
 		const originalText = saveButton.innerHTML
 		saveButton.innerHTML = '<span class="btn-icon">⏳</span> ' + t('integration_itop', 'Saving...')
 
-		fetch(OC.generateUrl('/apps/integration_itop/ticket-system-type'), {
+		fetch(generateUrl('/apps/integration_itop/ticket-system-type'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 			},
 			body: JSON.stringify({
 				ticketSystemType,
@@ -855,8 +857,10 @@
 	 * @param {boolean} isError - Whether this is an error message
 	 */
 	function showNotification(message, isError) {
-		if (OC.Notification && OC.Notification.showTemporary) {
-			OC.Notification.showTemporary(message + (isError ? ' ❌' : ' ✅'))
+		if (isError) {
+			showError(message)
+		} else {
+			showSuccess(message)
 		}
 	}
 
@@ -879,7 +883,7 @@
 	 * @return {string}
 	 */
 	function getCustomClassIconUrl(className) {
-		return OC.generateUrl('/apps/integration_itop/ci-class-icon/' + encodeURIComponent(className))
+		return generateUrl('/apps/integration_itop/ci-class-icon/' + encodeURIComponent(className))
 	}
 
 	/**
@@ -904,7 +908,7 @@
 				.then(content => fetch(getCustomClassIconUrl(className), {
 					method: 'POST',
 					headers: {
-						requesttoken: OC.requestToken,
+						requesttoken: getRequestToken(),
 						'Content-Type': isPng ? 'image/png' : 'image/svg+xml',
 					},
 					body: content,
@@ -942,9 +946,9 @@
 		const browser = document.getElementById('itop-class-browser')
 		if (browser) browser.style.display = 'none'
 
-		fetch(OC.generateUrl('/apps/integration_itop/ci-class-available'), {
+		fetch(generateUrl('/apps/integration_itop/ci-class-available'), {
 			method: 'GET',
-			headers: { requesttoken: OC.requestToken },
+			headers: { requesttoken: getRequestToken() },
 		})
 			.then(r => r.json())
 			.then(data => {
@@ -1020,10 +1024,10 @@
 		const allCustom = [...new Set([...existingRows, ...newClasses])]
 
 		// 4. POST the custom class list
-		fetch(OC.generateUrl('/apps/integration_itop/ci-class-custom'), {
+		fetch(generateUrl('/apps/integration_itop/ci-class-custom'), {
 			method: 'POST',
 			headers: {
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 				'Content-Type': 'application/json',
 			},
 			body: JSON.stringify({ customClasses: allCustom }),
@@ -1092,10 +1096,10 @@
 					}
 				})
 
-				return fetch(OC.generateUrl('/apps/integration_itop/ci-class-config'), {
+				return fetch(generateUrl('/apps/integration_itop/ci-class-config'), {
 					method: 'POST',
 					headers: {
-						requesttoken: OC.requestToken,
+						requesttoken: getRequestToken(),
 						'Content-Type': 'application/json',
 					},
 					body: JSON.stringify({ classConfig }),
@@ -1190,10 +1194,10 @@
 		const originalHtml = buttonEl.innerHTML
 		buttonEl.innerHTML = '⏳'
 
-		fetch(OC.generateUrl('/apps/integration_itop/ci-class-custom'), {
+		fetch(generateUrl('/apps/integration_itop/ci-class-custom'), {
 			method: 'POST',
 			headers: {
-				requesttoken: OC.requestToken,
+				requesttoken: getRequestToken(),
 				'Content-Type': 'application/json',
 			},
 			body: JSON.stringify({ customClasses: remainingCustom }),
@@ -1204,10 +1208,10 @@
 					throw new Error(data.error)
 				}
 
-				return fetch(OC.generateUrl('/apps/integration_itop/ci-class-config'), {
+				return fetch(generateUrl('/apps/integration_itop/ci-class-config'), {
 					method: 'POST',
 					headers: {
-						requesttoken: OC.requestToken,
+						requesttoken: getRequestToken(),
 						'Content-Type': 'application/json',
 					},
 					body: JSON.stringify({ classConfig }),

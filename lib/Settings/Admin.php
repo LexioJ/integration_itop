@@ -16,7 +16,7 @@ use OCA\Itop\AppInfo\Application;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\Files\AppData\IAppDataFactory;
-use OCP\IConfig;
+use OCP\IAppConfig;
 use OCP\IL10N;
 use OCP\Settings\ISettings;
 use Psr\Log\LoggerInterface;
@@ -24,7 +24,7 @@ use Psr\Log\LoggerInterface;
 class Admin implements ISettings {
 
 	public function __construct(
-		private IConfig $config,
+		private IAppConfig $appConfig,
 		private IL10N $l10n,
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
@@ -39,28 +39,28 @@ class Admin implements ISettings {
 	public function getForm(): TemplateResponse {
 		$this->logger->info('iTop Admin getForm() called', ['app' => Application::APP_ID]);
 
-		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
-		$userFacingName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
-		$hasApplicationToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '') !== '';
+		$adminInstanceUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
+		$userFacingName = $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
+		$hasApplicationToken = $this->appConfig->getValueString(Application::APP_ID, 'application_token', '') !== '';
 		$this->logger->info('iTop Admin current config values - URL: ' . $adminInstanceUrl . ', Name: ' . $userFacingName . ', Has Token: ' . ($hasApplicationToken ? 'yes' : 'no'), ['app' => Application::APP_ID]);
 
 		// Get notification configuration (default: 15 minutes)
-		$defaultNotificationInterval = (int)$this->config->getAppValue(Application::APP_ID, 'default_notification_interval', '15');
+		$defaultNotificationInterval = (int)$this->appConfig->getValueString(Application::APP_ID, 'default_notification_interval', '15');
 		
 		// Get 3-state notification configurations
-		$portalNotificationConfig = Application::getPortalNotificationConfig($this->config);
-		$agentNotificationConfig = Application::getAgentNotificationConfig($this->config);
+		$portalNotificationConfig = Application::getPortalNotificationConfig($this->appConfig);
+		$agentNotificationConfig = Application::getAgentNotificationConfig($this->appConfig);
 
 		// Get cache TTL values (with defaults matching CacheService)
-		$cacheTtlCiPreview = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ci_preview', '60');
-		$cacheTtlTicketInfo = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ticket_info', '60');
-		$cacheTtlSearch = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_search', '30');
-		$cacheTtlPicker = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_picker', '60');
-		$cacheTtlProfile = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_profile', '1800');
+		$cacheTtlCiPreview = (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_ci_preview', '60');
+		$cacheTtlTicketInfo = (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_ticket_info', '60');
+		$cacheTtlSearch = (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_search', '30');
+		$cacheTtlPicker = (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_picker', '60');
+		$cacheTtlProfile = (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_profile', '1800');
 
 		// Get 3-state CI class configuration (standard + custom classes)
-		$ciClassConfig = Application::getCIClassConfig($this->config);
-		$customCIClasses = Application::getCustomCIClasses($this->config);
+		$ciClassConfig = Application::getCIClassConfig($this->appConfig);
+		$customCIClasses = Application::getCustomCIClasses($this->appConfig);
 
 		// Custom classes whose icon auto-discovery recently failed (negative cache
 		// written by ConfigController::warmupCustomClassIcons) — used to surface a
@@ -77,11 +77,11 @@ class Admin implements ISettings {
 		}
 
 		// Get ticket system type configuration
-		$ticketSystemType = $this->config->getAppValue(Application::APP_ID, 'ticket_system_type', Application::TICKET_SYSTEM_TYPE_ITIL);
-		$simpleTicketTypeField = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_type_field', '');
-		$simpleTicketIncidentValue = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_incident_value', 'incident');
-		$simpleTicketRequestValue = $this->config->getAppValue(Application::APP_ID, 'simple_ticket_request_value', 'service_request');
-		$ticketSystemTypeDetected = $this->config->getAppValue(Application::APP_ID, 'ticket_system_type_detected', '');
+		$ticketSystemType = $this->appConfig->getValueString(Application::APP_ID, 'ticket_system_type', Application::TICKET_SYSTEM_TYPE_ITIL);
+		$simpleTicketTypeField = $this->appConfig->getValueString(Application::APP_ID, 'simple_ticket_type_field', '');
+		$simpleTicketIncidentValue = $this->appConfig->getValueString(Application::APP_ID, 'simple_ticket_incident_value', 'incident');
+		$simpleTicketRequestValue = $this->appConfig->getValueString(Application::APP_ID, 'simple_ticket_request_value', 'service_request');
+		$ticketSystemTypeDetected = $this->appConfig->getValueString(Application::APP_ID, 'ticket_system_type_detected', '');
 
 		$parameters = [
 			'admin_instance_url' => $adminInstanceUrl,

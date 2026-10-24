@@ -15,7 +15,8 @@ namespace OCA\Itop\Settings;
 use OCA\Itop\AppInfo\Application;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use OCP\IL10N;
 use OCP\Settings\ISettings;
 use OCP\Security\ICrypto;
@@ -23,7 +24,8 @@ use OCP\Security\ICrypto;
 class Personal implements ISettings {
 
 	public function __construct(
-		private IConfig $config,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 		private IL10N $l10n,
 		private ICrypto $crypto,
 		private ?string $userId,
@@ -40,32 +42,32 @@ class Personal implements ISettings {
 		}
 
 		// Check if user has configured their Person ID
-		$personId = $this->config->getUserValue($this->userId, Application::APP_ID, 'person_id', '');
+		$personId = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'person_id', '');
 		$personIdConfigured = $personId !== '';
 
-		$navigationEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'navigation_enabled', '0') === '1';
-		$notificationEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'notification_enabled', '0') === '1';
-		$searchEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'search_enabled', '1') === '1'; // Default: enabled (opt-out)
-		$newsroomMirroringEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'newsroom_mirroring_enabled', '0') === '1'; // Default: disabled (opt-in)
+		$navigationEnabled = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'navigation_enabled', '0') === '1';
+		$notificationEnabled = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'notification_enabled', '0') === '1';
+		$searchEnabled = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'search_enabled', '1') === '1'; // Default: enabled (opt-out)
+		$newsroomMirroringEnabled = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'newsroom_mirroring_enabled', '0') === '1'; // Default: disabled (opt-in)
 		
 		// Get portal notification preferences (default: enabled)
-		$notifyTicketStatusChanged = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_ticket_status_changed', '1') === '1';
-		$notifyAgentResponded = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_agent_responded', '1') === '1';
-		$notifyTicketResolved = $this->config->getUserValue($this->userId, Application::APP_ID, 'notify_ticket_resolved', '1') === '1';
+		$notifyTicketStatusChanged = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'notify_ticket_status_changed', '1') === '1';
+		$notifyAgentResponded = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'notify_agent_responded', '1') === '1';
+		$notifyTicketResolved = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'notify_ticket_resolved', '1') === '1';
 
 		// Get admin-configured display name and URL
-		$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
-		$adminUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		$displayName = $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
+		$adminUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
 
 		// Check if admin has configured application token
-		$hasApplicationToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '') !== '';
+		$hasApplicationToken = $this->appConfig->getValueString(Application::APP_ID, 'application_token', '') !== '';
 		
 		// Get CI classes that users can configure (user_choice state)
-		$userChoiceCIClasses = Application::getUserChoiceCIClasses($this->config);
-		$forcedCIClasses = Application::getForcedCIClasses($this->config);
+		$userChoiceCIClasses = Application::getUserChoiceCIClasses($this->appConfig);
+		$forcedCIClasses = Application::getForcedCIClasses($this->appConfig);
 		
 		// Get user's disabled CI classes
-		$userDisabledJson = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
+		$userDisabledJson = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
 		$userDisabledClasses = [];
 		if ($userDisabledJson !== '') {
 			$userDisabledClasses = json_decode($userDisabledJson, true);
@@ -75,14 +77,14 @@ class Personal implements ISettings {
 		}
 		
 		// Get notification configuration (3-state system)
-		$userChoicePortalNotifications = Application::getUserChoicePortalNotifications($this->config);
-		$userChoiceAgentNotifications = Application::getUserChoiceAgentNotifications($this->config);
-		$forcedPortalNotifications = Application::getForcedPortalNotifications($this->config);
-		$forcedAgentNotifications = Application::getForcedAgentNotifications($this->config);
+		$userChoicePortalNotifications = Application::getUserChoicePortalNotifications($this->appConfig);
+		$userChoiceAgentNotifications = Application::getUserChoiceAgentNotifications($this->appConfig);
+		$forcedPortalNotifications = Application::getForcedPortalNotifications($this->appConfig);
+		$forcedAgentNotifications = Application::getForcedAgentNotifications($this->appConfig);
 		
 		// Get user's disabled notifications
-		$userDisabledPortalNotifications = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications', '');
-		$userDisabledAgentNotifications = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications', '');
+		$userDisabledPortalNotifications = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'disabled_portal_notifications', '');
+		$userDisabledAgentNotifications = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'disabled_agent_notifications', '');
 		
 		// Parse disabled notification arrays
 		$disabledPortalArray = [];
@@ -106,8 +108,8 @@ class Personal implements ISettings {
 		}
 		
 		// Get user's notification check interval (fallback to admin default)
-		$adminDefaultInterval = (int)$this->config->getAppValue(Application::APP_ID, 'default_notification_interval', '60');
-		$userNotificationInterval = (int)$this->config->getUserValue($this->userId, Application::APP_ID, 'notification_check_interval', (string)$adminDefaultInterval);
+		$adminDefaultInterval = (int)$this->appConfig->getValueString(Application::APP_ID, 'default_notification_interval', '60');
+		$userNotificationInterval = (int)$this->userConfig->getValueString($this->userId, Application::APP_ID, 'notification_check_interval', (string)$adminDefaultInterval);
 
 		$parameters = [
 			'display_name' => $displayName,

@@ -13,7 +13,7 @@
 namespace OCA\Itop\Service;
 
 use OCA\Itop\AppInfo\Application;
-use OCP\IConfig;
+use OCP\IAppConfig;
 use OCP\IL10N;
 use Psr\Log\LoggerInterface;
 
@@ -28,7 +28,7 @@ use Psr\Log\LoggerInterface;
 class PreviewMapper {
 
 	public function __construct(
-		private IConfig $config,
+		private IAppConfig $appConfig,
 		private IL10N $l10n,
 		private LoggerInterface $logger,
 	) {
@@ -447,7 +447,7 @@ class PreviewMapper {
 	 * @return string URL to CI in iTop
 	 */
 	private function buildItopUrl(array $fields, string $class): string {
-		$itopUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		$itopUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
 		$ciId = $fields['id'] ?? '';
 
 		if (empty($itopUrl) || empty($ciId)) {

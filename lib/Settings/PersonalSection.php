@@ -13,7 +13,7 @@
 namespace OCA\Itop\Settings;
 
 use OCA\Itop\AppInfo\Application;
-use OCP\IConfig;
+use OCP\IAppConfig;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\Settings\IIconSection;
@@ -23,7 +23,7 @@ class PersonalSection implements IIconSection {
 	public function __construct(
 		private IL10N $l10n,
 		private IURLGenerator $urlGenerator,
-		private IConfig $config,
+		private IAppConfig $appConfig,
 	) {
 	}
 
@@ -36,7 +36,7 @@ class PersonalSection implements IIconSection {
 	}
 
 	public function getName(): string {
-		$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+		$displayName = $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
 		return $this->l10n->t('%s integration', [$displayName]);
 	}
 

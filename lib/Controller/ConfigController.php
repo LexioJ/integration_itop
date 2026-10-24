@@ -23,7 +23,8 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\NotFoundException;
 use OCP\Http\Client\IClientService;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -46,7 +47,8 @@ class ConfigController extends Controller {
 	public function __construct(
 		string $appName,
 		IRequest $request,
-		private IConfig $config,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 		private ICrypto $crypto,
 		private IL10N $l10n,
 		private ItopAPIService $itopAPIService,
@@ -116,7 +118,7 @@ class ConfigController extends Controller {
 			if (in_array($key, $allowedKeys)) {
 				// Boolean values should be '0' or '1'
 				$boolValue = $value ? '1' : '0';
-				$this->config->setUserValue($this->userId, Application::APP_ID, $key, $boolValue);
+				$this->userConfig->setValueString($this->userId, Application::APP_ID, $key, $boolValue);
 			}
 		}
 		
@@ -126,9 +128,9 @@ class ConfigController extends Controller {
 			// Validate classes
 			$validDisabled = array_intersect($disabledClasses, Application::SUPPORTED_CI_CLASSES);
 			if (empty($validDisabled)) {
-				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes');
+				$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'disabled_ci_classes');
 			} else {
-				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', json_encode($validDisabled));
+				$this->userConfig->setValueString($this->userId, Application::APP_ID, 'disabled_ci_classes', json_encode($validDisabled));
 			}
 		}
 		
@@ -136,19 +138,19 @@ class ConfigController extends Controller {
 		if (isset($values['disabled_portal_notifications'])) {
 			if ($values['disabled_portal_notifications'] === 'all') {
 				// Master toggle: disable all portal notifications
-				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications', 'all');
+				$this->userConfig->setValueString($this->userId, Application::APP_ID, 'disabled_portal_notifications', 'all');
 			} elseif (is_array($values['disabled_portal_notifications'])) {
 				$disabledPortal = array_values(array_unique($values['disabled_portal_notifications']));
 				// Validate against PORTAL_NOTIFICATION_TYPES
 				$validDisabledPortal = array_intersect($disabledPortal, Application::PORTAL_NOTIFICATION_TYPES);
 				if (empty($validDisabledPortal)) {
-					$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications');
+					$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'disabled_portal_notifications');
 				} else {
-					$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications', json_encode($validDisabledPortal));
+					$this->userConfig->setValueString($this->userId, Application::APP_ID, 'disabled_portal_notifications', json_encode($validDisabledPortal));
 				}
 			} else {
 				// Empty or invalid: clear disabled array (enable all)
-				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_portal_notifications');
+				$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'disabled_portal_notifications');
 			}
 		}
 		
@@ -156,19 +158,19 @@ class ConfigController extends Controller {
 		if (isset($values['disabled_agent_notifications'])) {
 			if ($values['disabled_agent_notifications'] === 'all') {
 				// Master toggle: disable all agent notifications
-				$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications', 'all');
+				$this->userConfig->setValueString($this->userId, Application::APP_ID, 'disabled_agent_notifications', 'all');
 			} elseif (is_array($values['disabled_agent_notifications'])) {
 				$disabledAgent = array_values(array_unique($values['disabled_agent_notifications']));
 				// Validate against AGENT_NOTIFICATION_TYPES
 				$validDisabledAgent = array_intersect($disabledAgent, Application::AGENT_NOTIFICATION_TYPES);
 				if (empty($validDisabledAgent)) {
-					$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications');
+					$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'disabled_agent_notifications');
 				} else {
-					$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications', json_encode($validDisabledAgent));
+					$this->userConfig->setValueString($this->userId, Application::APP_ID, 'disabled_agent_notifications', json_encode($validDisabledAgent));
 				}
 			} else {
 				// Empty or invalid: clear disabled array (enable all)
-				$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_agent_notifications');
+				$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'disabled_agent_notifications');
 			}
 		}
 		
@@ -177,7 +179,7 @@ class ConfigController extends Controller {
 			$interval = (int)$values['notification_check_interval'];
 			// Validate range: 5-1440 minutes
 			if ($interval >= 5 && $interval <= 1440) {
-				$this->config->setUserValue($this->userId, Application::APP_ID, 'notification_check_interval', (string)$interval);
+				$this->userConfig->setValueString($this->userId, Application::APP_ID, 'notification_check_interval', (string)$interval);
 			}
 		}
 
@@ -187,10 +189,10 @@ class ConfigController extends Controller {
 		// Handle token deletion
 		if ($personalToken !== null && $personalToken === '') {
 			// Remove person_id and user_id
-			$this->config->deleteUserValue($this->userId, Application::APP_ID, 'person_id');
-			$this->config->deleteUserValue($this->userId, Application::APP_ID, 'user_id');
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'person_id');
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'user_id');
 			// Also clean up any old token storage (Phase 1 leftover)
-			$this->config->deleteUserValue($this->userId, Application::APP_ID, 'token');
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'token');
 			$this->logger->info('iTop: Person ID and User ID removed for user', ['app' => Application::APP_ID]);
 			return new DataResponse([
 				'message' => $this->l10n->t('Configuration removed successfully'),
@@ -200,7 +202,7 @@ class ConfigController extends Controller {
 
 		// If no token provided, just return current status
 		if ($personalToken === null) {
-			$hasPersonId = $this->config->getUserValue($this->userId, Application::APP_ID, 'person_id', '') !== '';
+			$hasPersonId = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'person_id', '') !== '';
 			return new DataResponse([
 				'message' => $this->l10n->t('Settings saved successfully'),
 				'person_id_configured' => $hasPersonId
@@ -221,10 +223,10 @@ class ConfigController extends Controller {
 		// Success! Store Person ID and User ID (NOT the token)
 		$personId = $validation['person_id'];
 		$userId = $validation['user_id'];
-		$this->config->setUserValue($this->userId, Application::APP_ID, 'person_id', $personId);
-		$this->config->setUserValue($this->userId, Application::APP_ID, 'user_id', $userId);
+		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'person_id', $personId);
+		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'user_id', $userId);
 		// Clean up any old token storage (Phase 1 leftover)
-		$this->config->deleteUserValue($this->userId, Application::APP_ID, 'token');
+		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'token');
 		$this->logger->info('iTop: Person ID ' . $personId . ' and User ID ' . $userId . ' configured for user ' . $this->userId, ['app' => Application::APP_ID]);
 
 		// Personal token is now discarded (never stored)
@@ -255,14 +257,14 @@ class ConfigController extends Controller {
 			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
 		}
 
-		$personId = $this->config->getUserValue($this->userId, Application::APP_ID, 'person_id', '');
+		$personId = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'person_id', '');
 
 		if (empty($personId)) {
 			return new DataResponse(['error' => $this->l10n->t('User not configured')], Http::STATUS_NOT_FOUND);
 		}
 
 		// Fetch person details from iTop using application token
-		$encryptedAppToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+		$encryptedAppToken = $this->appConfig->getValueString(Application::APP_ID, 'application_token', '');
 
 		if (empty($encryptedAppToken)) {
 			return new DataResponse(['error' => $this->l10n->t('Application token not configured')], Http::STATUS_SERVICE_UNAVAILABLE);
@@ -270,7 +272,7 @@ class ConfigController extends Controller {
 
 		try {
 			$applicationToken = $this->crypto->decrypt($encryptedAppToken);
-			$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+			$adminInstanceUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
 
 			if (empty($adminInstanceUrl)) {
 				return new DataResponse(['error' => $this->l10n->t('Server URL not configured')], Http::STATUS_SERVICE_UNAVAILABLE);
@@ -338,22 +340,22 @@ class ConfigController extends Controller {
 	 * @return DataResponse
 	 */
 	public function getAdminConfig(): DataResponse {
-		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
-		$userFacingName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
-		$hasApplicationToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '') !== '';
+		$adminInstanceUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
+		$userFacingName = $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
+		$hasApplicationToken = $this->appConfig->getValueString(Application::APP_ID, 'application_token', '') !== '';
 
 		// Count users with configured tokens
 		$connectedUsers = $this->getConnectedUsersCount();
 
 		// Get cache TTL values (with defaults matching CacheService)
-		$cacheTtlCiPreview = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ci_preview', '60');
-		$cacheTtlTicketInfo = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_ticket_info', '60');
-		$cacheTtlSearch = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_search', '30');
-		$cacheTtlPicker = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_picker', '60');
-		$cacheTtlProfile = (int)$this->config->getAppValue(Application::APP_ID, 'cache_ttl_profile', '1800');
+		$cacheTtlCiPreview = (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_ci_preview', '60');
+		$cacheTtlTicketInfo = (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_ticket_info', '60');
+		$cacheTtlSearch = (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_search', '30');
+		$cacheTtlPicker = (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_picker', '60');
+		$cacheTtlProfile = (int)$this->appConfig->getValueString(Application::APP_ID, 'cache_ttl_profile', '1800');
 
 		// Get 3-state CI class configuration
-		$ciClassConfig = Application::getCIClassConfig($this->config);
+		$ciClassConfig = Application::getCIClassConfig($this->appConfig);
 
 		$adminConfig = [
 			'admin_instance_url' => $adminInstanceUrl,
@@ -381,7 +383,7 @@ class ConfigController extends Controller {
 	 * @return DataResponse
 	 */
 	public function testApplicationToken(string $token = ''): DataResponse {
-		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		$adminInstanceUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
 
 		if (empty($adminInstanceUrl)) {
 			return new DataResponse([
@@ -392,7 +394,7 @@ class ConfigController extends Controller {
 
 		// If token not provided, try to get from saved config
 		if (empty($token)) {
-			$encryptedToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+			$encryptedToken = $this->appConfig->getValueString(Application::APP_ID, 'application_token', '');
 
 			if (empty($encryptedToken)) {
 				return new DataResponse([
@@ -518,7 +520,7 @@ class ConfigController extends Controller {
 	 */
 	public function testAdminConnection(string $url = ''): DataResponse {
 		// Use provided URL or fall back to saved configuration
-		$testUrl = !empty($url) ? trim($url) : $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		$testUrl = !empty($url) ? trim($url) : $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
 
 		if (empty($testUrl)) {
 			return new DataResponse(['status' => 'error', 'message' => $this->l10n->t('No server URL provided for testing')], Http::STATUS_BAD_REQUEST);
@@ -654,7 +656,7 @@ class ConfigController extends Controller {
 					$this->logger->error('iTop Invalid URL format: ' . $value, ['app' => Application::APP_ID]);
 					return new DataResponse(['message' => $this->l10n->t('Invalid URL format')], Http::STATUS_BAD_REQUEST);
 				}
-				$this->config->setAppValue(Application::APP_ID, $key, $value);
+				$this->appConfig->setValueString(Application::APP_ID, $key, $value);
 				$result[$key] = $value;
 			} elseif ($key === 'user_facing_name') {
 				// Validate user facing name
@@ -665,19 +667,19 @@ class ConfigController extends Controller {
 				if ($value === '') {
 					$value = 'iTop'; // Default fallback
 				}
-				$this->config->setAppValue(Application::APP_ID, $key, $value);
+				$this->appConfig->setValueString(Application::APP_ID, $key, $value);
 				$result[$key] = $value;
 			} elseif ($key === 'application_token') {
 				// Handle application token with encryption
 				if ($value === '') {
 					// Delete token if empty
-					$this->config->deleteAppValue(Application::APP_ID, 'application_token');
+					$this->appConfig->deleteKey(Application::APP_ID, 'application_token');
 					$this->logger->info('iTop application token deleted', ['app' => Application::APP_ID]);
 					$result['has_application_token'] = false;
 				} else {
 					// Encrypt and store the token
 					$encryptedToken = $this->crypto->encrypt($value);
-					$this->config->setAppValue(Application::APP_ID, 'application_token', $encryptedToken);
+					$this->appConfig->setValueString(Application::APP_ID, 'application_token', $encryptedToken);
 					$this->logger->info('iTop application token saved (encrypted)', ['app' => Application::APP_ID]);
 					$result['has_application_token'] = true;
 				}
@@ -719,15 +721,15 @@ class ConfigController extends Controller {
 			], Http::STATUS_BAD_REQUEST);
 		}
 
-		$this->config->setAppValue(Application::APP_ID, 'ticket_system_type', $ticketSystemType);
+		$this->appConfig->setValueString(Application::APP_ID, 'ticket_system_type', $ticketSystemType);
 
 		// Store optional simple-mode enum configuration
-		$this->config->setAppValue(Application::APP_ID, 'simple_ticket_type_field', trim($simpleTypeField));
-		$this->config->setAppValue(Application::APP_ID, 'simple_ticket_incident_value', trim($simpleIncidentValue) ?: 'incident');
-		$this->config->setAppValue(Application::APP_ID, 'simple_ticket_request_value', trim($simpleRequestValue) ?: 'service_request');
+		$this->appConfig->setValueString(Application::APP_ID, 'simple_ticket_type_field', trim($simpleTypeField));
+		$this->appConfig->setValueString(Application::APP_ID, 'simple_ticket_incident_value', trim($simpleIncidentValue) ?: 'incident');
+		$this->appConfig->setValueString(Application::APP_ID, 'simple_ticket_request_value', trim($simpleRequestValue) ?: 'service_request');
 
 		// Clear the cached auto-detection result so the next request re-probes if needed
-		$this->config->deleteAppValue(Application::APP_ID, 'ticket_system_type_detected');
+		$this->appConfig->deleteKey(Application::APP_ID, 'ticket_system_type_detected');
 
 		$this->logger->info('Ticket system type configuration saved: ' . $ticketSystemType, [
 			'app' => Application::APP_ID,
@@ -757,7 +759,7 @@ class ConfigController extends Controller {
 		}
 
 		// Save validated value
-		$this->config->setAppValue(Application::APP_ID, 'portal_notification_interval', (string)$portalInterval);
+		$this->appConfig->setValueString(Application::APP_ID, 'portal_notification_interval', (string)$portalInterval);
 
 		$this->logger->info('Notification interval settings updated', [
 			'app' => Application::APP_ID,
@@ -830,9 +832,9 @@ class ConfigController extends Controller {
 		}
 
 		// Save all validated values
-		$this->config->setAppValue(Application::APP_ID, 'default_notification_interval', (string)$defaultInterval);
-		$this->config->setAppValue(Application::APP_ID, 'portal_notification_config', $portalConfig);
-		$this->config->setAppValue(Application::APP_ID, 'agent_notification_config', $agentConfig);
+		$this->appConfig->setValueString(Application::APP_ID, 'default_notification_interval', (string)$defaultInterval);
+		$this->appConfig->setValueString(Application::APP_ID, 'portal_notification_config', $portalConfig);
+		$this->appConfig->setValueString(Application::APP_ID, 'agent_notification_config', $agentConfig);
 
 		$this->logger->info('Notification configuration updated', [
 			'app' => Application::APP_ID,
@@ -902,11 +904,11 @@ class ConfigController extends Controller {
 		}
 
 		// Save validated values
-		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_ci_preview', (string)$ciPreviewTTL);
-		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_ticket_info', (string)$ticketInfoTTL);
-		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_search', (string)$searchTTL);
-		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_picker', (string)$pickerTTL);
-		$this->config->setAppValue(Application::APP_ID, 'cache_ttl_profile', (string)$profileTTL);
+		$this->appConfig->setValueString(Application::APP_ID, 'cache_ttl_ci_preview', (string)$ciPreviewTTL);
+		$this->appConfig->setValueString(Application::APP_ID, 'cache_ttl_ticket_info', (string)$ticketInfoTTL);
+		$this->appConfig->setValueString(Application::APP_ID, 'cache_ttl_search', (string)$searchTTL);
+		$this->appConfig->setValueString(Application::APP_ID, 'cache_ttl_picker', (string)$pickerTTL);
+		$this->appConfig->setValueString(Application::APP_ID, 'cache_ttl_profile', (string)$profileTTL);
 
 		$this->logger->info('Cache TTL settings updated', [
 			'app' => Application::APP_ID,
@@ -933,7 +935,7 @@ class ConfigController extends Controller {
 	 * @return array List of enabled CI class names
 	 */
 	private function getEnabledCIClasses(): array {
-		$enabledClassesJson = $this->config->getAppValue(Application::APP_ID, 'enabled_ci_classes', '');
+		$enabledClassesJson = $this->appConfig->getValueString(Application::APP_ID, 'enabled_ci_classes', '');
 
 		if ($enabledClassesJson === '') {
 			// Default: no classes enabled (opt-in model)
@@ -961,7 +963,7 @@ class ConfigController extends Controller {
 			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
 		}
 
-		$userDisabledJson = $this->config->getUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
+		$userDisabledJson = $this->userConfig->getValueString($this->userId, Application::APP_ID, 'disabled_ci_classes', '');
 		$userDisabled = [];
 
 		if ($userDisabledJson !== '') {
@@ -972,12 +974,12 @@ class ConfigController extends Controller {
 		}
 
 		// Also get admin-enabled classes for reference
-		$adminEnabled = Application::getEnabledCIClasses($this->config);
+		$adminEnabled = Application::getEnabledCIClasses($this->appConfig);
 
 		return new DataResponse([
 			'admin_enabled_classes' => $adminEnabled,
 			'user_disabled_classes' => $userDisabled,
-			'effective_enabled_classes' => Application::getEffectiveEnabledCIClasses($this->config, $this->userId),
+			'effective_enabled_classes' => Application::getEffectiveEnabledCIClasses($this->appConfig, $this->userConfig, $this->userId),
 			'supported_ci_classes' => Application::SUPPORTED_CI_CLASSES
 		]);
 	}
@@ -1003,9 +1005,9 @@ class ConfigController extends Controller {
 		// Save to user config
 		if (empty($validClasses)) {
 			// Remove config if no classes disabled
-			$this->config->deleteUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes');
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'disabled_ci_classes');
 		} else {
-			$this->config->setUserValue($this->userId, Application::APP_ID, 'disabled_ci_classes', json_encode($validClasses));
+			$this->userConfig->setValueString($this->userId, Application::APP_ID, 'disabled_ci_classes', json_encode($validClasses));
 		}
 
 		$this->logger->info('User disabled CI classes updated', [
@@ -1017,7 +1019,7 @@ class ConfigController extends Controller {
 		return new DataResponse([
 			'message' => $this->l10n->t('CI class preferences saved successfully'),
 			'user_disabled_classes' => $validClasses,
-			'effective_enabled_classes' => Application::getEffectiveEnabledCIClasses($this->config, $this->userId)
+			'effective_enabled_classes' => Application::getEffectiveEnabledCIClasses($this->appConfig, $this->userConfig, $this->userId)
 		]);
 	}
 
@@ -1030,7 +1032,7 @@ class ConfigController extends Controller {
 	 */
 	public function saveCIClassConfig(array $classConfig): DataResponse {
 		// All known classes = standard + custom
-		$allKnownClasses = Application::getAllCIClasses($this->config);
+		$allKnownClasses = Application::getAllCIClasses($this->appConfig);
 
 		// Validate format and values
 		$validConfig = [];
@@ -1055,7 +1057,7 @@ class ConfigController extends Controller {
 		}
 
 		// Save to config
-		$this->config->setAppValue(Application::APP_ID, 'ci_class_config', json_encode($validConfig));
+		$this->appConfig->setValueString(Application::APP_ID, 'ci_class_config', json_encode($validConfig));
 
 		$this->logger->info('CI class configuration updated', [
 			'app' => Application::APP_ID,
@@ -1079,14 +1081,14 @@ class ConfigController extends Controller {
 	 * @return DataResponse
 	 */
 	public function getAvailableItopClasses(): DataResponse {
-		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		$adminInstanceUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
 		if (empty($adminInstanceUrl)) {
 			return new DataResponse([
 				'error' => $this->l10n->t('Server URL not configured')
 			], Http::STATUS_BAD_REQUEST);
 		}
 
-		$encryptedToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+		$encryptedToken = $this->appConfig->getValueString(Application::APP_ID, 'application_token', '');
 		if (empty($encryptedToken)) {
 			return new DataResponse([
 				'error' => $this->l10n->t('Application token not configured')
@@ -1152,7 +1154,7 @@ class ConfigController extends Controller {
 			);
 
 			// Return discovered classes + currently configured custom classes
-			$currentCustomClasses = Application::getCustomCIClasses($this->config);
+			$currentCustomClasses = Application::getCustomCIClasses($this->appConfig);
 			$classesForIcons = array_values(array_unique(array_merge($availableForCustom, $currentCustomClasses)));
 
 			// Best-effort warmup: fetch class icon from iTop and cache in appdata
@@ -1206,25 +1208,25 @@ class ConfigController extends Controller {
 		$sanitized = array_values(array_unique($sanitized));
 
 		// Persist the custom class list
-		$this->config->setAppValue(Application::APP_ID, 'custom_ci_classes', json_encode($sanitized));
+		$this->appConfig->setValueString(Application::APP_ID, 'custom_ci_classes', json_encode($sanitized));
 
 		// Clean up ci_class_config: remove entries for classes that are no longer
 		// custom (neither standard nor in the new custom list)
 		$allKnown = array_merge(Application::SUPPORTED_CI_CLASSES, $sanitized);
-		$configJson = $this->config->getAppValue(Application::APP_ID, 'ci_class_config', '');
+		$configJson = $this->appConfig->getValueString(Application::APP_ID, 'ci_class_config', '');
 		if ($configJson !== '') {
 			$classConfig = json_decode($configJson, true);
 			if (is_array($classConfig)) {
 				$cleaned = array_filter($classConfig, function (string $cls) use ($allKnown) {
 					return in_array($cls, $allKnown, true);
 				}, ARRAY_FILTER_USE_KEY);
-				$this->config->setAppValue(Application::APP_ID, 'ci_class_config', json_encode($cleaned));
+				$this->appConfig->setValueString(Application::APP_ID, 'ci_class_config', json_encode($cleaned));
 			}
 		}
 
 		// Best-effort warmup: cache icons for currently configured custom classes
-		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
-		$encryptedToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+		$adminInstanceUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
+		$encryptedToken = $this->appConfig->getValueString(Application::APP_ID, 'application_token', '');
 		if (!empty($adminInstanceUrl) && !empty($encryptedToken)) {
 			try {
 				$applicationToken = $this->crypto->decrypt($encryptedToken);
@@ -2090,7 +2092,7 @@ class ConfigController extends Controller {
 		$validClasses = array_values(array_unique($validClasses));
 
 		// Save to config
-		$this->config->setAppValue(Application::APP_ID, 'enabled_ci_classes', json_encode($validClasses));
+		$this->appConfig->setValueString(Application::APP_ID, 'enabled_ci_classes', json_encode($validClasses));
 
 		$this->logger->info('Enabled CI classes updated', [
 			'app' => Application::APP_ID,
@@ -2225,7 +2227,7 @@ class ConfigController extends Controller {
 	 * @return array ['success' => bool, 'person_id' => string|null, 'user_info' => array|null, 'error' => string|null]
 	 */
 	private function validatePersonalTokenAndExtractPersonId(string $personalToken): array {
-		$adminInstanceUrl = $this->config->getAppValue(Application::APP_ID, 'admin_instance_url', '');
+		$adminInstanceUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
 
 		if (empty($adminInstanceUrl)) {
 			return [
@@ -2327,7 +2329,7 @@ class ConfigController extends Controller {
 
 			// Step 2: Get User ID using application token
 			// Personal tokens can't query User class, so we use the application token
-			$encryptedAppToken = $this->config->getAppValue(Application::APP_ID, 'application_token', '');
+			$encryptedAppToken = $this->appConfig->getValueString(Application::APP_ID, 'application_token', '');
 			$userIdValue = null;
 			
 			if (!empty($encryptedAppToken)) {

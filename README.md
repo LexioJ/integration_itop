@@ -2,9 +2,9 @@
 
 🎟️ **Complete iTop ITSM & CMDB Integration** - Seamlessly access tickets, incidents, and Configuration Items from your Nextcloud environment
 
-[![Version](https://img.shields.io/badge/version-1.4.3-blue)](https://github.com/lexioj/integration_itop/releases)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue)](https://github.com/lexioj/integration_itop/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
-[![Nextcloud](https://img.shields.io/badge/Nextcloud-30+-blue)](https://nextcloud.com)
+[![Nextcloud](https://img.shields.io/badge/Nextcloud-32+-blue)](https://nextcloud.com)
 
 A comprehensive Nextcloud integration that brings iTop IT Service Management and CMDB functionality directly into your collaboration platform. Users can search tickets, browse configuration items, and insert rich previews—all without leaving Nextcloud.
 
@@ -425,9 +425,22 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
 
 ---
 
-## 📋 What's New in v1.4.3
+## 📋 What's New in v1.6.0
 
-**Nextcloud 35 Compatibility** 🔧
+**Deprecated API Cleanup** 🧹
+
+### ⚠️ Breaking
+- **Minimum Nextcloud version is now 32**: `IUserConfig` is only available from Nextcloud 32 onwards, so migrating user preferences off the deprecated API raises `min-version` from 30 to 32 — Nextcloud 30 and 31 are no longer supported
+
+### Fixed
+- **Portal users with an additional profile were treated as back-end users**: iTop locks a user out of the back office as soon as the `Portal user` profile is assigned, even alongside a profile such as `Service Desk Agent`. These users were previously given back-office ticket links they cannot open, the agent widget and agent notifications, and unscoped CI search results. Detection now keys on the profile being present rather than being the only one. `Portal power user` is unaffected — it still means a back-end user with portal access
+
+### Changed
+- **Migrated off deprecated `IConfig` value APIs**: all ~200 call sites now use `IAppConfig` (deprecated in favour of it since NC 29) and `IUserConfig` (since NC 33); `IConfig` remains only for `getSystemValue`, which is not deprecated
+- **Notifier registration moved to the bootstrap context**: `IManager::registerNotifierService()` has been deprecated since NC 22 — registration now goes through `IRegistrationContext`
+- **Replaced legacy `OC` globals in the settings bundles**: now using `@nextcloud/router`, `@nextcloud/auth`, `@nextcloud/dialogs`, and `@nextcloud/l10n` instead of `OC.generateUrl`, `OC.requestToken`, `OC.Notification`, and the `window.t` fallback
+
+### Previous Release: v1.4.3 - Nextcloud 35 Compatibility 🔧
 
 ### Changed
 - **Nextcloud 35 Support**: Raised the supported max-version to 35 — verified to run on Nextcloud 35

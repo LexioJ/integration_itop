@@ -17,6 +17,8 @@ use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\ItopAPIService;
 use OCA\Itop\Service\ProfileService;
 use OCP\App\IAppManager;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IDateTimeFormatter;
 use OCP\IL10N;
@@ -34,6 +36,8 @@ class ItopSearchProvider implements IProvider {
 	public function __construct(
 		private IAppManager $appManager,
 		private IL10N $l10n,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 		private IConfig $config,
 		private IURLGenerator $urlGenerator,
 		private IDateTimeFormatter $dateTimeFormatter,
@@ -48,7 +52,7 @@ class ItopSearchProvider implements IProvider {
 	}
 
 	public function getName(): string {
-		$displayName = $this->config->getAppValue(Application::APP_ID, 'user_facing_name', 'iTop');
+		$displayName = $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
 		return $displayName;
 	}
 
@@ -69,13 +73,13 @@ class ItopSearchProvider implements IProvider {
 		$userId = $user->getUID();
 
 		// Check for person_id configuration
-		$personId = $this->config->getUserValue($userId, Application::APP_ID, 'person_id', '');
+		$personId = $this->userConfig->getValueString($userId, Application::APP_ID, 'person_id', '');
 		if ($personId === '') {
 			return SearchResult::complete($this->getName(), []);
 		}
 
 		// Check if search is enabled in user preferences (default: enabled - opt-out)
-		$searchEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'search_enabled', '1') === '1';
+		$searchEnabled = $this->userConfig->getValueString($userId, Application::APP_ID, 'search_enabled', '1') === '1';
 		if (!$searchEnabled) {
 			return SearchResult::complete($this->getName(), []);
 		}
