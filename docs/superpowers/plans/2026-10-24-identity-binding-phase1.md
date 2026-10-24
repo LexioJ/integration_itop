@@ -793,7 +793,7 @@ class IdentityResolverTest extends TestCase {
 			static fn (string $v) => str_replace("'", "\\'", $v)
 		);
 		$api->method('appRequest')->willReturnCallback(
-			function (array $params) use ($itopResponse, &$captured) {
+			function (array $params) use (&$itopResponse, &$captured) {
 				$captured[] = $params;
 				return array_shift($itopResponse) ?? ['code' => 0, 'objects' => []];
 			}
