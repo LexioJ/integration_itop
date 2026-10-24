@@ -133,7 +133,7 @@ class ItopAPIService {
 	 * @param string $value Value to escape
 	 * @return string Escaped value safe for OQL
 	 */
-	private function escapeOQLString(string $value): string {
+	public function escapeOQLString(string $value): string {
 		// Escape backslashes first to prevent double-escaping
 		$value = str_replace('\\', '\\\\', $value);
 		// Escape single quotes
@@ -1177,6 +1177,53 @@ class ItopAPIService {
 			} elseif ($statusCode === Http::STATUS_NOT_FOUND) {
 				return ['error' => 'Not found'];
 			}
+			return ['error' => $e->getMessage()];
+		} catch (ConnectException $e) {
+			return ['error' => $e->getMessage()];
+		}
+	}
+
+	/**
+	 * Make an application-scoped request to the iTop REST API
+	 *
+	 * Unlike request(), this does not require the caller to be a bound user. It is
+	 * used by identity binding, which by definition runs for users that have no
+	 * person_id yet. Always uses the admin instance URL and the application token,
+	 * and never consults the query cache, because callers act across users.
+	 *
+	 * @param array $params API parameters (operation, class, key, output_fields)
+	 * @return array Decoded response, or ['error' => string] on failure
+	 */
+	public function appRequest(array $params): array {
+		$itopUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
+		if ($itopUrl === '') {
+			return ['error' => $this->l10n->t('iTop URL not configured')];
+		}
+
+		$accessToken = $this->getApplicationToken();
+		if (!$accessToken) {
+			return ['error' => $this->l10n->t('Application token not configured')];
+		}
+
+		try {
+			$response = $this->client->post(rtrim($itopUrl, '/') . '/webservices/rest.php?version=1.3', [
+				'headers' => [
+					'User-Agent' => 'Nextcloud iTop integration',
+					'Auth-Token' => $accessToken,
+				],
+				'form_params' => [
+					'json_data' => json_encode($params),
+				],
+			]);
+
+			$result = json_decode($response->getBody(), true);
+			if ($result === null) {
+				return ['error' => $this->l10n->t('Invalid JSON response from iTop')];
+			}
+
+			return $this->normalizeResponseDates($result);
+		} catch (ServerException|ClientException $e) {
+			$this->logger->warning('iTop app request failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return ['error' => $e->getMessage()];
 		} catch (ConnectException $e) {
 			return ['error' => $e->getMessage()];
