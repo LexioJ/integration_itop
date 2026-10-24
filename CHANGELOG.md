@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🧹 Deprecated API Cleanup
 
+### Fixed
+- **Portal users with an additional profile were treated as back-end users**: iTop confines a user to the front-end portal as soon as the `Portal user` profile is assigned — the back office stays locked even when a back-end profile such as `Service Desk Agent` is also present. `ProfileService::isPortalOnly()` only reported portal-only when `Portal user` was the *sole* profile, so these users were misclassified. The consequences were that ticket links pointed at `/pages/UI.php` (the back office they cannot open) in widgets, rich previews and notifications; the agent dashboard widget and agent notifications were offered to them; and, because all queries run under the application token, `searchCIs()` and `getCIPreview()` skipped the contact-based scoping that portal users are meant to get and could return Configuration Items beyond the user's entitlement. Detection now keys on the profile being present at all. `Portal power user` is unaffected and still means a back-end user with portal access (typically `Service Desk Agent` + `Portal power user`), since the comparison is exact rather than a substring match
+- **Cached portal status is recomputed on upgrade**: a post-migration repair step clears `is_portal_only` and `profiles_last_check` for all users, so the corrected rule takes effect immediately instead of after the profile cache TTL lapses
+
+### Known issue
+- `occ user:setting <uid> integration_itop <key> <value>` now fails with *"conflict between new type (mixed) and old type (string)"* for keys the app has already written. `IUserConfig::setValueString()` pins a key's type, while `occ user:setting` writes an untyped value; `setValueMixed()` is not public API, so this affects any app using `IUserConfig` on Nextcloud 32+. App behaviour is unaffected — only manual administration. Workaround: `occ user:setting <uid> integration_itop <key> --delete` first, then set the value
+
 ### ⚠️ Breaking
 - **Minimum Nextcloud version is now 32**: `OCP\Config\IUserConfig` is only available from Nextcloud 32 onwards, so the user preference migration below raises `min-version` from 30 to 32. Nextcloud 30 and 31 are no longer supported
 

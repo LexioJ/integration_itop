@@ -46,13 +46,21 @@ class ProfileService {
 	}
 
 	/**
-	 * Check if user has only "Portal user" profile (no additional profiles)
+	 * Check whether the user is confined to the iTop front-end portal
+	 *
+	 * True when the "Portal user" profile is assigned, regardless of any other
+	 * profiles: iTop locks such a user out of the back office even when a back-end
+	 * profile is also present.
+	 *
+	 * "Portal power user" is a different profile and does NOT make a user portal-only.
+	 * It grants portal access to a back-end user, as in 'Service Desk Agent' +
+	 * 'Portal power user'.
 	 *
 	 * Portal-only users have restricted access - they can only see CIs where they are
-	 * listed as a contact. Users with additional profiles get full CMDB access within ACL.
+	 * listed as a contact. Back-end users get full CMDB access within ACL.
 	 *
 	 * @param string $userId Nextcloud user ID
-	 * @return bool True if user has ONLY Portal user profile, false if has additional profiles
+	 * @return bool True if the "Portal user" profile is assigned
 	 * @throws \Exception If profile detection fails
 	 */
 	public function isPortalOnly(string $userId): bool {
@@ -65,19 +73,38 @@ class ProfileService {
 		// Fetch fresh profile data
 		$profiles = $this->getUserProfiles($userId);
 
-		// Normalize for robust comparison
-		$normalized = array_map(static function($p) {
-			return mb_strtolower(trim((string)$p));
-		}, $profiles);
-		$portalName = mb_strtolower(self::PORTAL_PROFILE_NAME);
-
-		// Portal-only = exactly one profile and it matches the portal profile name
-		$isPortalOnly = (count($normalized) === 1 && $normalized[0] === $portalName);
+		$isPortalOnly = self::determinePortalOnly($profiles);
 
 		// Cache the result
 		$this->cacheProfileStatus($userId, $isPortalOnly);
 
 		return $isPortalOnly;
+	}
+
+	/**
+	 * Decide whether a profile list means "confined to the front-end portal"
+	 *
+	 * iTop locks a user out of the back office as soon as the "Portal user" profile
+	 * is assigned, even when a back-end profile such as "Service Desk Agent" is also
+	 * present. So the profile being present decides this, not it being the only one.
+	 *
+	 * The comparison is exact, which matters: "Portal power user" is a different
+	 * profile that grants portal access *to a back-end user* (typically
+	 * "Service Desk Agent" + "Portal power user"). It must not match here, and a
+	 * substring test would wrongly match it.
+	 *
+	 * Pure function of its input, with no API or cache access, so it is directly
+	 * unit-testable.
+	 *
+	 * @param array $profileNames Profile names as returned by iTop
+	 * @return bool True if the "Portal user" profile is assigned
+	 */
+	public static function determinePortalOnly(array $profileNames): bool {
+		$normalized = array_map(static function ($p) {
+			return mb_strtolower(trim((string)$p));
+		}, $profileNames);
+
+		return in_array(mb_strtolower(self::PORTAL_PROFILE_NAME), $normalized, true);
 	}
 
 	/**

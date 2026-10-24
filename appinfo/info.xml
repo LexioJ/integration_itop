@@ -125,6 +125,12 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 		<job>OCA\Itop\BackgroundJob\NewsroomPollJob</job>
 	</background-jobs>
 
+	<repair-steps>
+		<post-migration>
+			<step>OCA\Itop\Migration\ClearProfileCache</step>
+		</post-migration>
+	</repair-steps>
+
 	<commands>
 		<command>OCA\Itop\Command\NotificationsTestUser</command>
 	</commands>
