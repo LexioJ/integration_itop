@@ -219,14 +219,20 @@ occ itop:bind [--apply] [--include-review] [--user <uid>] [--limit <n>]
 
 ## Testing
 
-The repo has no `tests/` directory, though `composer.json` already declares phpunit ^9.5 and an `OCA\Itop\Tests\` autoload mapping. This adds the first real unit tests, covering the pure, branch-heavy, dependency-free logic:
+**Unit tests stay local and are not committed.** `tests/`, `phpunit.xml` and `docs/testing.md` are all in `.gitignore`, which is the project's existing convention; `composer.json` nonetheless declares phpunit ^9.5 and an `OCA\Itop\Tests\` autoload mapping, so `composer install && vendor/bin/phpunit` works for anyone who writes them. This spec does not change that convention.
+
+Write local unit tests for the pure, branch-heavy, dependency-free logic:
 
 - Name normalisation: case, diacritics, whitespace, token order, hyphenated and compound names
 - Tier decision: each of the four tiers, including the "attribute matched but names differ" case
 - OQL construction: value escaping (including apostrophes, per the existing `escapeOQLString` fix) and target allowlist rejection
 - Exclusion filtering
 
+To keep that possible, the decision logic must be **extracted into pure functions** that take plain inputs and touch neither the API nor the cache — the same shape as `ProfileService::determinePortalOnly()`, which was split out for exactly this reason during the 1.5.0 portal-profile fix. Logic buried inside a method that also performs HTTP calls cannot be tested without a server and will not be tested.
+
 Integration behaviour is verified manually against the `nextcloud-dev` / `itop-dev` VMs, as with the 1.5.0 work: admin table paging and filters, a bulk apply, a `review` confirmation, a discovery round trip, and `occ itop:bind --apply`.
+
+Verification needs iTop fixtures that the dev instance did not originally have — a portal-only contact, a contact with `Portal user` plus a back-end profile, two contacts sharing an email (for `ambiguous`), and a contact whose name differs from the Nextcloud display name (for `review`). These must be created in `itop-dev` before phase 2 is testable.
 
 ## Implementation phases
 
