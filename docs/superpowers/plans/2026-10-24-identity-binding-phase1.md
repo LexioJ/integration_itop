@@ -1441,6 +1441,13 @@ class BindUsers extends Command {
 			$this->bindingConfig->getMatchTarget(),
 			$apply ? '' : '  (dry run - nothing will be written)'
 		));
+
+		$only = $input->getOption('user');
+		$users = $this->collectUsers($only);
+
+		if ($only === null) {
+			$output->writeln(sprintf('Examining %d Nextcloud account(s).', count($users)));
+		}
 		$output->writeln('');
 
 		$counts = [MatchResult::TIER_EXACT => 0, MatchResult::TIER_REVIEW => 0,
@@ -1448,9 +1455,12 @@ class BindUsers extends Command {
 		$bound = 0;
 		$skipped = 0;
 		$examined = 0;
+		$failed = 0;
+		$stoppedAtLimit = false;
 
-		foreach ($this->collectUsers($input->getOption('user')) as $user) {
+		foreach ($users as $user) {
 			if ($limit !== null && $examined >= $limit) {
+				$stoppedAtLimit = true;
 				break;
 			}
 			$examined++;
@@ -1475,20 +1485,34 @@ class BindUsers extends Command {
 			$output->writeln($this->describe($uid, $result));
 
 			if ($apply && $shouldBind && $result->personId !== null) {
-				$this->bindingService->bind(
-					$uid, $result->personId, $result->userId,
-					IdentityBindingService::METHOD_ADMIN,
-					$this->bindingConfig->getMatchSource()
-				);
-				$bound++;
+				try {
+					$this->bindingService->bind(
+						$uid, $result->personId, $result->userId,
+						IdentityBindingService::METHOD_ADMIN,
+						$this->bindingConfig->getMatchSource()
+					);
+					$bound++;
+				} catch (\Throwable $e) {
+					$failed++;
+					$output->writeln(sprintf('  <error>failed</error>     %-24s %s', $uid, $e->getMessage()));
+				}
 			}
 		}
 
 		$output->writeln('');
+
+		if ($stoppedAtLimit) {
+			$remaining = count($users) - $examined;
+			$output->writeln(sprintf(
+				'<comment>stopped after --limit %d; %d account(s) were not examined</comment>',
+				$limit, $remaining
+			));
+		}
+
 		$output->writeln(sprintf(
-			'examined %d · exact %d · review %d · ambiguous %d · no match %d · skipped %d',
+			'examined %d · exact %d · review %d · ambiguous %d · no match %d · skipped %d · failed %d',
 			$examined, $counts[MatchResult::TIER_EXACT], $counts[MatchResult::TIER_REVIEW],
-			$counts[MatchResult::TIER_AMBIGUOUS], $counts[MatchResult::TIER_NONE], $skipped
+			$counts[MatchResult::TIER_AMBIGUOUS], $counts[MatchResult::TIER_NONE], $skipped, $failed
 		));
 
 		if ($apply) {
@@ -1497,19 +1521,16 @@ class BindUsers extends Command {
 			$output->writeln('<comment>dry run - re-run with --apply to write these bindings</comment>');
 		}
 
-		return 0;
+		return $failed > 0 ? 1 : 0;
 	}
 
 	/**
-	 * @return \Generator<IUser>
+	 * @return IUser[]
 	 */
-	private function collectUsers(?string $only): \Generator {
+	private function collectUsers(?string $only): array {
 		if ($only !== null) {
 			$user = $this->userManager->get($only);
-			if ($user !== null) {
-				yield $user;
-			}
-			return;
+			return $user !== null ? [$user] : [];
 		}
 
 		$users = [];
@@ -1517,7 +1538,7 @@ class BindUsers extends Command {
 			$users[] = $user;
 		});
 
-		yield from $users;
+		return $users;
 	}
 
 	private function describe(string $uid, MatchResult $result): string {
