@@ -63,22 +63,24 @@ class IdentityBindingService {
 			throw new \RuntimeException('User ' . $uid . ' is excluded from iTop identity binding');
 		}
 
+		// Drop derived state first. A crash mid-write must never leave a user_id
+		// belonging to a different person than person_id: iTop profiles hang off
+		// the User, so a mismatched pair can grant a profile that was never
+		// authorised. ProfileService re-derives user_id from person_id when it
+		// is absent, so clearing is always recoverable while a stale pair is
+		// not. Portal status belongs to the previous identity too, so it is
+		// dropped here rather than inherited by the new one.
+		$this->clearProfileCache($uid);
+		$this->userConfig->deleteUserConfig($uid, Application::APP_ID, 'user_id');
+
 		$this->userConfig->setValueString($uid, Application::APP_ID, 'person_id', $personId);
 
 		if ($userId !== null && $userId !== '') {
 			$this->userConfig->setValueString($uid, Application::APP_ID, 'user_id', $userId);
-		} else {
-			// A Person with no User is valid; ProfileService derives and caches
-			// the User id later, or treats its absence as portal-only.
-			$this->userConfig->deleteUserConfig($uid, Application::APP_ID, 'user_id');
 		}
 
 		$this->userConfig->setValueString($uid, Application::APP_ID, 'binding_method', $method);
 		$this->userConfig->setValueString($uid, Application::APP_ID, 'binding_at', (string)time());
-
-		// Portal status belongs to the previous identity; drop it so the next
-		// lookup recomputes against the person now bound.
-		$this->clearProfileCache($uid);
 
 		$this->logger->info('iTop identity bound: {uid} -> person {personId} via {method}', [
 			'app' => Application::APP_ID,
