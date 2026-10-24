@@ -76,11 +76,9 @@ New:
 
 No new database tables. Binding state already lives in per-user config, and `IUserConfig::getValuesByUsers()` fetches it for a page of users in one query.
 
-**`person_id` is the only required write.** A pure portal contact may exist as a `Person` with no `User` object, and the existing code already tolerates this (`user_id` nullable, "Not critical — we can continue without user_id").
+**`person_id` is required; `user_id` should be written whenever it exists.** In practice nearly every Person has a corresponding User. This matters because iTop profiles are attached to the **User**, not the Person, and the profile list is what determines whether someone is portal-only. So `user_id` is the key to profile resolution, not an optional extra — the resolver writes it in the normal case, and the `user.login` target yields it for free.
 
-More usefully, `ProfileService` is self-healing: when `user_id` is absent it derives it from `person_id` via `getUserIdByPersonId()`, caches the result, and if no `User` exists at all it explicitly returns the portal profile ("User has Person but no User account in iTop — treating as portal-only").
-
-So binding writes `user_id` opportunistically when the resolver already has it — the `user.login` target yields it for free — but is never required to. This keeps the binding service simple and means a Person-only contact needs no special-casing anywhere.
+A `Person` with no `User` is the edge case. The existing code tolerates it (`user_id` nullable, "Not critical — we can continue without user_id"), and `ProfileService` is self-healing: when `user_id` is absent it derives it from `person_id` via `getUserIdByPersonId()`, caches the result, and if no `User` exists at all it falls back to the portal profile. So binding never has to special-case it, but it should not rely on that fallback either.
 
 ## Components
 
