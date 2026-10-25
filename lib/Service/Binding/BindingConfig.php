@@ -11,6 +11,7 @@ namespace OCA\Itop\Service\Binding;
 
 use OCA\Itop\AppInfo\Application;
 use OCP\IAppConfig;
+use OCP\IConfig;
 
 /**
  * Reads and writes the identity binding settings.
@@ -49,6 +50,7 @@ class BindingConfig {
 
 	public function __construct(
 		private IAppConfig $appConfig,
+		private IConfig $config,
 	) {
 	}
 
@@ -68,6 +70,59 @@ class BindingConfig {
 	public function getMatchTarget(): string {
 		$target = $this->appConfig->getValueString(Application::APP_ID, 'binding_match_target', self::TARGET_PERSON_EMAIL);
 		return isset(self::TARGETS[$target]) ? $target : self::TARGET_PERSON_EMAIL;
+	}
+
+	/**
+	 * @return string[] allowlisted Nextcloud-side source attributes
+	 */
+	public function getSources(): array {
+		return self::SOURCES;
+	}
+
+	/**
+	 * @return string[] allowlisted iTop-side targets
+	 */
+	public function getTargets(): array {
+		return array_keys(self::TARGETS);
+	}
+
+	/**
+	 * @throws \InvalidArgumentException if either value is not allowlisted
+	 */
+	public function setMatchRule(string $source, string $target): void {
+		if (!in_array($source, self::SOURCES, true)) {
+			throw new \InvalidArgumentException('Unknown match source: ' . $source);
+		}
+		if (!isset(self::TARGETS[$target])) {
+			throw new \InvalidArgumentException('Unknown match target: ' . $target);
+		}
+
+		$this->appConfig->setValueString(Application::APP_ID, 'binding_match_source', $source);
+		$this->appConfig->setValueString(Application::APP_ID, 'binding_match_target', $target);
+	}
+
+	/**
+	 * Whether the configured source attribute is one an end user can change
+	 * for themselves.
+	 *
+	 * This is the whole risk surface of self-service discovery: if a user can
+	 * edit the attribute the match is made on, they can point it at a
+	 * colleague's value and bind to that person. A uid is never mutable --
+	 * Nextcloud exposes no setUID or rename API -- so matching on uid is safe
+	 * regardless of instance settings.
+	 *
+	 * The email case mirrors lib/private/User/User.php: allow_user_to_change_email
+	 * falls back to allow_user_to_change_display_name, and both default to true,
+	 * so a stock instance is mutable.
+	 */
+	public function isSourceUserMutable(): bool {
+		$displayNameMutable = $this->config->getSystemValueBool('allow_user_to_change_display_name', true);
+
+		return match ($this->getMatchSource()) {
+			self::SOURCE_UID => false,
+			self::SOURCE_DISPLAYNAME => $displayNameMutable,
+			default => $this->config->getSystemValueBool('allow_user_to_change_email', $displayNameMutable),
+		};
 	}
 
 	/**
