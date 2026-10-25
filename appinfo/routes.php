@@ -25,6 +25,14 @@ return [
 		['name' => 'config#saveUserDisabledCIClasses', 'url' => '/user-disabled-ci-classes', 'verb' => 'POST'],
 		['name' => 'config#checkVersion', 'url' => '/version-check', 'verb' => 'GET'],
 
+		// Identity binding (admin)
+		['name' => 'binding#getUsers', 'url' => '/binding/users', 'verb' => 'GET'],
+		['name' => 'binding#getRule', 'url' => '/binding/rule', 'verb' => 'GET'],
+		['name' => 'binding#setRule', 'url' => '/binding/rule', 'verb' => 'POST'],
+		['name' => 'binding#exclude', 'url' => '/binding/exclude', 'verb' => 'POST'],
+		['name' => 'binding#restore', 'url' => '/binding/restore', 'verb' => 'POST'],
+		['name' => 'binding#unbind', 'url' => '/binding/{uid}', 'verb' => 'DELETE'],
+
 		// API routes
 		['name' => 'itopAPI#getTickets', 'url' => '/tickets', 'verb' => 'GET'],
 		['name' => 'itopAPI#getTicketsCount', 'url' => '/tickets/count', 'verb' => 'GET'],
