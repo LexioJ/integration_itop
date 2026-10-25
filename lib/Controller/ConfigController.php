@@ -192,6 +192,12 @@ class ConfigController extends Controller {
 			// Remove person_id and user_id
 			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'person_id');
 			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'user_id');
+			// The provenance and the cached portal verdict describe a binding that no
+			// longer exists; drop them along with the identity itself.
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'binding_method');
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'binding_at');
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'is_portal_only');
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'profiles_last_check');
 			// Also clean up any old token storage (Phase 1 leftover)
 			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'token');
 			$this->logger->info('iTop: Person ID and User ID removed for user', ['app' => Application::APP_ID]);
@@ -224,15 +230,27 @@ class ConfigController extends Controller {
 		// Success! Store Person ID and User ID (NOT the token)
 		$personId = $validation['person_id'];
 		$userId = $validation['user_id'];
-		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'person_id', $personId);
-		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'user_id', $userId);
-		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'binding_method', IdentityBindingService::METHOD_TOKEN);
-		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'binding_at', (string)time());
-		// This identity may differ from any previously bound one (e.g. an admin-bound
-		// account that later self-binds a different iTop person); drop the old
-		// identity's cached portal verdict so it doesn't leak into the new one.
+
+		// Drop derived state first, for the same reason as IdentityBindingService::bind():
+		// a failure part-way through must never leave a user_id belonging to a different
+		// person than person_id. iTop profiles hang off the User, so a mismatched pair can
+		// grant a profile that was never authorised, while an absent user_id is re-derived
+		// from person_id by ProfileService. The cached portal verdict belongs to the
+		// previous identity too, so it is dropped rather than inherited.
 		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'is_portal_only');
 		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'profiles_last_check');
+		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'user_id');
+
+		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'person_id', $personId);
+
+		// A Person with no iTop User is valid; ProfileService derives the User id from
+		// person_id on demand, or treats its absence as portal-only.
+		if ($userId !== null && $userId !== '') {
+			$this->userConfig->setValueString($this->userId, Application::APP_ID, 'user_id', $userId);
+		}
+
+		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'binding_method', IdentityBindingService::METHOD_TOKEN);
+		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'binding_at', (string)time());
 		// Clean up any old token storage (Phase 1 leftover)
 		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'token');
 		$this->logger->info('iTop: Person ID ' . $personId . ' and User ID ' . $userId . ' configured for user ' . $this->userId, ['app' => Application::APP_ID]);
