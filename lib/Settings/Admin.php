@@ -13,6 +13,7 @@
 namespace OCA\Itop\Settings;
 
 use OCA\Itop\AppInfo\Application;
+use OCA\Itop\Service\Binding\BindingConfig;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\Files\AppData\IAppDataFactory;
@@ -29,6 +30,7 @@ class Admin implements ISettings {
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
 		private IAppDataFactory $appDataFactory,
+		private BindingConfig $bindingConfig,
 	) {
 		$this->logger->info('iTop Admin settings constructor called', ['app' => Application::APP_ID]);
 	}
@@ -114,6 +116,12 @@ class Admin implements ISettings {
 			'simple_ticket_incident_value' => $simpleTicketIncidentValue,
 			'simple_ticket_request_value' => $simpleTicketRequestValue,
 			'ticket_system_type_detected' => $ticketSystemTypeDetected,
+			// Identity binding match rule
+			'binding_match_source' => $this->bindingConfig->getMatchSource(),
+			'binding_match_target' => $this->bindingConfig->getMatchTarget(),
+			'binding_sources' => $this->bindingConfig->getSources(),
+			'binding_targets' => $this->bindingConfig->getTargets(),
+			'binding_source_user_mutable' => $this->bindingConfig->isSourceUserMutable(),
 		];
 
 		return new TemplateResponse(Application::APP_ID, 'adminSettings', $parameters);

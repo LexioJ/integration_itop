@@ -746,4 +746,51 @@ $ciClassLabels = [
 		</div>
 	</div>
 	</div>
+
+	<div id="itop-binding-rule" class="section">
+		<h2><?php p($l->t('Identity binding')); ?></h2>
+		<p class="settings-hint">
+			<?php p($l->t('How Nextcloud accounts are matched to people in %s. Used by admin-side binding and by the occ itop:bind command.', [$_['user_facing_name']])); ?>
+		</p>
+
+		<?php
+		$sourceLabels = [
+			'email' => $l->t('Email address'),
+			'uid' => $l->t('User ID'),
+			'displayname' => $l->t('Display name'),
+		];
+		$targetLabels = [
+			'person.email' => $l->t('Person: email'),
+			'person.employee_number' => $l->t('Person: employee number'),
+			'user.login' => $l->t('User: login'),
+		];
+		?>
+
+		<div class="itop-binding-rule-row">
+			<label for="itop-binding-source"><?php p($l->t('Match Nextcloud')); ?></label>
+			<select id="itop-binding-source">
+				<?php foreach ($_['binding_sources'] as $source) { ?>
+					<option value="<?php p($source); ?>" <?php if ($source === $_['binding_match_source']) { p('selected'); } ?>>
+						<?php p($sourceLabels[$source] ?? $source); ?>
+					</option>
+				<?php } ?>
+			</select>
+
+			<label for="itop-binding-target"><?php p($l->t('against iTop')); ?></label>
+			<select id="itop-binding-target">
+				<?php foreach ($_['binding_targets'] as $target) { ?>
+					<option value="<?php p($target); ?>" <?php if ($target === $_['binding_match_target']) { p('selected'); } ?>>
+						<?php p($targetLabels[$target] ?? $target); ?>
+					</option>
+				<?php } ?>
+			</select>
+
+			<button id="itop-binding-rule-save"><?php p($l->t('Save')); ?></button>
+		</div>
+
+		<div id="itop-binding-mutable-warning" class="itop-binding-warning<?php if (!$_['binding_source_user_mutable']) { p(' hidden'); } ?>">
+			<strong><?php p($l->t('Users can change this attribute themselves on this instance.')); ?></strong>
+			<?php p($l->t('If self-service discovery is enabled later, a user could set their value to a colleague\'s and bind to that person, gaining read access to their tickets. Set allow_user_to_change_email to false, or match on User ID, which cannot be changed. Admin-side binding and occ itop:bind are unaffected.')); ?>
+		</div>
+	</div>
 </div>

@@ -240,6 +240,46 @@ import { generateUrl } from '@nextcloud/router'
 
 		// Make sure existing rows always expose a visible remove button
 		ensureCustomClassRemoveButtons()
+
+		// Identity binding match rule
+		const bindingRuleSave = document.getElementById('itop-binding-rule-save')
+		if (bindingRuleSave) {
+			bindingRuleSave.addEventListener('click', saveBindingRule)
+		}
+	}
+
+	/**
+	 * Persist the identity-binding match rule.
+	 */
+	function saveBindingRule() {
+		const source = document.getElementById('itop-binding-source').value
+		const target = document.getElementById('itop-binding-target').value
+
+		fetch(generateUrl('/apps/integration_itop/binding/rule'), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				requesttoken: getRequestToken(),
+			},
+			body: JSON.stringify({ source, target }),
+		})
+			.then(response => response.json().then(data => ({ ok: response.ok, data })))
+			.then(({ ok, data }) => {
+				if (!ok) {
+					showNotification(data.message || t('integration_itop', 'Could not save the matching rule'), true)
+					return
+				}
+				// The warning depends on the chosen source, so refresh it from the
+				// server's answer rather than guessing client-side.
+				const warning = document.getElementById('itop-binding-mutable-warning')
+				if (warning) {
+					warning.classList.toggle('hidden', !data.source_user_mutable)
+				}
+				showNotification(t('integration_itop', 'Matching rule saved'), false)
+			})
+			.catch(() => {
+				showNotification(t('integration_itop', 'Could not save the matching rule'), true)
+			})
 	}
 
 	/**
