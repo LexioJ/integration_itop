@@ -220,6 +220,15 @@ import { generateUrl } from '@nextcloud/router'
 			uploadCustomClassIcon(iconEl.dataset.class || (row ? row.id.replace('custom-ci-row-', '') : ''))
 		})
 
+		// Identity binding match rule (delegated, like the handlers above, so a
+		// direct getElementById().addEventListener() lookup at attach time can't
+		// miss the button)
+		document.addEventListener('click', function(e) {
+			if (!e.target.closest('#itop-binding-rule-save')) return
+			e.preventDefault()
+			saveBindingRule()
+		})
+
 		// Custom CI classes: browse button
 		const browseButton = document.getElementById('browse-itop-classes')
 		if (browseButton) {
@@ -240,12 +249,6 @@ import { generateUrl } from '@nextcloud/router'
 
 		// Make sure existing rows always expose a visible remove button
 		ensureCustomClassRemoveButtons()
-
-		// Identity binding match rule
-		const bindingRuleSave = document.getElementById('itop-binding-rule-save')
-		if (bindingRuleSave) {
-			bindingRuleSave.addEventListener('click', saveBindingRule)
-		}
 	}
 
 	/**
