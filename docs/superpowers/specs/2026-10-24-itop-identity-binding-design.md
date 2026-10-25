@@ -247,6 +247,38 @@ Phase 2 delivers the main value; phases 3 and 4 are additive.
 
 ## Deferred
 
+### Carried over from the phase 1 implementation review
+
+Found during phase 1, judged not worth blocking that merge. Phase 2 touches most of this code, so
+triage them there.
+
+- `IdentityResolver::findUserIdForPerson()` duplicates `ProfileService::getUserIdByPersonId()` —
+  same class, same OQL, but the validation has already diverged (ProfileService also rejects a
+  negative id). Two copies of the query that decides profile resolution is exactly what the
+  "one resolver, three callers" principle exists to prevent. Collapse them.
+- A Person with several iTop Users resolves arbitrarily (`reset()`). iTop allows a local plus an
+  external account, and profiles hang off the User, so picking the back-end one for a portal
+  contact would undo the 1.5.0 portal fix. Phase 1 is the first code that *persists* that pick,
+  and `--apply` does it in bulk. Safest: return null when more than one User matches and let
+  ProfileService decide at read time.
+- `person_id = '0'` passes every guard (`IdentityResolver` tests `=== ''`, `isBound()` tests
+  `!== ''`) but `ItopAPIService::request()` tests `!$personId`, where `'0'` is falsy — so the
+  account binds, counts as bound, and every query then reports "User not configured". Add a
+  numeric guard in `IdentityBindingService::bind()`.
+- The token path does not consult `isExcluded()`, so an excluded account can still self-bind.
+  Low impact today (a personal token proves the identity), but spec security property 7 says
+  "never matched or bound by any method". Close it in the phase that adds the toggle.
+- `occ itop:bind` reports an iTop API failure and a genuine no-match in the same `none` bucket.
+  A distinct `error` tier would make a partially degraded run obvious without reading the log.
+- `collectUsers()` materialises every user before iterating. Minor next to the 1-2 synchronous
+  HTTP round trips per user that `resolve()` performs, which is the real scaling limit.
+- `ItopAPIService::request()` still catches only `ConnectException` from the non-BadResponse
+  family. Harmless from controllers; widen it like `appRequest()` before reusing it from a command.
+- `BindingConfig::isExcluded()` re-decodes the JSON list on each call, twice per user in the bulk
+  path. Memoise. Also `json_encode()` can return `false` on invalid UTF-8 in `setExcluded()`.
+- No undo command. `unbind()` exists but is unwired, so recovering from a mistaken
+  `--include-review --apply` is a manual per-user `occ user:setting ... --delete`.
+
 - Excluding accounts by *group* rather than individually. Individual exclusion was chosen as explicit and visible; group rules stay correct as accounts come and go and can be added later without migration.
 - Fuzzy/near-match name comparison. Strict was chosen deliberately.
 - Scheduled background re-binding. The occ command covers scripted use; a cron job can call it.
