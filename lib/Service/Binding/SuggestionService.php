@@ -36,6 +36,7 @@ class SuggestionService {
 	public function __construct(
 		private IdentityResolver $resolver,
 		private BindingConfig $bindingConfig,
+		private IdentityBindingService $bindingService,
 		private IUserManager $userManager,
 		private LoggerInterface $logger,
 	) {
@@ -81,6 +82,68 @@ class SuggestionService {
 				];
 			} catch (Throwable $e) {
 				$this->logger->warning('iTop: could not resolve {uid}', [
+					'app' => Application::APP_ID,
+					'uid' => $uid,
+					'exception' => $e,
+				]);
+				$results[$uid] = ['status' => 'failed', 'message' => $e->getMessage()];
+			}
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Re-resolve each account and bind the ones that come back exact.
+	 *
+	 * Re-resolving rather than trusting what the client last saw is the whole
+	 * safety property: a tier the browser is holding may be minutes old, and a
+	 * personId in a request body is simply an assertion. Nothing here reads an
+	 * identity from the caller -- the only argument is a list of accounts.
+	 *
+	 * @param array $uids accounts to apply
+	 * @return array uid => outcome
+	 */
+	public function apply(array $uids): array {
+		$results = [];
+
+		foreach ($this->suggest($uids) as $uid => $result) {
+			if (($result['status'] ?? '') !== 'resolved') {
+				$results[$uid] = $result;
+				continue;
+			}
+
+			if ($result['tier'] !== MatchResult::TIER_EXACT) {
+				// Deliberate: a bulk action never applies a row a human has not
+				// looked at. "Apply exact only" is the behaviour, not the label.
+				$results[$uid] = ['status' => 'skipped', 'tier' => $result['tier']];
+				continue;
+			}
+
+			// suggest() grades accounts that are already bound, so they arrive
+			// here too. Re-binding one would silently move an existing link to
+			// whatever resolves today -- the dangerous direction. Moving a
+			// person to another account stays an explicit unlink-then-apply.
+			if ($this->bindingService->isBound($uid)) {
+				$results[$uid] = ['status' => 'already_bound'];
+				continue;
+			}
+
+			try {
+				$this->bindingService->bind(
+					$uid,
+					$result['personId'],
+					$result['userId'],
+					IdentityBindingService::METHOD_ADMIN,
+					$this->bindingConfig->getMatchSource(),
+				);
+				$results[$uid] = ['status' => 'bound', 'personId' => $result['personId']];
+			} catch (Throwable $e) {
+				// Reachable only by a race: an exclusion added or the person
+				// taken between resolving and writing. bind() is the single
+				// write chokepoint and refuses both, so the batch reports the
+				// row and moves on rather than losing the whole run.
+				$this->logger->warning('iTop: could not bind {uid}', [
 					'app' => Application::APP_ID,
 					'uid' => $uid,
 					'exception' => $e,

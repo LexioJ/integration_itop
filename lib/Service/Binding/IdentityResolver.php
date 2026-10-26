@@ -27,6 +27,24 @@ use Psr\Log\LoggerInterface;
  */
 class IdentityResolver {
 
+	/**
+	 * Class and field for the manual person picker.
+	 *
+	 * Compile-time constants, not configuration and never anything from a
+	 * request: these end up as OQL *identifiers*, and string escaping protects
+	 * literals only. They are fixed rather than taken from the match target
+	 * because the picker always searches people by name, whatever attribute the
+	 * automatic match happens to be configured against.
+	 */
+	private const SEARCH_CLASS = 'Person';
+	private const SEARCH_FIELD = 'friendlyname';
+
+	/**
+	 * Ceiling on what the picker may ask iTop for, so no caller can turn the
+	 * search into a full directory export.
+	 */
+	private const SEARCH_MAX_LIMIT = 50;
+
 	public function __construct(
 		private BindingConfig $bindingConfig,
 		private ItopAPIService $itopAPIService,
@@ -132,6 +150,70 @@ class IdentityResolver {
 		}
 
 		return MatchResult::exact($candidate['person_id'], $userId, $candidate['name'], $value);
+	}
+
+	/**
+	 * People whose iTop name contains $term, for the manual picker.
+	 *
+	 * Returns the same candidate shape resolve() produces, so the picker and
+	 * the ambiguous-tier candidate list render identically.
+	 *
+	 * $term is the one user-supplied part of this query, so it is escaped as an
+	 * OQL literal through the same escapeOQLString() resolve() uses -- there is
+	 * deliberately no second query builder here with its own escaping.
+	 *
+	 * @param string $term free text typed by the administrator
+	 * @param int $limit never from a request; capped at SEARCH_MAX_LIMIT
+	 * @return list<array{person_id: string, user_id: ?string, name: string}>
+	 */
+	public function searchPersonsByName(string $term, int $limit = 20): array {
+		$term = trim($term);
+		if ($term === '') {
+			// Never query with an empty term. LIKE '%%' matches every person on
+			// the instance, which is a directory dump rather than a search.
+			return [];
+		}
+
+		$limit = max(1, min($limit, self::SEARCH_MAX_LIMIT));
+		$escaped = $this->itopAPIService->escapeOQLString($term);
+
+		$response = $this->itopAPIService->appRequest([
+			'operation' => 'core/get',
+			'class' => self::SEARCH_CLASS,
+			'key' => sprintf(
+				"SELECT %s WHERE %s LIKE '%%%s%%'",
+				self::SEARCH_CLASS,
+				self::SEARCH_FIELD,
+				$escaped,
+			),
+			'output_fields' => 'id,first_name,name,email',
+			'limit' => $limit,
+		]);
+
+		if (isset($response['error'])) {
+			$this->logger->warning('iTop person search failed: {error}', [
+				'app' => Application::APP_ID,
+				'error' => $response['error'],
+			]);
+			return [];
+		}
+
+		$objects = $response['objects'] ?? [];
+		if (!is_array($objects) || $objects === []) {
+			return [];
+		}
+
+		$candidates = array_values(array_map(
+			fn (array $object) => $this->toCandidate($object, false),
+			$objects
+		));
+
+		// Trimmed again locally: an iTop version that ignores the limit must not
+		// turn into an unbounded response.
+		return array_slice(array_filter(
+			$candidates,
+			static fn (array $candidate) => $candidate['person_id'] !== ''
+		), 0, $limit);
 	}
 
 	/**

@@ -14,6 +14,7 @@ use OCA\Itop\Service\Binding\BindingConfig;
 use OCA\Itop\Service\Binding\BindingListService;
 use OCA\Itop\Service\Binding\BindingScopeService;
 use OCA\Itop\Service\Binding\IdentityBindingService;
+use OCA\Itop\Service\Binding\IdentityResolver;
 use OCA\Itop\Service\Binding\SuggestionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -41,6 +42,7 @@ class BindingController extends Controller {
 		private BindingConfig $bindingConfig,
 		private IdentityBindingService $bindingService,
 		private SuggestionService $suggestionService,
+		private IdentityResolver $resolver,
 		private IUserManager $userManager,
 		private LoggerInterface $logger,
 	) {
@@ -84,6 +86,73 @@ class BindingController extends Controller {
 			'results' => $this->suggestionService->suggest($uids),
 			'maxBatch' => SuggestionService::MAX_BATCH,
 		]);
+	}
+
+	/**
+	 * Bind every selected account that re-resolves to an exact match.
+	 *
+	 * Takes nothing but uids on purpose. A personId in the body would have
+	 * nowhere to land, which is what stops the tier system being bypassed by
+	 * posting an identity the resolver never agreed to.
+	 */
+	public function apply(array $uids = []): DataResponse {
+		return new DataResponse(['results' => $this->suggestionService->apply($uids)]);
+	}
+
+	/**
+	 * Bind one account to the person an administrator picked.
+	 *
+	 * Unlike apply() this does accept a personId: an administrator choosing
+	 * among candidates is a deliberate, trusted decision. It still goes through
+	 * bind(), which refuses a person already linked to another account.
+	 */
+	public function applyOne(string $uid = '', string $personId = ''): DataResponse {
+		if ($uid === '' || $personId === '') {
+			return new DataResponse(['message' => 'uid and personId are required'], Http::STATUS_BAD_REQUEST);
+		}
+		if (!$this->userManager->userExists($uid)) {
+			return new DataResponse(['message' => 'No such user'], Http::STATUS_NOT_FOUND);
+		}
+		if ($this->bindingConfig->isExcluded($uid)) {
+			return new DataResponse(['message' => 'This account is excluded from matching'], Http::STATUS_BAD_REQUEST);
+		}
+
+		try {
+			// userId is deliberately null: ProfileService derives the iTop User
+			// from person_id on demand, and guessing it here would risk storing
+			// a User belonging to a different person -- iTop profiles hang off
+			// the User, so a mismatched pair can grant an unauthorised profile.
+			$this->bindingService->bind(
+				$uid, $personId, null,
+				IdentityBindingService::METHOD_ADMIN,
+				$this->bindingConfig->getMatchSource(),
+			);
+		} catch (\RuntimeException $e) {
+			// bind() refuses both an excluded account and a person already
+			// linked elsewhere. Excluded is pre-checked above, so reaching here
+			// means the person is taken (or a race added an exclusion); the two
+			// are not distinguishable without matching on the message text, so
+			// the message itself is surfaced rather than reinterpreted.
+			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_CONFLICT);
+		}
+
+		$this->logger->info('iTop identity applied by admin: {uid} -> person {personId}', [
+			'app' => Application::APP_ID,
+			'uid' => $uid,
+			'personId' => $personId,
+		]);
+
+		return new DataResponse(['uid' => $uid, 'personId' => $personId, 'bound' => true]);
+	}
+
+	/**
+	 * Candidates for the manual picker.
+	 *
+	 * The term reaches OQL as an escaped literal; the class and field it is
+	 * matched against are fixed in IdentityResolver, never taken from here.
+	 */
+	public function searchPerson(string $q = ''): DataResponse {
+		return new DataResponse(['candidates' => $this->resolver->searchPersonsByName($q)]);
 	}
 
 	public function getRule(): DataResponse {
