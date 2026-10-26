@@ -32,18 +32,18 @@
 						<template v-if="showSplitCounts">
 							<div class="metric-line metric-line-clickable" @click="openItopPage('Incident:MyIncidents')">
 								<span class="metric-number" :class="{ 'has-count': counts.my_incidents > 0, 'metric-info': counts.my_incidents > 0 }">{{ counts.my_incidents || 0 }}</span>
-								<span class="metric-text">{{ t('integration_itop', 'Incidents') }}</span>
+								<span class="metric-text">{{ n('integration_itop', 'Incident', 'Incidents', counts.my_incidents || 0) }}</span>
 							</div>
 							<div class="metric-line metric-line-clickable" @click="openItopPage('UserRequest:MyRequests')">
 								<span class="metric-number" :class="{ 'has-count': counts.my_requests > 0, 'metric-info': counts.my_requests > 0 }">{{ counts.my_requests || 0 }}</span>
-								<span class="metric-text">{{ t('integration_itop', 'Requests') }}</span>
+								<span class="metric-text">{{ n('integration_itop', 'Request', 'Requests', counts.my_requests || 0) }}</span>
 							</div>
 						</template>
 						<!-- Simple mode without enum: unified ticket count -->
 						<template v-else>
 							<div class="metric-line metric-line-clickable" @click="openItopPage('UserRequest:MyRequests')">
 								<span class="metric-number" :class="{ 'has-count': counts.my_tickets > 0, 'metric-info': counts.my_tickets > 0 }">{{ counts.my_tickets || 0 }}</span>
-								<span class="metric-text">{{ t('integration_itop', 'Tickets') }}</span>
+								<span class="metric-text">{{ n('integration_itop', 'Ticket', 'Tickets', counts.my_tickets || 0) }}</span>
 							</div>
 						</template>
 					</div>
@@ -59,17 +59,17 @@
 						<template v-if="showSplitCounts">
 							<div class="metric-line metric-line-clickable" @click="openItopPage('Incident:OpenIncidents')">
 								<span class="metric-number" :class="{ 'has-count': counts.team_incidents > 0, 'metric-info': counts.team_incidents > 0 }">{{ counts.team_incidents || 0 }}</span>
-								<span class="metric-text">{{ t('integration_itop', 'Incidents') }}</span>
+								<span class="metric-text">{{ n('integration_itop', 'Incident', 'Incidents', counts.team_incidents || 0) }}</span>
 							</div>
 							<div class="metric-line metric-line-clickable" @click="openItopPage('UserRequest:OpenRequests')">
 								<span class="metric-number" :class="{ 'has-count': counts.team_requests > 0, 'metric-info': counts.team_requests > 0 }">{{ counts.team_requests || 0 }}</span>
-								<span class="metric-text">{{ t('integration_itop', 'Requests') }}</span>
+								<span class="metric-text">{{ n('integration_itop', 'Request', 'Requests', counts.team_requests || 0) }}</span>
 							</div>
 						</template>
 						<template v-else>
 							<div class="metric-line metric-line-clickable" @click="openItopPage('UserRequest:OpenRequests')">
 								<span class="metric-number" :class="{ 'has-count': counts.team_tickets > 0, 'metric-info': counts.team_tickets > 0 }">{{ counts.team_tickets || 0 }}</span>
-								<span class="metric-text">{{ t('integration_itop', 'Tickets') }}</span>
+								<span class="metric-text">{{ n('integration_itop', 'Ticket', 'Tickets', counts.team_tickets || 0) }}</span>
 							</div>
 						</template>
 					</div>
