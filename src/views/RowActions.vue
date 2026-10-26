@@ -203,11 +203,16 @@ export default {
 		 * twenty-five identical "Actions" buttons tell a screen reader user
 		 * nothing about which account they are about to change.
 		 *
+		 * escape: false and sanitize: false because Vue writes this straight
+		 * into the attribute with setAttribute and no decoding step, so both of
+		 * t()'s defaults only add entity noise -- a screen reader would announce
+		 * "O&#39;Brien &amp; Co" to the one admin who depends on this label.
+		 *
 		 * @return {string} aria-label for the actions menu
 		 */
 		menuLabel() {
 			return t('integration_itop', 'Actions for {account}',
-				{ account: this.row.displayName || this.row.uid })
+				{ account: this.row.displayName || this.row.uid }, undefined, { escape: false, sanitize: false })
 		},
 	},
 

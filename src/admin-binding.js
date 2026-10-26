@@ -770,8 +770,13 @@ import { generateUrl } from '@nextcloud/router'
 	 * @param {string} uid Nextcloud user id
 	 */
 	async function unbind(uid) {
+		// escape: false, sanitize: false and no esc(): window.confirm() shows
+		// plain text and decodes nothing, so t()'s own escaping would read out
+		// an apostrophe as &#39; and DOMPurify's re-serialisation would turn an
+		// & into &amp;. Nothing here reaches markup, so neither step helps.
 		const ok = window.confirm(t('integration_itop',
-			'Remove the iTop link for {uid}? They will not see their tickets until they are linked again.', { uid }))
+			'Remove the iTop link for {uid}? They will not see their tickets until they are linked again.',
+			{ uid }, undefined, { escape: false, sanitize: false }))
 		if (!ok) return
 		try {
 			await apiCall('/binding/' + encodeURIComponent(uid), { method: 'DELETE' })
@@ -938,8 +943,13 @@ import { generateUrl } from '@nextcloud/router'
 		if (row && row.bound) return
 		const s = state.suggestions[uid]
 		if (!s || s.status !== 'resolved' || s.tier !== 'review') return
+		// escape: false, sanitize: false and no esc(): this dialog exists so a
+		// human can eyeball two names the matcher said disagree, and confirm()
+		// renders plain text -- being asked about "Boris &amp; Co" would defeat
+		// the entire point of it. See unbind() for why both are off.
 		const ok = window.confirm(t('integration_itop',
-			'Link {ncName} to {itopName} in iTop?', { ncName: s.ncName, itopName: s.itopName }))
+			'Link {ncName} to {itopName} in iTop?',
+			{ ncName: s.ncName, itopName: s.itopName }, undefined, { escape: false, sanitize: false }))
 		if (!ok) return
 		try {
 			await apiCall('/binding/apply-one', {

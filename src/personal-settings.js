@@ -602,9 +602,12 @@ import { generateUrl } from '@nextcloud/router'
 			discoverResult.className = 'itop-discover-result proposal'
 
 			const text = document.createElement('p')
-			text.textContent = t('integration_itop', 'We found a matching person: {name}. Is this you?', {
-				name: itopName,
-			})
+			// escape: false and sanitize: false because textContent decodes
+			// nothing -- this is the one screen where a user confirms their own
+			// identity, and the answer binds their account, so "O&#39;Brien"
+			// would be shown to them as a different person's name.
+			text.textContent = t('integration_itop', 'We found a matching person: {name}. Is this you?',
+				{ name: itopName }, undefined, { escape: false, sanitize: false })
 			discoverResult.appendChild(text)
 
 			const actions = document.createElement('div')

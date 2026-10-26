@@ -26,8 +26,15 @@
 				label="name"
 				@search="onSearch"
 				@input="onInput">
+				<!--
+					escape: false and sanitize: false because the mustache
+					builds a text node and escapes on insertion anyway;
+					leaving t()'s defaults on would show an administrator
+					"Müller &amp; Sohn" in the list they pick the person to
+					bind a live account to from.
+				-->
 				<template #option="option">
-					<span>{{ t('integration_itop', '{name} (person {id})', { name: option.name, id: option.person_id }) }}</span>
+					<span>{{ t('integration_itop', '{name} (person {id})', { name: option.name, id: option.person_id }, undefined, { escape: false, sanitize: false }) }}</span>
 				</template>
 			</NcSelect>
 			<div class="itop-person-picker__actions">
