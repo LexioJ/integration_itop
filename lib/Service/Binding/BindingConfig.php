@@ -16,8 +16,10 @@ use OCP\IConfig;
 /**
  * Reads and writes the identity binding settings.
  *
- * Admin-side binding is always available and therefore has no toggle. Only the
- * two self-service paths can be switched off.
+ * Admin-side binding is always available and therefore has no toggle. The
+ * toggles for the self-service paths belong with those paths and will be added
+ * when they are: a stored setting nothing reads looks like a kill switch to an
+ * admin while changing nothing.
  */
 class BindingConfig {
 
@@ -52,14 +54,6 @@ class BindingConfig {
 		private IAppConfig $appConfig,
 		private IConfig $config,
 	) {
-	}
-
-	public function isTokenBindingEnabled(): bool {
-		return $this->appConfig->getValueString(Application::APP_ID, 'binding_token_enabled', '1') === '1';
-	}
-
-	public function isDiscoveryEnabled(): bool {
-		return $this->appConfig->getValueString(Application::APP_ID, 'binding_discovery_enabled', '0') === '1';
 	}
 
 	public function getMatchSource(): string {
