@@ -39,6 +39,10 @@ return [
 		['name' => 'binding#restore', 'url' => '/binding/restore', 'verb' => 'POST'],
 		['name' => 'binding#unbind', 'url' => '/binding/{uid}', 'verb' => 'DELETE'],
 
+		// Identity binding (self-service discovery, off by default)
+		['name' => 'discovery#discover', 'url' => '/binding/discover', 'verb' => 'POST'],
+		['name' => 'discovery#confirm', 'url' => '/binding/discover/confirm', 'verb' => 'POST'],
+
 		// API routes
 		['name' => 'itopAPI#getTickets', 'url' => '/tickets', 'verb' => 'GET'],
 		['name' => 'itopAPI#getTicketsCount', 'url' => '/tickets/count', 'verb' => 'GET'],
