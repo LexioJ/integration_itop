@@ -47,22 +47,41 @@
  * This replaced a per-row CSS grid, under which each row resolved its own
  * `grid-template-columns` against its own content: the actions track came
  * out a different width depending on whether that row's button said
- * "Unlink" or "Link", and the status and account columns could not line up
+ * "Unlink" or "Link…", and the status and account columns could not line up
  * between two rows at all.
+ */
+.itop-binding-grid {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+/*
+ * The wrapper scrolls horizontally rather than the table reflowing.
  *
- * The wrapper scrolls rather than the table reflowing. Below roughly 600px
- * four columns do not fit, and the previous answer -- restacking each row
- * into three lines -- is not available to a table without throwing away the
- * row/cell semantics that are half the reason for being one. A scroll keeps
- * the columns aligned and the header attached to them.
+ * This is a deliberate trade made when the rows became a real table, not an
+ * oversight -- please do not "fix" it back. There used to be a
+ * `max-width: 600px` media query that restacked each row into three lines
+ * with `grid-template-areas`. A table cannot do that without `display:
+ * block` overrides on its rows and cells, which discard the row/cell
+ * semantics that are what fixed the column misalignment in the first place
+ * (and what a screen reader needs to read this as a table at all).
+ * Restacking would therefore reintroduce the original bug on narrow
+ * viewports, to save a horizontal scroll on a screen that is rarely driven
+ * from a phone. A scroll keeps the columns aligned and the header attached
+ * to them.
+ *
+ * The region is focusable in the template, because content that can only be
+ * reached by scrolling has to be reachable by keyboard too -- a pointer is
+ * otherwise the only way to see the actions column on a narrow window. That
+ * makes it a tab stop, so it needs a visible focus ring of its own.
  */
 #itop-binding-table {
 	overflow-x: auto;
 }
 
-.itop-binding-grid {
-	width: 100%;
-	border-collapse: collapse;
+#itop-binding-table:focus-visible {
+	outline: 2px solid var(--color-primary-element, #0082c9);
+	outline-offset: 2px;
 }
 
 .itop-binding-grid th {

@@ -140,7 +140,22 @@ $ciClassLabels = [
 				so neither label exists twice on screen.
 			-->
 			<div id="itop-binding-actions-bar"></div>
-			<div id="itop-binding-table" class="itop-binding-table"></div>
+			<!--
+				The table's scroll container. Narrower than roughly 600px the four
+				columns do not fit and this scrolls horizontally rather than the rows
+				restacking -- a table cannot restack without discarding the row and
+				cell semantics that fixed the column alignment (see the long note in
+				css/admin-binding.css).
+
+				tabindex and role are what make that scroll usable without a mouse: a
+				region whose content is only reachable by scrolling must be focusable,
+				or on a narrow window the actions column cannot be reached by keyboard
+				at all. A focusable region also needs an accessible name, hence the
+				aria-label -- these three attributes belong here rather than in
+				admin-binding.js because they have to survive its innerHTML repaints.
+			-->
+			<div id="itop-binding-table" class="itop-binding-table"
+				tabindex="0" role="region" aria-label="<?php p($l->t('User associations')); ?>"></div>
 			<div id="itop-binding-pager" class="itop-binding-pager"></div>
 
 			<div class="itop-binding-rule-block">

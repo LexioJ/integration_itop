@@ -344,7 +344,7 @@ import { generateUrl } from '@nextcloud/router'
 	 * this screen used to have: every row was its own CSS grid, so each one
 	 * resolved `grid-template-columns` against its own content and the actions
 	 * track came out a different width depending on whether that row's button
-	 * said "Unlink" or "Link". Columns in a table share a width by
+	 * said "Unlink" or "Link…". Columns in a table share a width by
 	 * construction, and <th>/<td> is also what tells a screen reader this is
 	 * tabular data.
 	 *
