@@ -196,10 +196,20 @@ import { generateUrl } from '@nextcloud/router'
 	 * conflict on every path, so an Apply button would promise something the
 	 * server rejects.
 	 *
-	 * @param {string} uid Nextcloud user id
+	 * An already-bound row gets no action either, even for an exact or
+	 * review tier: apply-one trusts the administrator and does not carry
+	 * the already_bound guard that apply() has, so a Confirm… button here
+	 * would be a one-click way to silently re-point an already-bound
+	 * account at a different person -- exactly what the bulk path refuses.
+	 * Moving a person stays the explicit two-step act: unlink, then apply.
+	 *
+	 * @param {object} row a row from /binding/users
 	 * @return {string} HTML for the tier action, or an empty string
 	 */
-	function describeTierAction(uid) {
+	function describeTierAction(row) {
+		if (row.bound) return ''
+
+		const uid = row.uid
 		const s = state.suggestions[uid]
 		if (!s || s.status !== 'resolved') return ''
 
@@ -243,7 +253,7 @@ import { generateUrl } from '@nextcloud/router'
 				+ '<span class="itop-binding-state">' + describeBinding(row) + '</span>'
 				+ '<span class="itop-binding-tier">' + describeTier(row.uid) + '</span>'
 				+ '<span class="itop-binding-actions">'
-				+ describeTierAction(row.uid)
+				+ describeTierAction(row)
 				+ (row.bound
 					? '<button type="button" data-unbind="' + esc(row.uid) + '">'
 					+ esc(t('integration_itop', 'Unlink')) + '</button>'
@@ -262,12 +272,17 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
-	 * How many rows on the current page currently hold an exact suggestion.
+	 * How many rows on the current page are unbound and currently hold an
+	 * exact suggestion -- i.e. how many "Apply exact only" would actually
+	 * apply. An already-bound row is excluded even if its suggestion is
+	 * exact: moving a person is the explicit two-step act (unlink, then
+	 * apply), never a side effect of a bulk button.
 	 *
 	 * @return {number} count
 	 */
 	function exactCountOnPage() {
 		return state.rows.filter(row => {
+			if (row.bound) return false
 			const s = state.suggestions[row.uid]
 			return s && s.status === 'resolved' && s.tier === 'exact'
 		}).length
@@ -466,17 +481,23 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
-	 * Bind every uid in a set whose current suggestion is tier exact.
+	 * Bind every uid in a set whose current suggestion is tier exact and
+	 * which is not already bound.
 	 *
 	 * Filtered client-side so "Apply exact only" can never send a uid whose
 	 * suggestion is review, ambiguous, conflict or none -- the server would
 	 * refuse those anyway (apply() binds exact only), but the label on this
-	 * button is a promise and the request itself should keep it.
+	 * button is a promise and the request itself should keep it. An
+	 * already-bound uid is excluded for the same reason described on
+	 * describeTierAction: moving a person is the explicit two-step act of
+	 * unlink then apply, never a side effect of a bulk button.
 	 *
 	 * @param {string[]} candidateUids uids to consider
 	 */
 	async function applyExact(candidateUids) {
+		const boundUids = new Set(state.rows.filter(r => r.bound).map(r => r.uid))
 		const uids = candidateUids.filter(uid => {
+			if (boundUids.has(uid)) return false
 			const s = state.suggestions[uid]
 			return s && s.status === 'resolved' && s.tier === 'exact'
 		})
@@ -521,6 +542,12 @@ import { generateUrl } from '@nextcloud/router'
 	 * @param {string} uid Nextcloud user id
 	 */
 	async function confirmReview(uid) {
+		// Defense in depth: describeTierAction never renders this row's
+		// button once bound, but a stale DOM node (e.g. a click queued
+		// before a reload finished) must not reach apply-one, which trusts
+		// the administrator and has no already_bound guard of its own.
+		const row = state.rows.find(r => r.uid === uid)
+		if (row && row.bound) return
 		const s = state.suggestions[uid]
 		if (!s || s.status !== 'resolved' || s.tier !== 'review') return
 		const ok = window.confirm(t('integration_itop',
