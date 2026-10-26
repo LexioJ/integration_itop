@@ -160,8 +160,8 @@ import { generateUrl } from '@nextcloud/router'
 
 						ticketsValue.innerHTML = `
                         <div class="itop-ticket-counts">
-                            <div>${t('integration_itop', 'Incident(s):')} <span class="itop-count-large">${incidents}</span></div>
-                            <div>${t('integration_itop', 'Request(s):')} <span class="itop-count-large">${requests}</span></div>
+                            <div>${t('integration_itop', 'Incidents:')} <span class="itop-count-large">${incidents}</span></div>
+                            <div>${t('integration_itop', 'Requests:')} <span class="itop-count-large">${requests}</span></div>
                         </div>
                     `
 
@@ -173,8 +173,8 @@ import { generateUrl } from '@nextcloud/router'
 					} else {
 						ticketsValue.innerHTML = `
                         <div class="itop-ticket-counts">
-                            <div>${t('integration_itop', 'Incident(s):')} <span class="itop-count-large">0</span></div>
-                            <div>${t('integration_itop', 'Request(s):')} <span class="itop-count-large">0</span></div>
+                            <div>${t('integration_itop', 'Incidents:')} <span class="itop-count-large">0</span></div>
+                            <div>${t('integration_itop', 'Requests:')} <span class="itop-count-large">0</span></div>
                         </div>
                     `
 					}

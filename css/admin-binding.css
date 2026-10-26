@@ -39,17 +39,29 @@
 /*
  * The actions cell can hold up to three buttons (a tier action such as
  * "Apply…" or "Confirm…", the manual-link action, and Exclude/Restore), and
- * every label is translated -- some languages run longer than English. The
- * last track is `max-content` rather than `auto` so the row never shrinks
- * it below what its buttons actually need: the account/state/tier tracks
- * are `minmax()` and give up space to it first instead. If a row's content
- * still cannot fit at this card's fixed ~900px max-width (long translated
- * labels, a long display name, a narrow window), it degrades under the
- * breakpoint below rather than wrapping buttons onto a second line.
+ * every label is translated -- some languages run longer than English.
+ *
+ * `max-content` on that last track used to force the column to whatever
+ * width the buttons need unwrapped, squeezing every other track -- on this
+ * card's fixed ~900px max-width, a long translated label set (German
+ * "Verknüpfung entfernen" / "Manuell verknüpfen…" / "Ausschließen") pushed
+ * the account column down to its 150px floor and still overflowed it. A
+ * `minmax()` track gives actions a fair, bounded share instead: when its
+ * buttons do not fit on one line at that width, they wrap onto a second
+ * line (see `flex-wrap: wrap` below) rather than forcing the column wider.
+ * Each button's own label still never wraps mid-word -- `white-space:
+ * nowrap` on the buttons -- so "Link manually…" degrades by moving to its
+ * own line, never by breaking across two.
+ *
+ * The account column keeps its `minmax(150px, 2fr)` floor, but can no
+ * longer rely on getting more than that floor under a long label set, so
+ * its own content is truncated with an ellipsis (see `.itop-binding-
+ * account`) rather than overflowing the cell -- the full text stays
+ * reachable via `title`.
  */
 .itop-binding-row {
 	display: grid;
-	grid-template-columns: 32px 32px minmax(150px, 2fr) minmax(110px, 1fr) minmax(140px, 1fr) max-content;
+	grid-template-columns: 32px 32px minmax(150px, 2fr) minmax(110px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr);
 	gap: 8px;
 	align-items: center;
 	padding: 6px 4px;
@@ -112,21 +124,36 @@
 .itop-binding-account {
 	display: flex;
 	flex-direction: column;
+	/* A grid item's default min-width is auto (its content's intrinsic
+	   width), which ignores the column's minmax() floor and would push the
+	   row wider instead of truncating. Zero it so the ellipsis rules below
+	   can actually bite at the floor width, at any label or display-name
+	   length. */
+	min-width: 0;
+}
+
+.itop-binding-account strong,
+.itop-binding-account > .itop-binding-muted {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /*
- * A real flex row, not the default inline span: that lets the grid read
- * this cell's true intrinsic (max-content) width from its buttons laid out
- * side by side, instead of the width of whichever line a block of wrapped
- * inline content happens to break at. `white-space: nowrap` on the buttons
- * keeps each label on one line regardless of how little room the cell is
- * ever given.
+ * A real flex row, not the default inline span, so the three possible
+ * buttons (tier action, manual-link, Exclude/Restore) lay out side by side.
+ * `white-space: nowrap` on the buttons keeps each individual label on one
+ * line; `flex-wrap: wrap` on the row lets the buttons themselves move to a
+ * second line when the column -- now bounded by minmax(), see
+ * .itop-binding-row -- is too narrow to fit them all on one, instead of
+ * overflowing it.
  */
 .itop-binding-actions {
 	display: flex;
-	flex-wrap: nowrap;
+	flex-wrap: wrap;
 	gap: 6px;
 	align-items: center;
+	min-width: 0;
 }
 
 .itop-binding-actions button {

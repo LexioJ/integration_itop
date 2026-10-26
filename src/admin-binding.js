@@ -10,7 +10,7 @@
 
 import { getRequestToken } from '@nextcloud/auth'
 import { showError, showSuccess } from '@nextcloud/dialogs'
-import { translate as t } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 
 (function() {
@@ -199,11 +199,11 @@ import { generateUrl } from '@nextcloud/router'
 				+ '</span>'
 		case 'review':
 			return '<span class="itop-binding-tier-compare">'
-				+ esc(s.ncName) + ' <span class="itop-binding-muted">vs</span> ' + esc(s.itopName)
+				+ esc(t('integration_itop', '{ncName} vs. {itopName}', { ncName: s.ncName, itopName: s.itopName }))
 				+ '</span>' + describeSourceValue(row)
 		case 'ambiguous':
 			return '<span class="itop-binding-badge tier-ambiguous">'
-				+ esc(t('integration_itop', '{count} candidates', { count: s.candidates.length }))
+				+ esc(n('integration_itop', '{count} candidate', '{count} candidates', s.candidates.length, { count: s.candidates.length }))
 				+ '</span>'
 		case 'conflict':
 			return '<span class="itop-binding-badge tier-conflict">'
@@ -307,8 +307,12 @@ import { generateUrl } from '@nextcloud/router'
 				+ '<img class="itop-binding-avatar" alt="" loading="lazy"'
 				+ ' src="' + esc(generateUrl('/avatar/' + encodeURIComponent(row.uid) + '/32')) + '"'
 				+ ' srcset="' + esc(generateUrl('/avatar/' + encodeURIComponent(row.uid) + '/64')) + ' 2x">'
-				+ '<span class="itop-binding-account"><strong>' + esc(row.displayName) + '</strong>'
-				+ '<span class="itop-binding-muted">' + esc(row.uid)
+				// Both lines can be truncated with an ellipsis under a long
+				// enough translated label set (see .itop-binding-account),
+				// so each carries its own title so the full value stays
+				// reachable on hover/focus regardless.
+				+ '<span class="itop-binding-account"><strong title="' + esc(row.displayName) + '">' + esc(row.displayName) + '</strong>'
+				+ '<span class="itop-binding-muted" title="' + esc(row.uid + (row.email ? ' · ' + row.email : '')) + '">' + esc(row.uid)
 				+ (row.email ? ' · ' + esc(row.email) : '') + '</span></span>'
 				+ '<span class="itop-binding-state">' + describeBinding(row) + '</span>'
 				+ '<span class="itop-binding-tier">' + describeTier(row) + '</span>'
@@ -367,7 +371,7 @@ import { generateUrl } from '@nextcloud/router'
 		const count = exactCountOnPage()
 		btn.disabled = count === 0
 		btn.textContent = count > 0
-			? t('integration_itop', 'Apply {count} exact match(es)', { count })
+			? n('integration_itop', 'Apply {count} exact match', 'Apply {count} exact matches', count, { count })
 			: t('integration_itop', 'Apply exact only')
 	}
 
@@ -403,7 +407,8 @@ import { generateUrl } from '@nextcloud/router'
 		const pages = Math.max(1, Math.ceil(state.total / state.pageSize))
 		pager.innerHTML
 			= '<button type="button" id="itop-binding-prev"' + (state.page <= 1 ? ' disabled' : '') + '>‹</button>'
-			+ '<span>' + esc(t('integration_itop', 'Page {page} of {pages} · {total} account(s)',
+			+ '<span>' + esc(n('integration_itop', 'Page {page} of {pages} · {total} account',
+				'Page {page} of {pages} · {total} accounts', state.total,
 				{ page: state.page, pages, total: state.total })) + '</span>'
 			+ '<button type="button" id="itop-binding-next"' + (state.page >= pages ? ' disabled' : '') + '>›</button>'
 	}
@@ -422,8 +427,8 @@ import { generateUrl } from '@nextcloud/router'
 				body: JSON.stringify({ uids }),
 			})
 			showSuccess(excluded
-				? t('integration_itop', '{count} account(s) excluded from matching', { count: uids.length })
-				: t('integration_itop', '{count} account(s) restored to matching', { count: uids.length }))
+				? n('integration_itop', '{count} account excluded from matching', '{count} accounts excluded from matching', uids.length, { count: uids.length })
+				: n('integration_itop', '{count} account restored to matching', '{count} accounts restored to matching', uids.length, { count: uids.length }))
 			state.selected.clear()
 			await load()
 		} catch (e) {
@@ -496,9 +501,12 @@ import { generateUrl } from '@nextcloud/router'
 			// rather than only exist.
 			const missing = uids.filter(uid => !(uid in results))
 			if (missing.length > 0) {
-				showError(t('integration_itop',
-					'Only {max} account(s) can be matched at once. {count} were left without a suggestion — select fewer accounts and run it again.',
-					{ max: data.maxBatch || uids.length - missing.length, count: missing.length }))
+				const max = data.maxBatch || uids.length - missing.length
+				showError(n('integration_itop',
+					'Only {max} account can be matched at once. {count} were left without a suggestion — select fewer accounts and run it again.',
+					'Only {max} accounts can be matched at once. {count} were left without a suggestion — select fewer accounts and run it again.',
+					max,
+					{ max, count: missing.length }))
 			}
 		} catch (e) {
 			showError(t('integration_itop', 'Could not suggest matches: {msg}', { msg: e.message }))
