@@ -327,8 +327,14 @@ import { generateUrl } from '@nextcloud/router'
 				if (warning) warning.classList.toggle('hidden', !data.source_user_mutable)
 			})
 			.catch(() => {
-				// Nothing more we can do here; the error toast from the failed
-				// save already told the admin something went wrong.
+				// The recovery GET hit the same endpoint on the same server, so
+				// it likely failed for the same reason the save did. Fail
+				// toward alarming rather than reassuring: show the warning
+				// (safe even if it doesn't apply) rather than leave it hidden
+				// while the stored source may still be mutable.
+				const warning = document.getElementById('itop-binding-mutable-warning')
+				if (warning) warning.classList.remove('hidden')
+				showNotification(t('integration_itop', 'Could not read the stored matching rule — reload the page to see the saved state'), true)
 			})
 	}
 
