@@ -274,26 +274,39 @@
 }
 
 /*
- * The second line of a bound status cell, naming the iTop person behind the
- * id. Muted and capped like the source-value line above and like the Account
- * column's `uid · email`, which is the whole point: the two columns should
- * read as the same kind of thing.
+ * The status cell of a bound row, built as the structural twin of
+ * .itop-binding-account-line above: icon slot, then two stacked lines.
  *
- * The `max-width` is load-bearing for the same reason as on the two rules
- * above -- the status column is sized by its content, so without a cap an
- * iTop display name would simply widen the column, push every other column
- * around and never show an ellipsis at all.
+ * The flex container is this div inside the <td> for exactly the reason
+ * spelled out on .itop-binding-account-line -- `display: flex` on a table
+ * cell drops its `table-cell` role and hands the column's width to an
+ * anonymous box, which is the bug a real table was adopted to cure.
  */
-.itop-person-detail {
+.itop-binding-person-line {
 	display: flex;
-	gap: 4px;
+	gap: 8px;
 	align-items: center;
-	max-width: 22em;
-	color: var(--color-text-maxcontrast, #767676);
-	font-size: 85%;
 }
 
-.itop-person-name {
+/*
+ * The two stacked lines beside the icon. Capped for the same reason as
+ * .itop-binding-account: the status column is sized by its content, so
+ * without a cap an iTop-supplied name or email would widen the column, push
+ * every other column around and never show an ellipsis at all. In `em`
+ * rather than a percentage because what it bounds is user data, not a
+ * translated label -- it has to hold roughly the same number of characters
+ * whatever the locale. `min-width: 0` is what lets the ellipsis rules bite
+ * inside a flex item.
+ */
+.itop-binding-person {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	max-width: 22em;
+}
+
+.itop-binding-person strong,
+.itop-binding-person > .itop-binding-muted {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -301,30 +314,37 @@
 
 /*
  * A person iTop no longer has is a broken link an administrator has to go and
- * repair, so it is called out instead of staying muted. `--color-warning-text`
- * rather than `--color-warning`: the latter is the pale warning *background*
- * in current Nextcloud themes (#FFEEC5), unreadable as text on the page.
+ * repair, so the second line is called out instead of staying muted.
+ * `--color-warning-text` rather than `--color-warning`: the latter is the pale
+ * warning *background* in current Nextcloud themes (#FFEEC5), unreadable as
+ * text on the page.
  *
- * iTop merely being unreachable renders no line at all and so never reaches
- * this rule -- an outage must not be dressed up as a broken link.
+ * iTop merely being unreachable never reaches this rule -- its cell shows the
+ * id and the badge, exactly as a row nothing was ever asked about does, because
+ * an outage must not be dressed up as a broken link.
  */
-.itop-person-detail.not-found {
+.itop-binding-person > .itop-binding-muted.not-found {
 	color: var(--color-warning-text, #664700);
 }
 
 /*
- * Full-colour illustrations drawn at 240x240, not flat monochrome icons, so
- * they get 20px rather than the 16px a Nextcloud icon would use: below roughly
- * 18px the lanyard and the second figure stop being distinguishable, which
- * defeats the entire point of having two different pictures.
+ * The icon takes the avatar's geometry -- same 32px box, same position at the
+ * head of the flex row -- so the Status column's text starts on an edge that
+ * mirrors the Account column's. The slot is rendered on every bound row even
+ * when empty, which is what keeps that edge common to all of them.
  *
- * `flex: 0 0 auto` keeps the icon at that size while the name next to it is
+ * Deliberately *not* `border-radius: 50%`. The avatar is a portrait and reads
+ * correctly as a circle; these are landscape illustrations drawn at 240x240,
+ * and circular clipping would cut the lanyard off security-pass.svg -- the one
+ * detail that distinguishes it from the other two.
+ *
+ * `flex: 0 0 auto` keeps the icon at that size while the lines next to it are
  * the part that gets clipped.
  */
 .itop-person-profile {
 	flex: 0 0 auto;
-	width: 20px;
-	height: 20px;
+	width: 32px;
+	height: 32px;
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;

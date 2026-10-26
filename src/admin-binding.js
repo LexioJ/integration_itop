@@ -137,14 +137,7 @@ import { generateUrl } from '@nextcloud/router'
 			return '<span class="itop-binding-badge excluded">' + esc(t('integration_itop', 'excluded')) + '</span>'
 		}
 		if (row.bound) {
-			// A pre-existing binding made before provenance was recorded has no method.
-			const origin = row.method
-				? '<span class="itop-binding-badge origin">' + esc(row.method) + '</span>'
-				: '<span class="itop-binding-badge origin unknown" title="'
-					+ esc(t('integration_itop', 'Linked before this app recorded how bindings were made'))
-					+ '">' + esc(t('integration_itop', 'unknown')) + '</span>'
-			return '<strong>' + esc(t('integration_itop', 'person {id}', { id: row.personId }, undefined, { escape: false })) + '</strong> ' + origin
-				+ describePerson(row)
+			return describePerson(row)
 		}
 		const s = state.suggestions[row.uid]
 		if (!s) {
@@ -154,55 +147,108 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
-	 * The muted second line under `person {id}`, naming who that person
-	 * actually is.
+	 * The method badge for a bound row: how the link came to be made.
 	 *
-	 * Deliberately three different renderings, because `status` draws a
-	 * distinction an administrator has to act on differently:
-	 *
-	 * - `ok`          the name and email, in the same shape as the Account
-	 *                 column's `uid · email`. That symmetry is the point of
-	 *                 the whole line: a bare `person 16` asks the admin to go
-	 *                 and look the id up somewhere else.
-	 * - `not_found`   iTop answered and this person is gone. That is a broken
-	 *                 link somebody has to repair, so it is called out as a
-	 *                 warning rather than left muted.
-	 * - `unavailable` nothing at all, so the row reads exactly as it did
-	 *                 before this line existed. iTop was merely unreachable,
-	 *                 and dressing a transient outage up as a broken link
-	 *                 would send an admin hunting a problem that does not
-	 *                 exist.
-	 *
-	 * An unbound row has no `person` key at all and also renders nothing.
+	 * A pre-existing binding made before provenance was recorded has no
+	 * method, and says so rather than leaving the badge off -- "we did not
+	 * record this" is a different statement from "there is nothing here".
 	 *
 	 * @param {object} row a row from /binding/users
-	 * @return {string} HTML for the person line, or '' when there is nothing to say
+	 * @return {string} HTML for the badge
+	 */
+	function methodBadge(row) {
+		if (row.method) {
+			return '<span class="itop-binding-badge origin">' + esc(row.method) + '</span>'
+		}
+		return '<span class="itop-binding-badge origin unknown" title="'
+			+ esc(t('integration_itop', 'Linked before this app recorded how bindings were made'))
+			+ '">' + esc(t('integration_itop', 'unknown')) + '</span>'
+	}
+
+	/**
+	 * The whole status cell for a bound row, built as the structural twin of
+	 * the Account cell: an icon in the avatar's 32px slot, then a bold
+	 * identity line and a muted secondary line.
+	 *
+	 * That symmetry is the point. The two columns describe the same person on
+	 * either side of the link, so they should read as the same kind of thing --
+	 * `#16 Boris Vian` over `boris.vian@it.com · admin` against `nextadmin`
+	 * over `nextadmin · boris.vian@…`. A bare `person 16` asked the admin to
+	 * go and look the id up somewhere else.
+	 *
+	 * `status` draws a distinction an administrator has to act on differently,
+	 * so the two lines are filled from it rather than assumed:
+	 *
+	 * - `ok`          name on the identity line, email on the muted one, and
+	 *                 the profile icon in the slot.
+	 * - `not_found`   iTop answered and this person is gone. That is a broken
+	 *                 link somebody has to repair, so the second line says so
+	 *                 as a warning rather than staying muted.
+	 * - `unavailable` the id and the badge alone -- exactly how the cell reads
+	 *                 when nothing was ever asked. iTop was merely
+	 *                 unreachable, and dressing a transient outage up as a
+	 *                 broken link would send an admin hunting a problem that
+	 *                 does not exist.
+	 *
+	 * The icon slot is rendered on every bound row even when it is empty: its
+	 * whole job is that every row's text starts at the same x-position. It is
+	 * only filled when a profile was actually established -- an empty slot
+	 * asserts nothing about a person nothing is known about, which is why
+	 * `not_found` gets no silhouette next to a note saying the person does not
+	 * exist.
+	 *
+	 * @param {object} row a row from /binding/users
+	 * @return {string} HTML for the status cell of a bound row
 	 */
 	function describePerson(row) {
 		const person = row.person
-		if (!person || person.status === 'unavailable') {
-			return ''
-		}
-		if (person.status === 'not_found') {
-			// No profile icon here on purpose: a person iTop does not have has
-			// no profile to report, and a silhouette next to "not found" would
-			// assert the opposite of what the note says.
-			return '<span class="itop-person-detail not-found">'
-				+ esc(t('integration_itop', 'not found in iTop')) + '</span>'
-		}
-		// Concatenated rather than interpolated through t(): t() escapes its
-		// own placeholders, so a name containing & would come back
-		// double-escaped once esc() had run over it as well.
-		const text = [person.name, person.email].filter(Boolean).map(esc).join(' · ')
-		return '<span class="itop-person-detail">'
-			+ profileIcon(person.profile)
-			// Clipped past the column's cap like both lines of the Account
-			// column, so it carries its own title to keep the full
-			// iTop-supplied value reachable on hover and focus.
-			+ '<span class="itop-person-name" title="'
-			+ esc([person.name, person.email].filter(Boolean).join(' · ')) + '">'
-			+ text + '</span>'
+		const resolved = !!person && person.status === 'ok'
+		const notFound = !!person && person.status === 'not_found'
+
+		// `#` followed by digits is the same in every locale, so it is
+		// concatenated rather than given an l10n key of its own. Joined from a
+		// filtered list so an unresolved person never leaves a trailing space.
+		const identity = ['#' + row.personId, resolved ? person.name : '']
+			.filter(Boolean).join(' ')
+
+		// Built as HTML fragments rather than text, because the badge is one of
+		// the parts. Filtered before joining so a missing email can never leave
+		// a leading separator. The plain-text twin is what the title carries.
+		const secondHtml = notFound
+			? esc(t('integration_itop', 'not found in iTop'))
+			: [resolved && person.email ? esc(person.email) : '', methodBadge(row)]
+				.filter(Boolean).join(' · ')
+		const secondTitle = notFound
+			? t('integration_itop', 'not found in iTop')
+			: [resolved && person.email ? person.email : '', row.method || t('integration_itop', 'unknown')]
+				.filter(Boolean).join(' · ')
+
+		// Both lines are clipped with an ellipsis past the status column's cap
+		// (see .itop-binding-person), so each carries its own title to keep the
+		// full iTop-supplied value reachable on hover and focus -- the same
+		// treatment both lines of the Account column get.
+		return '<div class="itop-binding-person-line">'
+			+ (resolved ? profileIcon(person.profile) : emptyProfileSlot())
+			+ '<span class="itop-binding-person">'
+			+ '<strong title="' + esc(identity) + '">' + esc(identity) + '</strong>'
+			+ '<span class="itop-binding-muted' + (notFound ? ' not-found' : '')
+			+ '" title="' + esc(secondTitle) + '">' + secondHtml + '</span>'
 			+ '</span>'
+			+ '</div>'
+	}
+
+	/**
+	 * The icon slot on a bound row whose iTop profile is not established.
+	 *
+	 * Holds the slot's width open so the text beside it starts on the same
+	 * edge as every other row's, and says nothing: `aria-hidden` rather than
+	 * the `role="img"` a filled slot carries, because there is no state here
+	 * to name.
+	 *
+	 * @return {string} HTML for an empty icon slot
+	 */
+	function emptyProfileSlot() {
+		return '<span class="itop-person-profile" aria-hidden="true"></span>'
 	}
 
 	/**

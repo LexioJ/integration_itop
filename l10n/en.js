@@ -673,7 +673,6 @@ OC.L10N.register(
     "notification_ticket_status_changed" : "Ticket status changed",
     "notification_ticket_tto_warning" : "Ticket TTO warning (deadline approaching)",
     "notification_ticket_ttr_warning" : "Ticket TTR warning (deadline approaching)",
-    "person {id}" : "person {id}",
     "private note" : "private note",
     "profiles" : "profiles",
     "seconds" : "seconds",
