@@ -1168,6 +1168,17 @@ input.password-style {
 	display: none;
 }
 
+.itop-binding-self-service-row {
+	margin-bottom: 8px;
+}
+
+.itop-binding-self-service-row .checkbox-label {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	cursor: pointer;
+}
+
 /* Section navigation chips */
 .itop-nav-chips {
 	display: flex;

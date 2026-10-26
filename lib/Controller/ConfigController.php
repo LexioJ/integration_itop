@@ -14,6 +14,7 @@ namespace OCA\Itop\Controller;
 
 use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\ItopAPIService;
+use OCA\Itop\Service\Binding\BindingConfig;
 use OCA\Itop\Service\Binding\IdentityBindingService;
 use OCA\Itop\Service\CacheService;
 use OCP\App\IAppManager;
@@ -57,6 +58,7 @@ class ConfigController extends Controller {
 		private ItopAPIService $itopAPIService,
 		private CacheService $cacheService,
 		private IdentityBindingService $identityBindingService,
+		private BindingConfig $bindingConfig,
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
 		private IClientService $clientService,
@@ -228,6 +230,16 @@ class ConfigController extends Controller {
 				'message' => $this->l10n->t('Settings saved successfully'),
 				'person_id_configured' => $hasPersonId
 			]);
+		}
+
+		// The personal-token path is one of the two self-service binding
+		// routes and is gated on its own admin toggle. Checked before any
+		// validation or write so a disabled toggle is never decorative.
+		if (!$this->bindingConfig->isTokenBindingEnabled()) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Linking your account with a personal token is disabled by your administrator.'),
+				'person_id_configured' => false,
+			], Http::STATUS_FORBIDDEN);
 		}
 
 		// Phase 2: Validate personal token and extract Person ID using :current_contact_id

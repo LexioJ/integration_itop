@@ -201,6 +201,22 @@ $ciClassLabels = [
 				<strong><?php p($l->t('Users can change this attribute themselves on this instance.')); ?></strong>
 				<?php p($l->t('A user could set their value to a colleague\'s and be linked to that person, gaining read access to their tickets. Set allow_user_to_change_email — or allow_user_to_change_display_name if matching on display name — to false, or match on User ID, which cannot be changed. Admin-side binding and occ itop:bind match on the same attribute, so they are affected too: they refuse a person already linked to another account, but one not yet linked can be claimed this way.')); ?>
 			</div>
+
+			<div class="itop-binding-self-service-row">
+				<label for="itop-binding-token-enabled" class="checkbox-label">
+					<input type="checkbox" id="itop-binding-token-enabled" <?php if ($_['binding_token_enabled']) { p('checked'); } ?> />
+					<?php p($l->t('Let users link their own account by pasting an iTop personal token')); ?>
+				</label>
+			</div>
+			<div class="itop-binding-self-service-row">
+				<label for="itop-binding-discovery-enabled" class="checkbox-label">
+					<input type="checkbox" id="itop-binding-discovery-enabled" <?php if ($_['binding_discovery_enabled']) { p('checked'); } ?> />
+					<?php p($l->t('Let users link themselves by matching their account attribute (off by default — the matched attribute decides which iTop person they receive)')); ?>
+				</label>
+			</div>
+			<div class="itop-binding-rule-row">
+				<button id="itop-binding-self-service-save"><?php p($l->t('Save')); ?></button>
+			</div>
 			</div>
 
 			<div class="itop-section-foot">

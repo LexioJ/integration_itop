@@ -34,6 +34,7 @@ return [
 		['name' => 'binding#searchPerson', 'url' => '/binding/search-person', 'verb' => 'GET'],
 		['name' => 'binding#getRule', 'url' => '/binding/rule', 'verb' => 'GET'],
 		['name' => 'binding#setRule', 'url' => '/binding/rule', 'verb' => 'POST'],
+		['name' => 'binding#setSelfService', 'url' => '/binding/self-service', 'verb' => 'POST'],
 		['name' => 'binding#exclude', 'url' => '/binding/exclude', 'verb' => 'POST'],
 		['name' => 'binding#restore', 'url' => '/binding/restore', 'verb' => 'POST'],
 		['name' => 'binding#unbind', 'url' => '/binding/{uid}', 'verb' => 'DELETE'],

@@ -195,6 +195,25 @@ class BindingController extends Controller {
 		]);
 	}
 
+	/**
+	 * Toggle the two self-service binding routes: personal token and
+	 * discovery. Admin-side binding has no toggle -- it is always available.
+	 */
+	public function setSelfService(bool $tokenEnabled, bool $discoveryEnabled): DataResponse {
+		$this->bindingConfig->setSelfServiceMethods($tokenEnabled, $discoveryEnabled);
+
+		$this->logger->info('iTop self-service binding methods set: token={token} discovery={discovery}', [
+			'app' => Application::APP_ID,
+			'token' => $tokenEnabled ? 'enabled' : 'disabled',
+			'discovery' => $discoveryEnabled ? 'enabled' : 'disabled',
+		]);
+
+		return new DataResponse([
+			'token_enabled' => $this->bindingConfig->isTokenBindingEnabled(),
+			'discovery_enabled' => $this->bindingConfig->isDiscoveryEnabled(),
+		]);
+	}
+
 	public function setRule(string $source, string $target): DataResponse {
 		try {
 			$this->bindingConfig->setMatchRule($source, $target);

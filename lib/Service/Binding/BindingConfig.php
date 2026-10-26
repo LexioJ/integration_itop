@@ -16,10 +16,10 @@ use OCP\IConfig;
 /**
  * Reads and writes the identity binding settings.
  *
- * Admin-side binding is always available and therefore has no toggle. The
- * toggles for the self-service paths belong with those paths and will be added
- * when they are: a stored setting nothing reads looks like a kill switch to an
- * admin while changing nothing.
+ * Admin-side binding is always available and therefore has no toggle. The two
+ * self-service paths -- personal token and discovery -- each have one, read
+ * by isTokenBindingEnabled() and isDiscoveryEnabled() respectively. Both were
+ * removed once already because nothing read them; see setSelfServiceMethods().
  */
 class BindingConfig {
 
@@ -230,6 +230,35 @@ class BindingConfig {
 		}
 
 		return $changed;
+	}
+
+	/**
+	 * Whether the personal-token self-service path may bind a Nextcloud
+	 * account to an iTop person.
+	 *
+	 * Defaults to enabled: every existing install already relies on this
+	 * path, and turning it off by default on upgrade would silently strand
+	 * users who have not yet bound an account.
+	 */
+	public function isTokenBindingEnabled(): bool {
+		return $this->appConfig->getValueString(Application::APP_ID, 'binding_token_enabled', '1') === '1';
+	}
+
+	/**
+	 * Whether self-service discovery -- matching a user's own account
+	 * attribute against iTop without a token -- is permitted.
+	 *
+	 * Defaults to disabled: it is the one binding route where an untrusted
+	 * user's attribute decides which identity they receive, so an
+	 * administrator must opt in deliberately.
+	 */
+	public function isDiscoveryEnabled(): bool {
+		return $this->appConfig->getValueString(Application::APP_ID, 'binding_discovery_enabled', '0') === '1';
+	}
+
+	public function setSelfServiceMethods(bool $token, bool $discovery): void {
+		$this->appConfig->setValueString(Application::APP_ID, 'binding_token_enabled', $token ? '1' : '0');
+		$this->appConfig->setValueString(Application::APP_ID, 'binding_discovery_enabled', $discovery ? '1' : '0');
 	}
 
 	/**

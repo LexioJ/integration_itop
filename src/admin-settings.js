@@ -252,6 +252,15 @@ import { generateUrl } from '@nextcloud/router'
 			saveBindingRule()
 		})
 
+		// Self-service toggles: personal token and discovery (delegated, same
+		// reason as the matching-rule save button above)
+		document.addEventListener('click', function(e) {
+			if (!(e.target instanceof Element)) return
+			if (!e.target.closest('#itop-binding-self-service-save')) return
+			e.preventDefault()
+			saveSelfServiceMethods()
+		})
+
 		// Warn as soon as the admin picks a mutable source, before they save --
 		// mutability is per source and server-controlled (it depends on
 		// allow_user_to_change_email / allow_user_to_change_display_name), so
@@ -327,6 +336,35 @@ import { generateUrl } from '@nextcloud/router'
 			.catch(() => {
 				showNotification(t('integration_itop', 'Could not save the matching rule'), true)
 				resyncBindingRuleForm()
+			})
+	}
+
+	/**
+	 * Persist the two self-service binding toggles: personal token and
+	 * discovery. Admin-side binding has no toggle -- it is always available.
+	 */
+	function saveSelfServiceMethods() {
+		const tokenEnabled = document.getElementById('itop-binding-token-enabled').checked
+		const discoveryEnabled = document.getElementById('itop-binding-discovery-enabled').checked
+
+		fetch(generateUrl('/apps/integration_itop/binding/self-service'), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				requesttoken: getRequestToken(),
+			},
+			body: JSON.stringify({ tokenEnabled, discoveryEnabled }),
+		})
+			.then(response => response.json().then(data => ({ ok: response.ok, data })))
+			.then(({ ok, data }) => {
+				if (!ok) {
+					showNotification(data.message || t('integration_itop', 'Could not save the self-service settings'), true)
+					return
+				}
+				showNotification(t('integration_itop', 'Self-service settings saved'), false)
+			})
+			.catch(() => {
+				showNotification(t('integration_itop', 'Could not save the self-service settings'), true)
 			})
 	}
 
