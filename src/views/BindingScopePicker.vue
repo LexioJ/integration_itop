@@ -10,6 +10,7 @@
   -->
 <template>
 	<NcSelect id="itop-binding-scope-select"
+		:value="selected"
 		:options="options"
 		:loading="loading"
 		:filterable="false"
@@ -55,6 +56,18 @@ export default {
 			options: [],
 			loading: false,
 			debounce: null,
+			// The chosen scope, bound to NcSelect so the field actually shows
+			// it — without this the dropdown silently narrows the table while
+			// still displaying its placeholder.
+			selected: null,
+			// vue-select fires a synthetic empty @search right after a
+			// selection or clear; the next onSearch call with an empty term
+			// consumes this flag instead of re-emitting a redundant 'search'.
+			ignoreNextEmptySearch: false,
+			// Suggestion fetches can resolve out of order; only the response
+			// to the most recently issued request is allowed to update the
+			// dropdown.
+			requestSeq: 0,
 		}
 	},
 
@@ -71,13 +84,37 @@ export default {
 		 * table reload and the suggestion fetch at different moments for the
 		 * same keystroke.
 		 *
+		 * vue-select also fires this with an empty string right after a
+		 * selection or a clear; that synthetic event is consumed via
+		 * `ignoreNextEmptySearch` rather than treated as the admin clearing
+		 * the field by hand, which would otherwise re-trigger a redundant
+		 * table reload (or, worse, race the scope that was just chosen).
+		 *
 		 * @param {string} term what the admin has typed
 		 */
 		onSearch(term) {
+			const trimmed = term.trim()
+			if (trimmed === '' && this.ignoreNextEmptySearch) {
+				this.ignoreNextEmptySearch = false
+				clearTimeout(this.debounce)
+				return
+			}
+			// A real typed term closes the window in which a stale flag
+			// could wrongly swallow a later, genuine empty search.
+			this.ignoreNextEmptySearch = false
+
 			clearTimeout(this.debounce)
 			this.debounce = setTimeout(() => {
-				this.$emit('search', term.trim())
-				this.fetchSuggestions(term.trim())
+				// Scope and free text are alternatives, not filters that
+				// stack: typing a real term abandons whatever was selected,
+				// in the component's own display and in the parent's state
+				// (the 'search' event's non-empty term tells the parent to
+				// drop state.scope).
+				if (trimmed !== '' && this.selected) {
+					this.selected = null
+				}
+				this.$emit('search', trimmed)
+				this.fetchSuggestions(trimmed)
 			}, 300)
 		},
 
@@ -85,6 +122,13 @@ export default {
 		 * @param {?object} option the chosen suggestion, or null when cleared
 		 */
 		onInput(option) {
+			this.selected = option
+			// A selection (or an explicit clear via the ✕) is immediately
+			// followed by a synthetic empty @search from vue-select; ignore
+			// that one occurrence instead of letting it reload the table a
+			// second time or wipe out the selection just made.
+			this.ignoreNextEmptySearch = true
+			clearTimeout(this.debounce)
 			this.$emit('select', option
 				? { type: option.type, id: option.id, label: option.label }
 				: null)
@@ -99,6 +143,7 @@ export default {
 				return
 			}
 
+			const seq = ++this.requestSeq
 			this.loading = true
 			try {
 				const response = await fetch(
@@ -109,6 +154,9 @@ export default {
 					throw new Error('HTTP ' + response.status)
 				}
 				const body = await response.json()
+				// A newer request may have started and already won the race;
+				// an older response must never clobber its fresher options.
+				if (seq !== this.requestSeq) return
 				this.options = [
 					...this.decorate(body.accounts, t('integration_itop', 'Account')),
 					...this.decorate(body.groups, t('integration_itop', 'Group')),
@@ -117,10 +165,13 @@ export default {
 					...(body.teamsAvailable ? this.decorate(body.teams, t('integration_itop', 'Team')) : []),
 				]
 			} catch (e) {
+				if (seq !== this.requestSeq) return
 				this.options = []
 				showError(t('integration_itop', 'Could not search accounts, groups or teams: {msg}', { msg: e.message }))
 			} finally {
-				this.loading = false
+				if (seq === this.requestSeq) {
+					this.loading = false
+				}
 			}
 		},
 

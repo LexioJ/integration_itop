@@ -7,7 +7,12 @@
 	margin-bottom: 10px;
 }
 
-.itop-binding-scope-picker {
+/*
+ * Not `.itop-binding-scope-picker`: Vue 2's $mount(el) replaces that
+ * mount-point div entirely, so the class never reaches the DOM. Target the
+ * id that lands on the mounted NcSelect's own root element instead.
+ */
+#itop-binding-scope-select {
 	min-width: 320px;
 }
 

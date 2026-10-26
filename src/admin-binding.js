@@ -257,6 +257,14 @@ import { generateUrl } from '@nextcloud/router'
 
 		picker.$on('search', function(term) {
 			state.search = term
+			// Scope and free text are alternatives, not filters that stack: a
+			// real typed term abandons whatever scope was selected. Guarded
+			// on non-empty because vue-select also fires this event with an
+			// empty string right after a selection, which must not undo the
+			// scope just chosen.
+			if (term !== '') {
+				state.scope = null
+			}
 			state.page = 1
 			load()
 		})
