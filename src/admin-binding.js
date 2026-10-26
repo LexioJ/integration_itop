@@ -306,7 +306,7 @@ import { generateUrl } from '@nextcloud/router'
 		const count = exactCountOnPage()
 		btn.disabled = count === 0
 		btn.textContent = count > 0
-			? t('integration_itop', 'Apply {count} exact matches', { count })
+			? t('integration_itop', 'Apply {count} exact match(es)', { count })
 			: t('integration_itop', 'Apply exact only')
 	}
 
