@@ -172,13 +172,33 @@ class BindingController extends Controller {
 			], Http::STATUS_CONFLICT);
 		}
 
+		// Resolved by the Person's own contactid link, the same one-match
+		// rule PersonDetailService already applies at display time: stored
+		// only when exactly one User points at this Person. iTop profiles
+		// hang off the User rather than the Person, so a Person with several
+		// Users is genuinely ambiguous -- storing one of them as a guess
+		// could grant whichever profile that particular User happens to
+		// carry, which is worse than leaving the id unresolved. A Person
+		// with no User at all is not an error either: not everyone has a
+		// login, and null is exactly what that case means.
+		$userId = null;
 		try {
-			// userId is deliberately null: ProfileService derives the iTop User
-			// from person_id on demand, and guessing it here would risk storing
-			// a User belonging to a different person -- iTop profiles hang off
-			// the User, so a mismatched pair can grant an unauthorised profile.
+			$userId = $this->personDetailService->findSingleUserIdForPerson($personId);
+		} catch (\Throwable $e) {
+			// The link itself is what the administrator asked for; the User
+			// id is an optimisation on top of it that display-time lookup
+			// (see PersonDetailService::describeMany()) can still recover
+			// later. A failed lookup must not fail the bind.
+			$this->logger->warning('Could not resolve iTop User for person {personId}: {message}', [
+				'app' => Application::APP_ID,
+				'personId' => $personId,
+				'message' => $e->getMessage(),
+			]);
+		}
+
+		try {
 			$this->bindingService->bind(
-				$uid, $personId, null,
+				$uid, $personId, $userId,
 				IdentityBindingService::METHOD_ADMIN,
 				$this->bindingConfig->getMatchSource(),
 			);

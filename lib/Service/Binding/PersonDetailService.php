@@ -242,18 +242,43 @@ class PersonDetailService {
 	 * convention ProfileService and IdentityResolver use when binding needs
 	 * a User for a Person it was only given the id of.
 	 *
-	 * Unlike IdentityResolver::findUserIdForPerson(), which takes
-	 * reset($objects) when a Person has more than one matching User, a
-	 * Person with more than one match here is left out of the returned map
-	 * entirely. That method's caller only risks a mis-suggested bind the
-	 * admin can reject; this one drives an icon asserting the person's
-	 * access level, and a wrong guess reads as a claim about someone's
-	 * authorisation -- worse than admitting the icon can't tell.
+	 * Delegates the actual lookup and one-match rule to
+	 * fetchSingleUserByContactId(), which BindingController also uses
+	 * directly (via findSingleUserIdForPerson()) to store a user_id at
+	 * bind time rather than only at display time.
 	 *
 	 * @param list<int> $personIds validated ids, safe to join into OQL
 	 * @return array<int, array<int,string>> parsed profile names keyed by Person id
 	 */
 	private function fetchProfilesByContactId(array $personIds): array {
+		$usersByPerson = $this->fetchSingleUserByContactId($personIds);
+
+		$profilesByPerson = [];
+		foreach ($usersByPerson as $personId => $fields) {
+			$profilesByPerson[$personId] = $this->profileService->parseProfileList($fields['profile_list'] ?? '');
+		}
+
+		return $profilesByPerson;
+	}
+
+	/**
+	 * The single iTop User whose `contactid` points at each given Person.
+	 *
+	 * Unlike IdentityResolver::findUserIdForPerson(), which takes
+	 * reset($objects) when a Person has more than one matching User, a
+	 * Person with more than one match here is left out of the returned map
+	 * entirely. The caller there only risks a mis-suggested bind the admin
+	 * can reject; the callers here either drive an icon asserting the
+	 * person's access level, or store a user_id that later feeds that same
+	 * icon -- and a wrong guess in either case reads as a claim about
+	 * someone's authorisation, worse than admitting it can't tell.
+	 *
+	 * @param list<int> $personIds validated ids, safe to join into OQL
+	 * @return array<int, array<string,mixed>> fields of the single matching
+	 *               User, keyed by Person id; a Person with zero or several
+	 *               matches is simply absent
+	 */
+	private function fetchSingleUserByContactId(array $personIds): array {
 		$response = $this->itopAPIService->appRequest([
 			'operation' => 'core/get',
 			'class' => 'User',
@@ -274,9 +299,9 @@ class PersonDetailService {
 			return [];
 		}
 
-		// Grouped by Person id first, rather than parsed straight into the
-		// result map, so a Person matched by more than one User can be
-		// detected and excluded below instead of silently picking one.
+		// Grouped by Person id first, rather than kept straight in the result
+		// map, so a Person matched by more than one User can be detected and
+		// excluded below instead of silently picking one.
 		$usersByPerson = [];
 		foreach ($objects as $object) {
 			$fields = $object['fields'] ?? [];
@@ -287,17 +312,42 @@ class PersonDetailService {
 			$usersByPerson[(int)$personId][] = $fields;
 		}
 
-		$profilesByPerson = [];
+		$result = [];
 		foreach ($usersByPerson as $personId => $users) {
 			if (count($users) !== 1) {
-				// Ambiguous: leave this person out so describeMany() reports
-				// 'unknown' for them, the same as a Person with no User at all.
+				// Ambiguous: leave this person out. Callers treat absence the
+				// same as a Person with no User at all.
 				continue;
 			}
-			$profilesByPerson[$personId] = $this->profileService->parseProfileList($users[0]['profile_list'] ?? '');
+			$result[$personId] = $users[0];
 		}
 
-		return $profilesByPerson;
+		return $result;
+	}
+
+	/**
+	 * The one iTop User id for a Person, for callers that need the id alone
+	 * rather than a profile -- BindingController, when an administrator links
+	 * a Person through the manual picker and no user_id came with the match.
+	 *
+	 * Applies the same one-match rule as the profile lookup above: a Person
+	 * linked to more than one User is ambiguous, and storing a guess risks
+	 * attaching a User -- and the profile it carries -- that belongs to
+	 * someone else. A Person with no User at all simply has no id to store.
+	 *
+	 * @param string $personId the iTop Person id
+	 * @return ?string the single matching User id, or null if there is none
+	 *               or more than one
+	 */
+	public function findSingleUserIdForPerson(string $personId): ?string {
+		if (!is_numeric($personId)) {
+			return null;
+		}
+
+		$users = $this->fetchSingleUserByContactId([(int)$personId]);
+		$fields = $users[(int)$personId] ?? null;
+
+		return $fields !== null && isset($fields['id']) ? (string)$fields['id'] : null;
 	}
 
 	/**
