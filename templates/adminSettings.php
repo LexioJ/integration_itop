@@ -194,13 +194,16 @@ $ciClassLabels = [
 					<?php } ?>
 				</select>
 
-				<button id="itop-binding-rule-save"><?php p($l->t('Save')); ?></button>
+				<button id="itop-binding-rule-save"><?php p($l->t('Save matching rule')); ?></button>
 			</div>
 
 			<div id="itop-binding-mutable-warning" class="itop-binding-warning<?php if (!$_['binding_source_user_mutable']) { p(' hidden'); } ?>">
 				<strong><?php p($l->t('Users can change this attribute themselves on this instance.')); ?></strong>
 				<?php p($l->t('A user could set their value to a colleague\'s and be linked to that person, gaining read access to their tickets. Set allow_user_to_change_email — or allow_user_to_change_display_name if matching on display name — to false, or match on User ID, which cannot be changed. Admin-side binding and occ itop:bind match on the same attribute, so they are affected too: they refuse a person already linked to another account, but one not yet linked can be claimed this way.')); ?>
 			</div>
+
+			<div class="itop-binding-selfservice-block">
+			<h5 class="itop-subsection-title itop-subsection-title--sub"><?php p($l->t('Self-service account linking')); ?></h5>
 
 			<div class="itop-binding-self-service-row">
 				<label for="itop-binding-token-enabled" class="checkbox-label">
@@ -215,7 +218,8 @@ $ciClassLabels = [
 				</label>
 			</div>
 			<div class="itop-binding-rule-row">
-				<button id="itop-binding-self-service-save"><?php p($l->t('Save')); ?></button>
+				<button id="itop-binding-self-service-save"><?php p($l->t('Save self-service settings')); ?></button>
+			</div>
 			</div>
 			</div>
 
