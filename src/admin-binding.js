@@ -221,6 +221,10 @@ import { generateUrl } from '@nextcloud/router'
 			return '<button type="button" data-confirm="' + esc(uid) + '">'
 				+ esc(t('integration_itop', 'Confirm…')) + '</button>'
 		}
+		if (s.tier === 'ambiguous') {
+			return '<button type="button" data-choose="' + esc(uid) + '">'
+				+ esc(t('integration_itop', 'Choose…')) + '</button>'
+		}
 		return ''
 	}
 
@@ -567,6 +571,67 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
+	 * Apply a person chosen for an ambiguous row.
+	 *
+	 * @param {string} uid Nextcloud user id
+	 * @param {string} personId iTop person id chosen by the administrator
+	 */
+	async function applyChosenPerson(uid, personId) {
+		try {
+			await apiCall('/binding/apply-one', {
+				method: 'POST',
+				body: JSON.stringify({ uid, personId }),
+			})
+			showSuccess(t('integration_itop', 'Linked {uid} to person {id}', { uid, id: personId }))
+			await load()
+		} catch (e) {
+			// A 409 here is the expected, meaningful outcome of choosing a
+			// person someone else already holds -- its message already
+			// names the holding account and the remedy, so it is shown
+			// as-is rather than wrapped in a generic failure.
+			showError(e.message)
+			await load()
+		}
+	}
+
+	/**
+	 * Open the ambiguous-row picker for one account, seeded with that row's
+	 * own candidates so the obvious choices need no search.
+	 *
+	 * Mounted on demand, like the scope picker, so the Vue runtime is not
+	 * parsed on a page where the association table is absent -- which here
+	 * means it is also not parsed unless the admin actually opens a picker.
+	 *
+	 * @param {string} uid Nextcloud user id
+	 */
+	async function openPersonPicker(uid) {
+		const s = state.suggestions[uid]
+		if (!s || s.status !== 'resolved' || s.tier !== 'ambiguous') return
+
+		const { default: Vue } = await import('vue')
+		const { default: PersonPicker } = await import('./views/PersonPicker.vue')
+
+		const mountPoint = document.createElement('div')
+		document.body.appendChild(mountPoint)
+
+		const Picker = Vue.extend(PersonPicker)
+		const picker = new Picker({
+			propsData: { candidates: s.candidates },
+		}).$mount(mountPoint)
+
+		const destroy = () => {
+			picker.$destroy()
+			mountPoint.remove()
+		}
+
+		picker.$on('select', function(person) {
+			destroy()
+			applyChosenPerson(uid, person.person_id)
+		})
+		picker.$on('cancel', destroy)
+	}
+
+	/**
 	 * Mount the scope picker and react to it.
 	 *
 	 * Loaded on demand so the Vue runtime is not parsed on a page where the
@@ -654,6 +719,9 @@ import { generateUrl } from '@nextcloud/router'
 
 			const rowConfirm = e.target.closest('button[data-confirm]')
 			if (rowConfirm) { confirmReview(rowConfirm.dataset.confirm); return }
+
+			const rowChoose = e.target.closest('button[data-choose]')
+			if (rowChoose) { openPersonPicker(rowChoose.dataset.choose); return }
 
 			if (e.target.closest('#itop-binding-bulk-exclude')) {
 				setExcluded([...state.selected], true); return
