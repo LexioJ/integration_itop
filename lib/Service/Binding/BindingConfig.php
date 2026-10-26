@@ -290,18 +290,54 @@ class BindingConfig {
 	}
 
 	/**
-	 * @throws \InvalidArgumentException if either id is non-empty and not all digits
+	 * Write either request-form id, or neither.
+	 *
+	 * null and '' are deliberately different, and the distinction is the whole
+	 * point of the signature:
+	 *
+	 * - **null** -- not submitted. The stored value is left exactly as it is.
+	 * - **''**   -- submitted empty, i.e. the administrator cleared the field.
+	 *               The stored value is removed.
+	 * - digits   -- stored.
+	 *
+	 * Without that split, a caller that simply does not mention these two
+	 * settings erases them: a stale JS bundle, a replayed request, a script
+	 * written against an older signature. The admin is then told the settings
+	 * were saved while their configuration was destroyed by a request that
+	 * never referred to it. Each id is written independently, so submitting
+	 * one leaves the other untouched.
+	 *
+	 * Both are validated before either is written, so a bad value in one field
+	 * cannot leave a half-applied change behind.
+	 *
+	 * @throws \InvalidArgumentException if either id is non-null, non-empty and not all digits
 	 */
-	public function setRequestCategoryIds(string $incidentId, string $userRequestId): void {
-		if ($incidentId !== '' && !preg_match('/^[0-9]+$/', $incidentId)) {
-			throw new \InvalidArgumentException('Incident ServiceSubcategory id must be numeric: ' . $incidentId);
-		}
-		if ($userRequestId !== '' && !preg_match('/^[0-9]+$/', $userRequestId)) {
-			throw new \InvalidArgumentException('User Request ServiceSubcategory id must be numeric: ' . $userRequestId);
-		}
+	public function setRequestCategoryIds(?string $incidentId, ?string $userRequestId): void {
+		$this->validateRequestCategoryId($incidentId, 'Incident');
+		$this->validateRequestCategoryId($userRequestId, 'User Request');
 
-		$this->appConfig->setValueString(Application::APP_ID, 'binding_request_incident_id', $incidentId);
-		$this->appConfig->setValueString(Application::APP_ID, 'binding_request_userrequest_id', $userRequestId);
+		if ($incidentId !== null) {
+			$this->appConfig->setValueString(Application::APP_ID, 'binding_request_incident_id', $incidentId);
+		}
+		if ($userRequestId !== null) {
+			$this->appConfig->setValueString(Application::APP_ID, 'binding_request_userrequest_id', $userRequestId);
+		}
+	}
+
+	/**
+	 * The only place the id format is enforced on write; getRequestIncidentId()
+	 * and getRequestUserRequestId() re-apply the same rule on read. Keep it to
+	 * these two spots -- a third copy is a third thing to forget.
+	 *
+	 * @throws \InvalidArgumentException
+	 */
+	private function validateRequestCategoryId(?string $id, string $label): void {
+		if ($id === null || $id === '') {
+			return;
+		}
+		if (!preg_match('/^[0-9]+$/', $id)) {
+			throw new \InvalidArgumentException($label . ' ServiceSubcategory id must be numeric: ' . $id);
+		}
 	}
 
 	/**

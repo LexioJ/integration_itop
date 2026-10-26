@@ -203,12 +203,24 @@ class BindingController extends Controller {
 	 * the same "Self-service account linking" subsection of the admin UI and
 	 * are posted by the same save button, so they share this route rather
 	 * than getting one of their own.
+	 *
+	 * The two ids default to **null, not ''**, because this endpoint must be
+	 * able to tell "not submitted" from "cleared". They previously defaulted
+	 * to '', so any caller that omitted them -- a stale JS bundle, a replayed
+	 * request, a script written against the older signature -- silently wiped
+	 * both while the admin was told the settings had been saved. Observed for
+	 * real: a cached pre-1.5.0 admin bundle omits both fields, and every save
+	 * of the two toggles cleared the configured ids.
+	 *
+	 * Submitting only one id writes that one and leaves the other alone. The
+	 * response always echoes what is now stored, so the UI cannot drift from
+	 * the truth whichever way the request arrived.
 	 */
 	public function setSelfService(
 		bool $tokenEnabled,
 		bool $discoveryEnabled,
-		string $requestIncidentId = '',
-		string $requestUserRequestId = '',
+		?string $requestIncidentId = null,
+		?string $requestUserRequestId = null,
 	): DataResponse {
 		try {
 			$this->bindingConfig->setRequestCategoryIds($requestIncidentId, $requestUserRequestId);
