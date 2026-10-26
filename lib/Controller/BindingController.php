@@ -19,6 +19,7 @@ use OCA\Itop\Service\Binding\SuggestionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
@@ -44,6 +45,7 @@ class BindingController extends Controller {
 		private SuggestionService $suggestionService,
 		private IdentityResolver $resolver,
 		private IUserManager $userManager,
+		private IL10N $l10n,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct($appName, $request);
@@ -62,7 +64,7 @@ class BindingController extends Controller {
 		if ($scopeType !== '') {
 			if (!$this->scopeService->isKnownScope($scopeType)) {
 				return new DataResponse(
-					['message' => 'Unknown scope type'],
+					['message' => $this->l10n->t('Unknown scope type')],
 					Http::STATUS_BAD_REQUEST,
 				);
 			}
@@ -113,13 +115,32 @@ class BindingController extends Controller {
 	 */
 	public function applyOne(string $uid = '', string $personId = ''): DataResponse {
 		if ($uid === '' || $personId === '') {
-			return new DataResponse(['message' => 'uid and personId are required'], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(['message' => $this->l10n->t('uid and personId are required')], Http::STATUS_BAD_REQUEST);
 		}
 		if (!$this->userManager->userExists($uid)) {
-			return new DataResponse(['message' => 'No such user'], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['message' => $this->l10n->t('No such user')], Http::STATUS_NOT_FOUND);
 		}
 		if ($this->bindingConfig->isExcluded($uid)) {
-			return new DataResponse(['message' => 'This account is excluded from matching'], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(['message' => $this->l10n->t('This account is excluded from matching')], Http::STATUS_BAD_REQUEST);
+		}
+		// apply-one trusts the administrator's *choice of person*, which is not
+		// the same as authorising a silent re-point of a live binding. Every
+		// caller takes time to reach here -- the picker opens a modal, runs a
+		// search and waits on a human -- so the account may have been bound by
+		// another administrator or by occ itop:bind in the meantime. bind()
+		// would overwrite person_id without complaint; apply() refuses exactly
+		// this, and the single-row path must not be the way around it. Moving a
+		// person to another account stays the explicit two-step act: unlink,
+		// then apply.
+		if ($this->bindingService->isBound($uid)) {
+			return new DataResponse([
+				// Distinct from the 409 below, which is about the *person*
+				// already being held elsewhere. Both are genuine conflicts and
+				// HTTP offers no finer code, so the discriminator is the error
+				// field and the message names the account, not the person.
+				'error' => 'already_bound',
+				'message' => $this->l10n->t('%s is already linked in iTop; unlink it before linking it to another person.', [$uid]),
+			], Http::STATUS_CONFLICT);
 		}
 
 		try {
@@ -138,7 +159,7 @@ class BindingController extends Controller {
 			// means the person is taken (or a race added an exclusion); the two
 			// are not distinguishable without matching on the message text, so
 			// the message itself is surfaced rather than reinterpreted.
-			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_CONFLICT);
+			return new DataResponse(['error' => 'conflict', 'message' => $e->getMessage()], Http::STATUS_CONFLICT);
 		}
 
 		$this->logger->info('iTop identity applied by admin: {uid} -> person {personId}', [
@@ -201,7 +222,7 @@ class BindingController extends Controller {
 
 	public function unbind(string $uid): DataResponse {
 		if (!$this->userManager->userExists($uid)) {
-			return new DataResponse(['message' => 'No such user'], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['message' => $this->l10n->t('No such user')], Http::STATUS_NOT_FOUND);
 		}
 
 		$this->bindingService->unbind($uid);

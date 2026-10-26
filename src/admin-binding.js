@@ -577,6 +577,19 @@ import { generateUrl } from '@nextcloud/router'
 	 * @param {string} personId iTop person id chosen by the administrator
 	 */
 	async function applyChosenPerson(uid, personId) {
+		// The same guard confirmReview carries, and more necessary here: the
+		// window between rendering "Choose…" and this call spans a dynamic
+		// import, a modal, a person search and a human decision, so another
+		// administrator or occ itop:bind may well have bound the account in the
+		// meantime. apply-one refuses an already-bound uid server-side; this
+		// just avoids offering a request that is already doomed.
+		const row = state.rows.find(r => r.uid === uid)
+		if (row && row.bound) {
+			showError(t('integration_itop',
+				'{uid} was linked to a person while the picker was open. Reload, then unlink it first if you still want to change it.', { uid }))
+			await load()
+			return
+		}
 		try {
 			await apiCall('/binding/apply-one', {
 				method: 'POST',
@@ -605,6 +618,13 @@ import { generateUrl } from '@nextcloud/router'
 	 * @param {string} uid Nextcloud user id
 	 */
 	async function openPersonPicker(uid) {
+		// Same stale-DOM reasoning as confirmReview: describeTierAction never
+		// renders this button on a bound row, but a click queued before a
+		// reload finished must not open a picker whose only outcome would be a
+		// refusal from apply-one.
+		const row = state.rows.find(r => r.uid === uid)
+		if (row && row.bound) return
+
 		const s = state.suggestions[uid]
 		if (!s || s.status !== 'resolved' || s.tier !== 'ambiguous') return
 
