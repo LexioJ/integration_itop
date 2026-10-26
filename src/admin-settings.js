@@ -285,6 +285,7 @@ import { generateUrl } from '@nextcloud/router'
 			.then(({ ok, data }) => {
 				if (!ok) {
 					showNotification(data.message || t('integration_itop', 'Could not save the matching rule'), true)
+					resyncBindingRuleForm()
 					return
 				}
 				// The warning depends on the chosen source, so refresh it from the
@@ -297,6 +298,37 @@ import { generateUrl } from '@nextcloud/router'
 			})
 			.catch(() => {
 				showNotification(t('integration_itop', 'Could not save the matching rule'), true)
+				resyncBindingRuleForm()
+			})
+	}
+
+	/**
+	 * Re-read the stored matching rule from the server and reset the form to
+	 * it. Used after a failed save so the UI doesn't keep asserting the
+	 * unsaved selection (both the selects and the mutability warning).
+	 */
+	function resyncBindingRuleForm() {
+		fetch(generateUrl('/apps/integration_itop/binding/rule'), {
+			method: 'GET',
+			headers: {
+				requesttoken: getRequestToken(),
+			},
+		})
+			.then(response => {
+				if (!response.ok) throw new Error('Server error: ' + response.status)
+				return response.json()
+			})
+			.then(data => {
+				const sourceSelect = document.getElementById('itop-binding-source')
+				const targetSelect = document.getElementById('itop-binding-target')
+				const warning = document.getElementById('itop-binding-mutable-warning')
+				if (sourceSelect && data.source !== undefined) sourceSelect.value = data.source
+				if (targetSelect && data.target !== undefined) targetSelect.value = data.target
+				if (warning) warning.classList.toggle('hidden', !data.source_user_mutable)
+			})
+			.catch(() => {
+				// Nothing more we can do here; the error toast from the failed
+				// save already told the admin something went wrong.
 			})
 	}
 

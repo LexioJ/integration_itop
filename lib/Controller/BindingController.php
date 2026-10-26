@@ -17,6 +17,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
+use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -36,6 +37,7 @@ class BindingController extends Controller {
 		private BindingListService $listService,
 		private BindingConfig $bindingConfig,
 		private IdentityBindingService $bindingService,
+		private IUserManager $userManager,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct($appName, $request);
@@ -90,6 +92,10 @@ class BindingController extends Controller {
 	}
 
 	public function unbind(string $uid): DataResponse {
+		if (!$this->userManager->userExists($uid)) {
+			return new DataResponse(['message' => 'No such user'], Http::STATUS_NOT_FOUND);
+		}
+
 		$this->bindingService->unbind($uid);
 		return new DataResponse(['uid' => $uid, 'bound' => false]);
 	}
