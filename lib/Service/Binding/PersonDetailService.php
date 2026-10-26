@@ -22,6 +22,9 @@ use Throwable;
  * IUserConfig. This is the first thing that does, which is why it batches
  * into at most two queries for the page rather than one pair per row -- 25
  * rows at one round trip each would make this the slowest screen in the app.
+ * A third query joins in only when at least one row has no stored user_id
+ * (see fetchProfilesByContactId()), so a page where every row has one still
+ * costs exactly two.
  */
 class PersonDetailService {
 
@@ -64,6 +67,32 @@ class PersonDetailService {
 			return $this->unavailable($personIds);
 		}
 
+		// Rows bound through the admin table's manual picker never get a stored
+		// user_id -- BindingController deliberately passes null there, because
+		// guessing one at bind time could attach a User belonging to a
+		// different person and grant an unauthorised profile. Resolve those at
+		// read time instead, via the User's own link back to its Person. This
+		// is a display-time lookup only; nothing here is written back to the
+		// binding, so the deliberate null at bind time stands.
+		$personsWithoutUserId = array_values(array_diff($personIds, array_keys($userIdByPerson)));
+		$profilesByPersonId = [];
+		if ($personsWithoutUserId !== []) {
+			try {
+				$profilesByPersonId = $this->fetchProfilesByContactId($personsWithoutUserId);
+			} catch (Throwable $e) {
+				// Unlike the two queries above, this one only ever enriches a
+				// row that would otherwise be 'unknown' -- it has nothing to
+				// mark 'unavailable'. So a failure here is logged and
+				// swallowed rather than degrading the whole page: those rows
+				// simply stay at the 'unknown' they would have had without
+				// this lookup at all.
+				$this->logger->warning('Could not resolve iTop profile by contactid: {message}', [
+					'app' => Application::APP_ID,
+					'message' => $e->getMessage(),
+				]);
+			}
+		}
+
 		$result = [];
 		foreach ($personIds as $personId) {
 			$key = (string)$personId;
@@ -78,6 +107,8 @@ class PersonDetailService {
 			$userId = $userIdByPerson[$personId] ?? null;
 			if ($userId !== null && isset($profilesByUserId[$userId])) {
 				$profile = ProfileService::determinePortalOnly($profilesByUserId[$userId]) ? 'portal' : 'agent';
+			} elseif (isset($profilesByPersonId[$personId])) {
+				$profile = ProfileService::determinePortalOnly($profilesByPersonId[$personId]) ? 'portal' : 'agent';
 			}
 
 			$result[$key] = [
@@ -203,6 +234,70 @@ class PersonDetailService {
 		}
 
 		return $byUserId;
+	}
+
+	/**
+	 * Resolves a profile for persons that have no stored user_id, by matching
+	 * on the User's own `contactid` link back to its Person -- the same
+	 * convention ProfileService and IdentityResolver use when binding needs
+	 * a User for a Person it was only given the id of.
+	 *
+	 * Unlike IdentityResolver::findUserIdForPerson(), which takes
+	 * reset($objects) when a Person has more than one matching User, a
+	 * Person with more than one match here is left out of the returned map
+	 * entirely. That method's caller only risks a mis-suggested bind the
+	 * admin can reject; this one drives an icon asserting the person's
+	 * access level, and a wrong guess reads as a claim about someone's
+	 * authorisation -- worse than admitting the icon can't tell.
+	 *
+	 * @param list<int> $personIds validated ids, safe to join into OQL
+	 * @return array<int, array<int,string>> parsed profile names keyed by Person id
+	 */
+	private function fetchProfilesByContactId(array $personIds): array {
+		$response = $this->itopAPIService->appRequest([
+			'operation' => 'core/get',
+			'class' => 'User',
+			'key' => sprintf('SELECT User WHERE contactid IN (%s)', implode(',', $personIds)),
+			'output_fields' => 'id,contactid,profile_list',
+		]);
+
+		// Same two-step as fetchPersons() and fetchProfiles(): `error` means
+		// the call failed, everything else means it answered -- including a
+		// person with no matching User at all, which simply stays out of the
+		// returned map rather than being treated as a failure.
+		if (isset($response['error'])) {
+			throw new \RuntimeException((string)$response['error']);
+		}
+
+		$objects = $response['objects'] ?? null;
+		if (!is_array($objects)) {
+			return [];
+		}
+
+		// Grouped by Person id first, rather than parsed straight into the
+		// result map, so a Person matched by more than one User can be
+		// detected and excluded below instead of silently picking one.
+		$usersByPerson = [];
+		foreach ($objects as $object) {
+			$fields = $object['fields'] ?? [];
+			$personId = $fields['contactid'] ?? null;
+			if (!isset($fields['id']) || !is_numeric($personId)) {
+				continue;
+			}
+			$usersByPerson[(int)$personId][] = $fields;
+		}
+
+		$profilesByPerson = [];
+		foreach ($usersByPerson as $personId => $users) {
+			if (count($users) !== 1) {
+				// Ambiguous: leave this person out so describeMany() reports
+				// 'unknown' for them, the same as a Person with no User at all.
+				continue;
+			}
+			$profilesByPerson[$personId] = $this->profileService->parseProfileList($users[0]['profile_list'] ?? '');
+		}
+
+		return $profilesByPerson;
 	}
 
 	/**
