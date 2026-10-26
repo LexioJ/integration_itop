@@ -10,7 +10,7 @@
 
 import { getRequestToken } from '@nextcloud/auth'
 import { showError, showSuccess } from '@nextcloud/dialogs'
-import { translate as t, translatePlural as n } from '@nextcloud/l10n'
+import { getCanonicalLocale, translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 
 (function() {
@@ -141,12 +141,124 @@ import { generateUrl } from '@nextcloud/router'
 					+ esc(t('integration_itop', 'Linked before this app recorded how bindings were made'))
 					+ '">' + esc(t('integration_itop', 'unknown')) + '</span>'
 			return '<strong>' + esc(t('integration_itop', 'person {id}', { id: row.personId })) + '</strong> ' + origin
+				+ describePerson(row)
 		}
 		const s = state.suggestions[row.uid]
 		if (!s) {
 			return '<span class="itop-binding-muted">' + esc(t('integration_itop', 'not linked')) + '</span>'
 		}
 		return describeTier(row, s)
+	}
+
+	/**
+	 * The muted second line under `person {id}`, naming who that person
+	 * actually is.
+	 *
+	 * Deliberately three different renderings, because `status` draws a
+	 * distinction an administrator has to act on differently:
+	 *
+	 * - `ok`          the name and email, in the same shape as the Account
+	 *                 column's `uid · email`. That symmetry is the point of
+	 *                 the whole line: a bare `person 16` asks the admin to go
+	 *                 and look the id up somewhere else.
+	 * - `not_found`   iTop answered and this person is gone. That is a broken
+	 *                 link somebody has to repair, so it is called out as a
+	 *                 warning rather than left muted.
+	 * - `unavailable` nothing at all, so the row reads exactly as it did
+	 *                 before this line existed. iTop was merely unreachable,
+	 *                 and dressing a transient outage up as a broken link
+	 *                 would send an admin hunting a problem that does not
+	 *                 exist.
+	 *
+	 * An unbound row has no `person` key at all and also renders nothing.
+	 *
+	 * @param {object} row a row from /binding/users
+	 * @return {string} HTML for the person line, or '' when there is nothing to say
+	 */
+	function describePerson(row) {
+		const person = row.person
+		if (!person || person.status === 'unavailable') {
+			return ''
+		}
+		if (person.status === 'not_found') {
+			// No profile icon here on purpose: a person iTop does not have has
+			// no profile to report, and a silhouette next to "not found" would
+			// assert the opposite of what the note says.
+			return '<span class="itop-person-detail not-found">'
+				+ esc(t('integration_itop', 'not found in iTop')) + '</span>'
+		}
+		// Concatenated rather than interpolated through t(): t() escapes its
+		// own placeholders, so a name containing & would come back
+		// double-escaped once esc() had run over it as well.
+		const text = [person.name, person.email].filter(Boolean).map(esc).join(' · ')
+		return '<span class="itop-person-detail">'
+			+ profileIcon(person.profile)
+			// Clipped past the column's cap like both lines of the Account
+			// column, so it carries its own title to keep the full
+			// iTop-supplied value reachable on hover and focus.
+			+ '<span class="itop-person-name" title="'
+			+ esc([person.name, person.email].filter(Boolean).join(' · ')) + '">'
+			+ text + '</span>'
+			+ '</span>'
+	}
+
+	/**
+	 * The icon for one iTop profile state.
+	 *
+	 * Drawn as a CSS background-image through a class rather than inlined:
+	 * these are full-colour illustrations carrying fixed `linearGradient` ids,
+	 * so inlining one per row would put 25 copies of every one of those ids in
+	 * a single document. Ids resolve document-wide, which makes that the kind
+	 * of thing that works until it quietly does not.
+	 *
+	 * A background image is invisible to assistive technology and this one
+	 * carries meaning, so every state gets a name saying what it means rather
+	 * than describing the picture. `unknown` in particular must never borrow
+	 * the agent's label or artwork: it stands for "this person's profile could
+	 * not be read", and claiming agent access that was never established would
+	 * be worse than saying nothing.
+	 *
+	 * @param {string} profile 'portal', 'agent' or 'unknown'
+	 * @return {string} HTML for the icon
+	 */
+	function profileIcon(profile) {
+		const labels = {
+			agent: t('integration_itop', 'Service desk agent in iTop'),
+			portal: t('integration_itop', 'Portal user in iTop'),
+			unknown: t('integration_itop', 'iTop profile could not be determined'),
+		}
+		const known = Object.prototype.hasOwnProperty.call(labels, profile) ? profile : 'unknown'
+		return '<span class="itop-person-profile ' + known + '" role="img"'
+			+ ' aria-label="' + esc(labels[known]) + '"></span>'
+	}
+
+	/**
+	 * When and how a bound row came to be linked, as a title on its status cell.
+	 *
+	 * Additional to the method badge, not a replacement for it: a hover is
+	 * invisible on a touch screen, so the badge stays on the page and this
+	 * carries the one thing it has no room for -- the date.
+	 *
+	 * Either half can be missing on a binding made before this app recorded
+	 * provenance, and both fall back to the same 'unknown' the badge already
+	 * uses.
+	 *
+	 * @param {object} row a row from /binding/users
+	 * @return {string} a title attribute to splice into the cell's tag, or ''
+	 */
+	function describeBindingTitle(row) {
+		if (!row.bound) {
+			return ''
+		}
+		const unknown = t('integration_itop', 'unknown')
+		const date = row.boundAt
+			? new Date(row.boundAt * 1000).toLocaleString(getCanonicalLocale())
+			: unknown
+		// escape: false, then esc() once over the result: t() escapes its own
+		// placeholders by default, which would double-escape everything esc()
+		// then saw. esc() is what keeps this safe inside an attribute.
+		return ' title="' + esc(t('integration_itop', 'Linked on {date} · method {method}',
+			{ date, method: row.method || unknown }, { escape: false })) + '"'
 	}
 
 	/**
@@ -389,7 +501,11 @@ import { generateUrl } from '@nextcloud/router'
 			+ (row.email ? ' · ' + esc(row.email) : '') + '</span></span>'
 			+ '</div>'
 			+ '</td>'
-			+ '<td class="itop-binding-status">' + describeStatus(row) + '</td>'
+			// The provenance title goes on the cell rather than on the text
+			// inside it, so the whole column is a hover target. The person
+			// line below carries its own title for its own truncated value.
+			+ '<td class="itop-binding-status"' + describeBindingTitle(row) + '>'
+			+ describeStatus(row) + '</td>'
 			// Empty mount point for this row's RowActions, filled by
 			// mountRowActions() once the dynamic import lands. Vue 2 replaces
 			// it rather than rendering inside it, so it needs a parent that

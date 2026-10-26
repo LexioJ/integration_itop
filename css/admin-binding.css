@@ -273,6 +273,77 @@
 	white-space: nowrap;
 }
 
+/*
+ * The second line of a bound status cell, naming the iTop person behind the
+ * id. Muted and capped like the source-value line above and like the Account
+ * column's `uid · email`, which is the whole point: the two columns should
+ * read as the same kind of thing.
+ *
+ * The `max-width` is load-bearing for the same reason as on the two rules
+ * above -- the status column is sized by its content, so without a cap an
+ * iTop display name would simply widen the column, push every other column
+ * around and never show an ellipsis at all.
+ */
+.itop-person-detail {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+	max-width: 22em;
+	color: var(--color-text-maxcontrast, #767676);
+	font-size: 85%;
+}
+
+.itop-person-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/*
+ * A person iTop no longer has is a broken link an administrator has to go and
+ * repair, so it is called out instead of staying muted. `--color-warning-text`
+ * rather than `--color-warning`: the latter is the pale warning *background*
+ * in current Nextcloud themes (#FFEEC5), unreadable as text on the page.
+ *
+ * iTop merely being unreachable renders no line at all and so never reaches
+ * this rule -- an outage must not be dressed up as a broken link.
+ */
+.itop-person-detail.not-found {
+	color: var(--color-warning-text, #664700);
+}
+
+/*
+ * Full-colour illustrations drawn at 240x240, not flat monochrome icons, so
+ * they get 20px rather than the 16px a Nextcloud icon would use: below roughly
+ * 18px the lanyard and the second figure stop being distinguishable, which
+ * defeats the entire point of having two different pictures.
+ *
+ * `flex: 0 0 auto` keeps the icon at that size while the name next to it is
+ * the part that gets clipped.
+ */
+.itop-person-profile {
+	flex: 0 0 auto;
+	width: 20px;
+	height: 20px;
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+
+/* `css/` and `img/` are siblings in the app directory, so these resolve with
+   no PHP or JS plumbing. */
+.itop-person-profile.agent {
+	background-image: url('../img/security-pass.svg');
+}
+
+.itop-person-profile.portal {
+	background-image: url('../img/team.svg');
+}
+
+.itop-person-profile.unknown {
+	background-image: url('../img/customer.svg');
+}
+
 .itop-binding-pager {
 	display: flex;
 	gap: 8px;
