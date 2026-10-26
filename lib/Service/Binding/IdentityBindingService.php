@@ -56,11 +56,53 @@ class IdentityBindingService {
 	}
 
 	/**
-	 * @throws \RuntimeException if the account is excluded from matching
+	 * The account already linked to this iTop person, if it is not $exceptUid.
+	 *
+	 * person_id is the authorisation boundary, so two accounts holding the same
+	 * one is not a cosmetic duplicate: both see that person's tickets and both
+	 * inherit their iTop profiles for the portal-only verdict.
+	 *
+	 * $exceptUid is how re-binding stays idempotent -- an account already
+	 * holding this person is not in conflict with itself.
+	 *
+	 * @return ?string the conflicting uid, or null if the person is free
+	 */
+	public function findConflictingUid(string $personId, string $exceptUid = ''): ?string {
+		if ($personId === '') {
+			return null;
+		}
+
+		foreach ($this->userConfig->searchUsersByValueString(Application::APP_ID, 'person_id', $personId) as $other) {
+			if ($other !== $exceptUid) {
+				return $other;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * @throws \RuntimeException if the account is excluded from matching, or if
+	 *                          the person is already linked to another account
 	 */
 	public function bind(string $uid, string $personId, ?string $userId, string $method, string $sourceAttribute = ''): void {
 		if ($this->bindingConfig->isExcluded($uid)) {
 			throw new \RuntimeException('User ' . $uid . ' is excluded from iTop identity binding');
+		}
+
+		// Checked here and not only in IdentityResolver because this is the one
+		// write chokepoint: the resolver grades a conflict down so no caller
+		// treats it as applicable, but --include-review, a future self-service
+		// path or a direct call would otherwise still land the write. Refusing
+		// rather than reassigning is deliberate -- an admin who really means to
+		// move a person to another account unlinks the old one first, which is
+		// an explicit, logged act.
+		$conflict = $this->findConflictingUid($personId, $uid);
+		if ($conflict !== null) {
+			throw new \RuntimeException(
+				'iTop person ' . $personId . ' is already linked to ' . $conflict
+				. '; unlink that account before linking ' . $uid
+			);
 		}
 
 		// Drop derived state first. A crash mid-write must never leave a user_id

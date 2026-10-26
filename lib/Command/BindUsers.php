@@ -88,7 +88,8 @@ class BindUsers extends Command {
 		$output->writeln('');
 
 		$counts = [MatchResult::TIER_EXACT => 0, MatchResult::TIER_REVIEW => 0,
-			MatchResult::TIER_AMBIGUOUS => 0, MatchResult::TIER_NONE => 0];
+			MatchResult::TIER_AMBIGUOUS => 0, MatchResult::TIER_CONFLICT => 0,
+			MatchResult::TIER_NONE => 0];
 		$bound = 0;
 		$skipped = 0;
 		$examined = 0;
@@ -147,9 +148,10 @@ class BindUsers extends Command {
 		}
 
 		$output->writeln(sprintf(
-			'examined %d · exact %d · review %d · ambiguous %d · no match %d · skipped %d · failed %d',
+			'examined %d · exact %d · review %d · ambiguous %d · conflict %d · no match %d · skipped %d · failed %d',
 			$examined, $counts[MatchResult::TIER_EXACT], $counts[MatchResult::TIER_REVIEW],
-			$counts[MatchResult::TIER_AMBIGUOUS], $counts[MatchResult::TIER_NONE], $skipped, $failed
+			$counts[MatchResult::TIER_AMBIGUOUS], $counts[MatchResult::TIER_CONFLICT],
+			$counts[MatchResult::TIER_NONE], $skipped, $failed
 		));
 
 		if ($apply) {
@@ -186,6 +188,8 @@ class BindUsers extends Command {
 				$uid, $result->itopName, $result->personId, $result->ncName, $result->itopName),
 			MatchResult::TIER_AMBIGUOUS => sprintf('  <error>ambiguous</error>  %-24s -> %d candidates for "%s"',
 				$uid, count($result->candidates), $result->sourceValue),
+			MatchResult::TIER_CONFLICT => sprintf('  <error>conflict</error>   %-24s -> %s (person %s) already linked to %s; not bound',
+				$uid, $result->itopName, $result->personId, $result->conflictUid),
 			default => sprintf('  no match   %-24s (%s)',
 				$uid, $result->sourceValue === '' ? 'no source value' : $result->sourceValue),
 		};

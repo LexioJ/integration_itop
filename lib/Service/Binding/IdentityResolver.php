@@ -30,6 +30,7 @@ class IdentityResolver {
 	public function __construct(
 		private BindingConfig $bindingConfig,
 		private ItopAPIService $itopAPIService,
+		private IdentityBindingService $bindingService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -98,6 +99,26 @@ class IdentityResolver {
 		$candidate = $candidates[0];
 		if ($candidate['person_id'] === '') {
 			return MatchResult::none($value);
+		}
+
+		// Graded before the name check, because a person who is already taken
+		// needs a human decision whichever way the names compare, and because
+		// it saves the extra findUserIdForPerson() request on a result that can
+		// never be applied. The matching source can be user-mutable (display
+		// name and email both are on a stock instance), so without this a user
+		// who renames themselves to a colleague resolves as exact against that
+		// colleague's person.
+		$conflict = $this->bindingService->findConflictingUid($candidate['person_id'], $user->getUID());
+		if ($conflict !== null) {
+			$this->logger->warning('iTop person {personId} already linked to {other}, not offering it to {uid}', [
+				'app' => Application::APP_ID,
+				'uid' => $user->getUID(),
+				'other' => $conflict,
+				'personId' => $candidate['person_id'],
+			]);
+			return MatchResult::conflict(
+				$candidate['person_id'], $candidate['user_id'], $candidate['name'], $value, $conflict
+			);
 		}
 
 		$userId = $isUserTarget

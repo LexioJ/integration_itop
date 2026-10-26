@@ -792,7 +792,7 @@ $ciClassLabels = [
 
 		<div id="itop-binding-mutable-warning" class="itop-binding-warning<?php if (!$_['binding_source_user_mutable']) { p(' hidden'); } ?>">
 			<strong><?php p($l->t('Users can change this attribute themselves on this instance.')); ?></strong>
-			<?php p($l->t('If self-service discovery is enabled later, a user could set their value to a colleague\'s and bind to that person, gaining read access to their tickets. Set allow_user_to_change_email — or allow_user_to_change_display_name if matching on display name — to false, or match on User ID, which cannot be changed. Admin-side binding and occ itop:bind are unaffected.')); ?>
+			<?php p($l->t('A user could set their value to a colleague\'s and be linked to that person, gaining read access to their tickets. Set allow_user_to_change_email — or allow_user_to_change_display_name if matching on display name — to false, or match on User ID, which cannot be changed. Admin-side binding and occ itop:bind match on the same attribute, so they are affected too: they refuse a person already linked to another account, but one not yet linked can be claimed this way.')); ?>
 		</div>
 	</div>
 </div>
