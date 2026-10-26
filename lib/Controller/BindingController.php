@@ -15,6 +15,7 @@ use OCA\Itop\Service\Binding\BindingListService;
 use OCA\Itop\Service\Binding\BindingScopeService;
 use OCA\Itop\Service\Binding\IdentityBindingService;
 use OCA\Itop\Service\Binding\IdentityResolver;
+use OCA\Itop\Service\Binding\PersonDetailService;
 use OCA\Itop\Service\Binding\SuggestionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -43,6 +44,7 @@ class BindingController extends Controller {
 		private BindingConfig $bindingConfig,
 		private IdentityBindingService $bindingService,
 		private SuggestionService $suggestionService,
+		private PersonDetailService $personDetailService,
 		private IdentityResolver $resolver,
 		private IUserManager $userManager,
 		private IL10N $l10n,
@@ -74,9 +76,33 @@ class BindingController extends Controller {
 			$restrictUids = $this->scopeService->resolveUids($scopeType, $scopeId);
 		}
 
-		return new DataResponse(
-			$this->listService->list($filter, $search, $page, $pageSize, $restrictUids),
-		);
+		$result = $this->listService->list($filter, $search, $page, $pageSize, $restrictUids);
+		$result['rows'] = $this->withPersonDetails($result['rows']);
+
+		return new DataResponse($result);
+	}
+
+	/**
+	 * Attaches iTop person details to bound rows for the table's second line.
+	 *
+	 * Describes the whole page in at most two iTop calls rather than one pair
+	 * per row -- see PersonDetailService. An iTop outage still yields this
+	 * page, just with 'unavailable' rows instead of names; it must never turn
+	 * the listing itself into an error response.
+	 *
+	 * @param array $rows as returned by BindingListService::list()
+	 * @return array the same rows, each bound one gaining a 'person' key
+	 */
+	private function withPersonDetails(array $rows): array {
+		$details = $this->personDetailService->describeMany($rows);
+
+		foreach ($rows as &$row) {
+			if ($row['personId'] !== null && isset($details[$row['personId']])) {
+				$row['person'] = $details[$row['personId']];
+			}
+		}
+
+		return $rows;
 	}
 
 	public function searchScopes(string $term = ''): DataResponse {
