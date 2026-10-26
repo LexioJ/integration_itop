@@ -258,6 +258,41 @@ import { generateUrl } from '@nextcloud/router'
 
 		renderBulkBar()
 		renderPager()
+		renderToolbarApplyExact()
+	}
+
+	/**
+	 * How many rows on the current page currently hold an exact suggestion.
+	 *
+	 * @return {number} count
+	 */
+	function exactCountOnPage() {
+		return state.rows.filter(row => {
+			const s = state.suggestions[row.uid]
+			return s && s.status === 'resolved' && s.tier === 'exact'
+		}).length
+	}
+
+	/**
+	 * Keep the standalone toolbar "Apply exact only" button honest about its
+	 * own scope.
+	 *
+	 * Unlike the bulk-bar copy -- where the bar's own "{count} selected" line
+	 * already states what a click affects -- this button's scope (the whole
+	 * page) is otherwise invisible. Binding is the one action on this screen
+	 * that is not trivially reversible (a token-bound user who gets unlinked
+	 * needs a new personal token), so the label names the count rather than
+	 * leaving "the whole page" implicit. Disabled rather than hidden when
+	 * there is nothing to apply, so it can't issue an empty request.
+	 */
+	function renderToolbarApplyExact() {
+		const btn = document.getElementById('itop-binding-toolbar-apply-exact')
+		if (!btn) return
+		const count = exactCountOnPage()
+		btn.disabled = count === 0
+		btn.textContent = count > 0
+			? t('integration_itop', 'Apply {count} exact matches', { count })
+			: t('integration_itop', 'Apply exact only')
 	}
 
 	/**
@@ -603,18 +638,23 @@ import { generateUrl } from '@nextcloud/router'
 				state.selected.clear(); render(); return
 			}
 
-			// Both the bulk-bar and standalone toolbar buttons suggest or apply
+			// Both the bulk-bar and standalone toolbar "Suggest matches" act
 			// over the current selection, falling back to the whole page when
-			// nothing is selected -- the toolbar copies exist so a full-page
+			// nothing is selected -- the toolbar copy exists so a full-page
 			// pass never requires selecting every row first.
 			if (e.target.closest('#itop-binding-suggest') || e.target.closest('#itop-binding-toolbar-suggest')) {
 				suggest(selectionOrPage()); return
 			}
+			// The bulk-bar "Apply exact only" scopes to the selection the bar
+			// itself already states ("{count} selected"). The toolbar copy
+			// always scopes to the whole current page -- its own label names
+			// that count (see renderToolbarApplyExact) so the two never
+			// silently disagree about what a click affects.
 			if (e.target.closest('#itop-binding-apply-exact')) {
 				applyExact([...state.selected]); return
 			}
 			if (e.target.closest('#itop-binding-toolbar-apply-exact')) {
-				applyExact(selectionOrPage()); return
+				applyExact(state.rows.map(r => r.uid)); return
 			}
 
 			if (e.target.closest('#itop-binding-prev')) {

@@ -136,7 +136,7 @@ $ciClassLabels = [
 					-- a full-page pass is the common case, not the exception.
 				-->
 				<button type="button" id="itop-binding-toolbar-suggest"><?php p($l->t('Suggest matches')); ?></button>
-				<button type="button" id="itop-binding-toolbar-apply-exact"><?php p($l->t('Apply exact only')); ?></button>
+				<button type="button" id="itop-binding-toolbar-apply-exact" disabled><?php p($l->t('Apply exact only')); ?></button>
 			</div>
 
 			<div id="itop-binding-bulk" class="itop-binding-bulk hidden"></div>
