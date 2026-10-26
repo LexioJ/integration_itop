@@ -360,10 +360,6 @@
 	background-image: url('../img/team.svg');
 }
 
-.itop-person-profile.unknown {
-	background-image: url('../img/customer.svg');
-}
-
 .itop-binding-pager {
 	display: flex;
 	gap: 8px;

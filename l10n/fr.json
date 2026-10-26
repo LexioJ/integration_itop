@@ -267,7 +267,6 @@
     "Invalid state for class %s: %s": "État invalide pour la classe %s : %s",
     "Invalid ticket system type": "Type de système de tickets invalide",
     "It will be used securely to query user data (filtered by Person ID for security)": "Il sera utilisé de manière sécurisée pour interroger les données utilisateur (filtrées par ID de personne pour la sécurité)",
-    "iTop profile could not be determined": "Le profil iTop n'a pas pu être déterminé",
     "Jump to a settings section": "Aller à une section des paramètres",
     "Last Updated": "Dernière mise à jour",
     "Last auto-detection result:": "Dernier résultat de détection automatique :",

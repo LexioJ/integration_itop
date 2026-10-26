@@ -262,23 +262,24 @@ import { generateUrl } from '@nextcloud/router'
 	 *
 	 * A background image is invisible to assistive technology and this one
 	 * carries meaning, so every state gets a name saying what it means rather
-	 * than describing the picture. `unknown` in particular must never borrow
-	 * the agent's label or artwork: it stands for "this person's profile could
-	 * not be read", and claiming agent access that was never established would
-	 * be worse than saying nothing.
+	 * than describing the picture. There is no artwork for an unestablished
+	 * profile at all: claiming agent or portal access that was never
+	 * established would be worse than saying nothing, so that case falls back
+	 * to emptyProfileSlot() instead of a branch here.
 	 *
-	 * @param {string} profile 'portal', 'agent' or 'unknown'
-	 * @return {string} HTML for the icon
+	 * @param {string} profile 'portal' or 'agent'
+	 * @return {string} HTML for the icon, or the empty slot for anything else
 	 */
 	function profileIcon(profile) {
 		const labels = {
 			agent: t('integration_itop', 'Service desk agent in iTop'),
 			portal: t('integration_itop', 'Portal user in iTop'),
-			unknown: t('integration_itop', 'iTop profile could not be determined'),
 		}
-		const known = Object.prototype.hasOwnProperty.call(labels, profile) ? profile : 'unknown'
-		return '<span class="itop-person-profile ' + known + '" role="img"'
-			+ ' aria-label="' + esc(labels[known]) + '"></span>'
+		if (!Object.prototype.hasOwnProperty.call(labels, profile)) {
+			return emptyProfileSlot()
+		}
+		return '<span class="itop-person-profile ' + profile + '" role="img"'
+			+ ' aria-label="' + esc(labels[profile]) + '"></span>'
 	}
 
 	/**

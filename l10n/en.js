@@ -268,7 +268,6 @@ OC.L10N.register(
     "Invalid state for class %s: %s" : "Invalid state for class %s: %s",
     "Invalid ticket system type" : "Invalid ticket system type",
     "It will be used securely to query user data (filtered by Person ID for security)" : "It will be used securely to query user data (filtered by Person ID for security)",
-    "iTop profile could not be determined" : "iTop profile could not be determined",
     "Jump to a settings section" : "Jump to a settings section",
     "Last Updated" : "Last Updated",
     "Last auto-detection result:" : "Last auto-detection result:",
