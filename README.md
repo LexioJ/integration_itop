@@ -439,6 +439,8 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
   occ config:app:set integration_itop binding_match_source --value=email   # email | uid | displayname
   occ config:app:set integration_itop binding_match_target --value=person.email  # person.email | person.employee_number | user.login
   occ config:app:set integration_itop binding_excluded_users --value='["svc.monitor"]'
+  occ config:app:set integration_itop binding_token_enabled --value=0      # '1' | '0', default '1'
+  occ config:app:set integration_itop binding_discovery_enabled --value=1  # '1' | '0', default '0'
   ```
 
 ### Fixed
