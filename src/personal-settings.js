@@ -108,17 +108,7 @@ import { generateUrl } from '@nextcloud/router'
 					if (data.error) {
 						userInfoValue.textContent = 'Error: ' + data.error
 					} else {
-						const displayName = data.name || 'Unknown User'
-						const email = data.email || ''
-						const organization = data.organization || ''
-
-						userInfoValue.innerHTML = `
-                        <div class="itop-status-user-info-simple">
-                            <div class="itop-status-user-name">${displayName}</div>
-                            ${email ? `<div class="itop-status-user-email">${email}</div>` : ''}
-                            ${organization ? `<div class="itop-status-user-org">${organization}</div>` : ''}
-                        </div>
-                    `
+						renderUserInfo(userInfoValue, data)
 						userInfoCard.className = 'itop-personal-status-card connected'
 					}
 				})
@@ -128,40 +118,44 @@ import { generateUrl } from '@nextcloud/router'
 		}
 
 		/**
+		 * Paints the name/email/organization lines of the user-info card.
 		 *
-		 * @param userInfo
+		 * Every one of the three values comes straight out of an iTop Person
+		 * record (ConfigController::getUserInfo()), so this app has no say over
+		 * what is in them -- a Person whose first_name is markup is a thing any
+		 * iTop agent can create. They are therefore only ever set via
+		 * textContent, never innerHTML, the same rule
+		 * showDiscoveryProposal() below states for the discovered name.
+		 *
+		 * @param {HTMLElement} target the card's value element, emptied first
+		 * @param {object} userInfo the parsed /user-info body
 		 */
-		function updateStatusCards(userInfo) {
-			// Update Connection Status Card
-			const connectionStatusCard = document.getElementById('itop-personal-connection-status')
-			const connectionValue = document.getElementById('itop-personal-connection-value')
+		function renderUserInfo(target, userInfo) {
+			target.textContent = ''
 
-			if (connectionStatusCard && connectionValue) {
-				connectionStatusCard.className = 'itop-personal-status-card itop-connection-status success'
-				connectionValue.textContent = 'Configured'
+			const wrapper = document.createElement('div')
+			wrapper.className = 'itop-status-user-info-simple'
+
+			const name = document.createElement('div')
+			name.className = 'itop-status-user-name'
+			name.textContent = userInfo.name || 'Unknown User'
+			wrapper.appendChild(name)
+
+			if (userInfo.email) {
+				const email = document.createElement('div')
+				email.className = 'itop-status-user-email'
+				email.textContent = userInfo.email
+				wrapper.appendChild(email)
 			}
 
-			// Update User Info Card
-			const userInfoCard = document.getElementById('itop-personal-user-info')
-			const userInfoValue = document.getElementById('itop-personal-user-value')
-
-			if (userInfoCard && userInfoValue && userInfo) {
-				userInfoCard.className = 'itop-personal-status-card connected'
-				const displayName = userInfo.name || 'Unknown User'
-				const email = userInfo.email || ''
-				const organization = userInfo.organization || ''
-
-				userInfoValue.innerHTML = `
-                    <div class="itop-status-user-info-simple">
-                        <div class="itop-status-user-name">${displayName}</div>
-                        ${email ? `<div class="itop-status-user-email">${email}</div>` : ''}
-                        ${organization ? `<div class="itop-status-user-org">${organization}</div>` : ''}
-                    </div>
-                `
+			if (userInfo.organization) {
+				const org = document.createElement('div')
+				org.className = 'itop-status-user-org'
+				org.textContent = userInfo.organization
+				wrapper.appendChild(org)
 			}
 
-			// Update Tickets Card
-			fetchTicketCount()
+			target.appendChild(wrapper)
 		}
 
 		/**
@@ -230,17 +224,11 @@ import { generateUrl } from '@nextcloud/router'
 		 *
 		 * @param message
 		 * @param isError
-		 * @param userInfo
 		 * @param {?string} requestLinkKind which request form to offer below an
 		 *   error message -- 'problem' where the binding attempt itself broke,
 		 *   or null for none. Ignored on success.
 		 */
-		function showResult(message, isError = false, userInfo = null, requestLinkKind = null) {
-			// Update status cards if we have user info
-			if (userInfo) {
-				updateStatusCards(userInfo)
-			}
-
+		function showResult(message, isError = false, requestLinkKind = null) {
 			// For errors, show in the resultDiv
 			if (isError) {
 				resultDiv.innerHTML = ''
@@ -459,9 +447,9 @@ import { generateUrl } from '@nextcloud/router'
 						try {
 							const response = req.responseText ? JSON.parse(req.responseText) : {}
 							const errorMessage = response.error || response.message || 'Failed to save settings'
-							showResult(errorMessage, true, null, linkKind)
+							showResult(errorMessage, true, linkKind)
 						} catch (e) {
-							showResult('Server error (status: ' + req.status + ')', true, null, linkKind)
+							showResult('Server error (status: ' + req.status + ')', true, linkKind)
 						}
 					}
 				}
