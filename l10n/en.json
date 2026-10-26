@@ -73,6 +73,7 @@
     "Available features": "Available features",
     "Bad credentials": "Bad credentials",
     "Both are optional; leaving one empty hides that link. Entering the same ID in both is fine when one form covers both cases — the user then sees a single link.": "Both are optional; leaving one empty hides that link. Entering the same ID in both is fine when one form covers both cases — the user then sees a single link.",
+    "Both IDs are ignored and no request link is shown until the instance URL below is configured, since there is no base URL to build the link on.": "Both IDs are ignored and no request link is shown until the instance URL below is configured, since there is no base URL to build the link on.",
     "Bound": "Bound",
     "Browse all tickets": "Browse all tickets",
     "Browse iTop Classes": "Browse iTop Classes",

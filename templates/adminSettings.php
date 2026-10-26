@@ -241,6 +241,7 @@ $ciClassLabels = [
 				</div>
 			</div>
 			<p class="form-hint"><?php p($l->t('Both are optional; leaving one empty hides that link. Entering the same ID in both is fine when one form covers both cases — the user then sees a single link.')); ?></p>
+			<p class="form-hint"><?php p($l->t('Both IDs are ignored and no request link is shown until the instance URL below is configured, since there is no base URL to build the link on.')); ?></p>
 
 			<div class="itop-binding-rule-row">
 				<button id="itop-binding-self-service-save"><?php p($l->t('Save self-service settings')); ?></button>

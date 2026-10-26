@@ -74,6 +74,7 @@ OC.L10N.register(
     "Available features" : "Fonctionnalités disponibles",
     "Bad credentials" : "Identifiants incorrects",
     "Both are optional; leaving one empty hides that link. Entering the same ID in both is fine when one form covers both cases — the user then sees a single link." : "Les deux sont facultatifs ; en laisser un vide masque ce lien. Saisir le même identifiant dans les deux est acceptable lorsqu'un seul formulaire couvre les deux cas — l'utilisateur ne voit alors qu'un seul lien.",
+    "Both IDs are ignored and no request link is shown until the instance URL below is configured, since there is no base URL to build the link on." : "Les deux identifiants sont ignorés et aucun lien de demande n'est affiché tant que l'URL de l'instance ci-dessous n'est pas configurée, car il n'y a alors aucune URL de base pour construire le lien.",
     "Bound" : "Liés",
     "Browse all tickets" : "Parcourir tous les tickets",
     "Browse iTop Classes" : "Parcourir les classes iTop",

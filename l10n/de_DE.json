@@ -73,6 +73,7 @@
     "Available features": "Verfügbare Funktionen",
     "Bad credentials": "Ungültige Anmeldedaten",
     "Both are optional; leaving one empty hides that link. Entering the same ID in both is fine when one form covers both cases — the user then sees a single link.": "Beide sind optional; wird eines leer gelassen, wird der zugehörige Link ausgeblendet. Die gleiche ID in beiden Feldern einzutragen ist in Ordnung, wenn ein Formular beide Fälle abdeckt — der Benutzer sieht dann nur einen Link.",
+    "Both IDs are ignored and no request link is shown until the instance URL below is configured, since there is no base URL to build the link on.": "Beide IDs werden ignoriert und es erscheint kein Link, solange die Instanz-URL unten nicht konfiguriert ist, da sonst keine Basis-URL zum Erstellen des Links vorhanden ist.",
     "Bound": "Verknüpft",
     "Browse all tickets": "Alle Tickets durchsuchen",
     "Browse iTop Classes": "iTop-Klassen durchsuchen",
