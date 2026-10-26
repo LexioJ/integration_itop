@@ -131,15 +131,27 @@ class PersonDetailService {
 			'output_fields' => 'id,first_name,name,email',
 		]);
 
-		// iTop answers failures with HTTP 200 and no 'objects' key, so that is
-		// what is checked here, not the HTTP status -- same convention as
-		// ProfileService::getUserProfiles().
-		if (!isset($response['objects'])) {
-			throw new \RuntimeException($response['error'] ?? 'iTop request failed');
+		// iTop answers a failed call with HTTP 200 and a non-zero `code`, which
+		// appRequest() has already turned into an `error` key by the time this
+		// runs -- so that key, not the HTTP status and not the presence of
+		// `objects`, is what distinguishes a failure here.
+		if (isset($response['error'])) {
+			throw new \RuntimeException((string)$response['error']);
+		}
+
+		// A query that succeeded and matched nothing answers `code: 0` with
+		// `objects` set to *null* -- not an empty array and not an absent key.
+		// Treating that as a failure is what used to make an id iTop does not
+		// have report as 'unavailable' whenever it was the only id on the page,
+		// hiding the single broken link the whole 'not_found' state exists to
+		// surface. Zero rows is an answer, so it returns one.
+		$objects = $response['objects'] ?? null;
+		if (!is_array($objects)) {
+			return [];
 		}
 
 		$byId = [];
-		foreach ($response['objects'] as $object) {
+		foreach ($objects as $object) {
 			$fields = $object['fields'] ?? [];
 			if (!isset($fields['id'])) {
 				continue;
@@ -162,12 +174,25 @@ class PersonDetailService {
 			'output_fields' => 'id,contactid,profile_list',
 		]);
 
-		if (!isset($response['objects'])) {
-			throw new \RuntimeException($response['error'] ?? 'iTop request failed');
+		// Same two-step as fetchPersons(): `error` means the call failed, and
+		// everything else means it answered.
+		if (isset($response['error'])) {
+			throw new \RuntimeException((string)$response['error']);
+		}
+
+		// Zero matching Users is not a failure either, and here it is barely
+		// even news: a person with no User record simply has no profile to
+		// report, which describeMany() already renders as 'unknown' when the
+		// id is missing from this map. Throwing instead would mark every
+		// person on the page 'unavailable' -- claiming iTop could not be
+		// reached -- because one of them has no iTop login.
+		$objects = $response['objects'] ?? null;
+		if (!is_array($objects)) {
+			return [];
 		}
 
 		$byUserId = [];
-		foreach ($response['objects'] as $object) {
+		foreach ($objects as $object) {
 			$fields = $object['fields'] ?? [];
 			if (!isset($fields['id'])) {
 				continue;
