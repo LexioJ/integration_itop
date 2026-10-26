@@ -36,13 +36,68 @@
 	display: none;
 }
 
+/*
+ * The actions cell can hold up to three buttons (a tier action such as
+ * "Apply…" or "Confirm…", the manual-link action, and Exclude/Restore), and
+ * every label is translated -- some languages run longer than English. The
+ * last track is `max-content` rather than `auto` so the row never shrinks
+ * it below what its buttons actually need: the account/state/tier tracks
+ * are `minmax()` and give up space to it first instead. If a row's content
+ * still cannot fit at this card's fixed ~900px max-width (long translated
+ * labels, a long display name, a narrow window), it degrades under the
+ * breakpoint below rather than wrapping buttons onto a second line.
+ */
 .itop-binding-row {
 	display: grid;
-	grid-template-columns: 32px 32px minmax(180px, 2fr) minmax(140px, 1fr) minmax(160px, 1fr) auto;
+	grid-template-columns: 32px 32px minmax(150px, 2fr) minmax(110px, 1fr) minmax(140px, 1fr) max-content;
 	gap: 8px;
 	align-items: center;
 	padding: 6px 4px;
 	border-bottom: 1px solid var(--color-border, #ededed);
+}
+
+/*
+ * Narrower than the row can comfortably fit six tracks (mobile, or a
+ * resized admin-settings window): drop to two lines instead of letting
+ * individual cells wrap or overflow. Selection, avatar and account stay on
+ * the first line; state, tier and actions move to a second line that spans
+ * the full width, with actions wrapping onto its own row if it must.
+ */
+@media (max-width: 600px) {
+	.itop-binding-row {
+		grid-template-columns: 32px 32px 1fr;
+		grid-template-areas:
+			"select avatar account"
+			"state  state  state"
+			"tier   tier   tier"
+			"actions actions actions";
+		row-gap: 4px;
+	}
+
+	.itop-binding-select {
+		grid-area: select;
+	}
+
+	.itop-binding-avatar {
+		grid-area: avatar;
+	}
+
+	.itop-binding-account {
+		grid-area: account;
+	}
+
+	.itop-binding-state {
+		grid-area: state;
+	}
+
+	.itop-binding-tier {
+		grid-area: tier;
+	}
+
+	.itop-binding-actions {
+		grid-area: actions;
+		flex-wrap: wrap;
+	}
 }
 
 .itop-binding-avatar {
@@ -57,6 +112,25 @@
 .itop-binding-account {
 	display: flex;
 	flex-direction: column;
+}
+
+/*
+ * A real flex row, not the default inline span: that lets the grid read
+ * this cell's true intrinsic (max-content) width from its buttons laid out
+ * side by side, instead of the width of whichever line a block of wrapped
+ * inline content happens to break at. `white-space: nowrap` on the buttons
+ * keeps each label on one line regardless of how little room the cell is
+ * ever given.
+ */
+.itop-binding-actions {
+	display: flex;
+	flex-wrap: nowrap;
+	gap: 6px;
+	align-items: center;
+}
+
+.itop-binding-actions button {
+	white-space: nowrap;
 }
 
 .itop-binding-muted {
