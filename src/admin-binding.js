@@ -186,8 +186,53 @@ import { generateUrl } from '@nextcloud/router'
 			+ '<button type="button" id="itop-binding-next"' + (state.page >= pages ? ' disabled' : '') + '>›</button>'
 	}
 
+	/**
+	 * Wire the toolbar and pager.
+	 *
+	 * Delegated from document, matching the pattern used elsewhere in this app:
+	 * the pager and bulk bar are re-rendered on every repaint, so their buttons
+	 * are replaced and a direct listener would be lost.
+	 */
+	function attachHandlers() {
+		const search = document.getElementById('itop-binding-search')
+		if (search) {
+			let debounce = null
+			search.addEventListener('input', function() {
+				clearTimeout(debounce)
+				debounce = setTimeout(() => {
+					state.search = search.value.trim()
+					state.page = 1
+					load()
+				}, 300)
+			})
+		}
+
+		document.addEventListener('click', function(e) {
+			const filterBtn = e.target.closest('.itop-binding-filter')
+			if (filterBtn) {
+				state.filter = filterBtn.dataset.filter
+				state.page = 1
+				document.querySelectorAll('.itop-binding-filter').forEach(b => b.classList.remove('active'))
+				filterBtn.classList.add('active')
+				load()
+				return
+			}
+
+			if (e.target.closest('#itop-binding-prev')) {
+				if (state.page > 1) { state.page -= 1; load() }
+				return
+			}
+
+			if (e.target.closest('#itop-binding-next')) {
+				const pages = Math.max(1, Math.ceil(state.total / state.pageSize))
+				if (state.page < pages) { state.page += 1; load() }
+			}
+		})
+	}
+
 	document.addEventListener('DOMContentLoaded', function() {
 		if (!document.getElementById('itop-binding-table')) return
+		attachHandlers()
 		load()
 	})
 })()
