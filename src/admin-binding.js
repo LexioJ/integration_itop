@@ -87,13 +87,25 @@ import { generateUrl } from '@nextcloud/router'
 	 * Display names, emails and uids are user-controlled, so they must never be
 	 * interpolated raw.
 	 *
+	 * Quotes are escaped as well as the markup characters, because every call
+	 * site below interpolates into a double-quoted attribute value. The obvious
+	 * textContent/innerHTML round-trip is not enough: it leaves " and ' intact,
+	 * so a uid of `a" onmouseover=alert(1) x="` would close the attribute and
+	 * add a live event handler to an admin page. Nextcloud's own accounts
+	 * cannot contain a double quote, but an external backend that derives the
+	 * uid from a raw attribute (user_saml with a NameID-based uid) can, and the
+	 * uid charset does allow a single quote.
+	 *
 	 * @param {string} value raw text
 	 * @return {string} escaped text
 	 */
 	function esc(value) {
-		const div = document.createElement('div')
-		div.textContent = String(value === null || value === undefined ? '' : value)
-		return div.innerHTML
+		return String(value === null || value === undefined ? '' : value)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;')
 	}
 
 	/**
@@ -294,6 +306,12 @@ import { generateUrl } from '@nextcloud/router'
 	 */
 	function attachHandlers() {
 		document.addEventListener('click', function(e) {
+			// A click whose target is not an Element -- document itself, or a
+			// text node from a synthetic event -- has no closest(). Because
+			// this is a single delegated listener, letting it throw would kill
+			// every interaction in the table until the page is reloaded.
+			if (!(e.target instanceof Element)) return
+
 			const filterBtn = e.target.closest('.itop-binding-filter')
 			if (filterBtn) {
 				state.filter = filterBtn.dataset.filter

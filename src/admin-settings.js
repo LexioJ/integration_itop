@@ -185,6 +185,11 @@ import { generateUrl } from '@nextcloud/router'
 
 		// CI class state toggle buttons (delegated to also cover dynamically added custom class rows)
 		document.addEventListener('click', function(e) {
+			// A click whose target is not an Element -- document itself, or a
+			// text node from a synthetic event -- has no closest(). Each
+			// handler below is a single delegated listener, so letting it
+			// throw would kill that interaction until the page is reloaded.
+			if (!(e.target instanceof Element)) return
 			const button = e.target.closest('.state-button')
 			if (!button) return
 
@@ -204,6 +209,7 @@ import { generateUrl } from '@nextcloud/router'
 
 		// Remove custom CI class button (delegated)
 		document.addEventListener('click', function(e) {
+			if (!(e.target instanceof Element)) return
 			const btn = e.target.closest('.remove-custom-class')
 			if (!btn) return
 			e.preventDefault()
@@ -213,6 +219,7 @@ import { generateUrl } from '@nextcloud/router'
 
 		// Upload/overwrite a custom CI class icon by clicking the icon image (delegated)
 		document.addEventListener('click', function(e) {
+			if (!(e.target instanceof Element)) return
 			const iconEl = e.target.closest('#custom-ci-class-config-grid .ci-class-icon')
 			if (!iconEl) return
 			e.preventDefault()
@@ -224,6 +231,7 @@ import { generateUrl } from '@nextcloud/router'
 		// direct getElementById().addEventListener() lookup at attach time can't
 		// miss the button)
 		document.addEventListener('click', function(e) {
+			if (!(e.target instanceof Element)) return
 			if (!e.target.closest('#itop-binding-rule-save')) return
 			e.preventDefault()
 			saveBindingRule()
@@ -235,6 +243,7 @@ import { generateUrl } from '@nextcloud/router'
 		// it's read from the data-mutable attribute the server rendered on
 		// each <option>, not guessed client-side.
 		document.addEventListener('change', function(e) {
+			if (!(e.target instanceof Element)) return
 			const select = e.target.closest('#itop-binding-source')
 			if (!select) return
 			const warning = document.getElementById('itop-binding-mutable-warning')
