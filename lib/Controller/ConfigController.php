@@ -19,6 +19,8 @@ use OCA\Itop\Service\CacheService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\Files\AppData\IAppDataFactory;
@@ -97,11 +99,10 @@ class ConfigController extends Controller {
 	 * - Application token: All subsequent queries (admin-level, bypasses Portal user block)
 	 * - Person ID filtering: Ensures data isolation between users
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @return DataResponse
 	 * @throws PreConditionNotMetException
 	 */
+	#[NoAdminRequired]
 	public function setConfig(): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse([], Http::STATUS_BAD_REQUEST);
@@ -305,10 +306,9 @@ class ConfigController extends Controller {
 	/**
 	 * Get current user information from iTop
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function getUserInfo(): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
@@ -1012,9 +1012,9 @@ class ConfigController extends Controller {
 	/**
 	 * Get user's disabled CI classes
 	 *
-	 * @NoAdminRequired
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function getUserDisabledCIClasses(): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
@@ -1044,10 +1044,10 @@ class ConfigController extends Controller {
 	/**
 	 * Save user's disabled CI classes
 	 *
-	 * @NoAdminRequired
 	 * @param array $disabledClasses Array of CI class names user wants to disable
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function saveUserDisabledCIClasses(array $disabledClasses): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
@@ -2047,11 +2047,11 @@ class ConfigController extends Controller {
 	 * Looks for a custom icon uploaded via uploadCIClassIcon() in appdata first.
 	 * Falls back to Peripheral.svg from the app's img/ directory when none exists.
 	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
 	 * @param string $class CI class name
 	 * @return DataDisplayResponse
 	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function getCIClassIcon(string $class): DataDisplayResponse {
 		// Strip anything that could form a path traversal
 		$class = preg_replace('/[^A-Za-z0-9_]/', '', $class);
