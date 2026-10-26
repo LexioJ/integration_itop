@@ -20,6 +20,31 @@ $ciClassLabels = [
 	'Software' => $l->t('Software Catalog')
 ];
 
+// Request-access links, pre-built in lib/Settings/Personal.php. Rendered in two
+// places -- inline where self-service is off, and inside a <template> that
+// src/personal-settings.js clones after a discovery that cannot link -- so the
+// markup lives in this one closure rather than being written twice.
+$requestLinks = $_['request_links'] ?? [];
+$renderRequestLinks = function () use ($requestLinks, $l) {
+	if (empty($requestLinks)) {
+		return;
+	}
+	?>
+	<div class="itop-request-access">
+		<p class="hint"><?php p($l->t('You can ask for this here:')); ?></p>
+		<ul class="itop-request-access-links">
+			<?php foreach ($requestLinks as $requestLink): ?>
+			<li>
+				<a href="<?php p($requestLink['url']); ?>" target="_blank" rel="noopener noreferrer">
+					<?php p($requestLink['label']); ?> ↗
+				</a>
+			</li>
+			<?php endforeach; ?>
+		</ul>
+	</div>
+	<?php
+};
+
 ?>
 
 <div id="itop_prefs" class="section">
@@ -128,14 +153,28 @@ $ciClassLabels = [
 				<?php p($l->t('Discover me in %s', [$_['display_name']])); ?>
 			</button>
 			<div id="itop-discover-result" class="itop-discover-result hidden"></div>
+			<?php if (!empty($requestLinks)): ?>
+			<!-- Cloned by src/personal-settings.js onto the outcomes that end at
+			     "ask an administrator". Inert until then; never rendered as-is. -->
+			<template id="itop-request-access-template"><?php $renderRequestLinks(); ?></template>
+			<?php endif; ?>
 		</div>
 		<?php endif; ?>
 
 		<?php if (!$_['binding_token_enabled'] && !$_['binding_discovery_enabled']): ?>
 		<div class="field">
 			<p class="hint"><?php p($l->t('Self-service account linking is disabled. Please ask an administrator to link your account to %s.', [$_['display_name']])); ?></p>
+			<?php $renderRequestLinks(); ?>
 		</div>
 		<?php endif; ?>
+
+		<?php /* Search, notifications and CI classes all act on the linked iTop
+		         person, so they are meaningless -- and their saved values
+		         unreachable -- until the account is linked. Hidden rather than
+		         disabled: nothing here would do anything.
+		         src/personal-settings.js must therefore treat every control in
+		         these three sections as optional, including #itop-notification-enabled. */ ?>
+		<?php if ($_['person_id_configured']): ?>
 
 		<!-- Search Settings -->
 		<div class="field search-section">
@@ -383,6 +422,8 @@ $ciClassLabels = [
 			<?php endif; ?>
 		</div>
 		<?php endif; ?>
+
+		<?php endif; /* person_id_configured */ ?>
 
 		<button id="itop-save" class="button" <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 			<span class="icon icon-checkmark"></span>

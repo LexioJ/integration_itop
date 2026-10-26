@@ -12,6 +12,14 @@ import { generateUrl } from '@nextcloud/router'
 (function() {
 	'use strict'
 
+	// Discovery outcomes that leave the user unable to link their own account
+	// and with nothing to do but ask an administrator -- so these, and only
+	// these, get the request-access links. Deliberately excludes
+	// `already_bound`: that account is linked and has nothing to request.
+	// `disabled` is excluded too -- when both self-service methods are off the
+	// static template already offers the links, and this button does not exist.
+	const ASK_ADMIN_STATUSES = ['not_self_serviceable', 'excluded']
+
 	document.addEventListener('DOMContentLoaded', function() {
 
 		const saveButton = document.getElementById('itop-save')
@@ -19,6 +27,10 @@ import { generateUrl } from '@nextcloud/router'
 		// token binding path off -- see templates/personalSettings.php. Every
 		// use below must tolerate that.
 		const personalTokenField = document.getElementById('itop-personal-token')
+		// Also absent, along with every other control in the search,
+		// notification and CI-class sections, while the account is not linked
+		// to an iTop person: those sections are not rendered at all. Only
+		// #itop-save and #itop-result are unconditional.
 		const notificationEnabledField = document.getElementById('itop-notification-enabled')
 		const resultDiv = document.getElementById('itop-result')
 
@@ -248,19 +260,29 @@ import { generateUrl } from '@nextcloud/router'
 			resultDiv.classList.add('hidden')
 
 			const personalToken = personalTokenField ? personalTokenField.value.trim() : ''
-			const notificationEnabled = notificationEnabledField.checked ? '1' : '0'
-			const searchEnabled = document.getElementById('itop-search-enabled')
+			const searchEnabledField = document.getElementById('itop-search-enabled')
+			const newsroomMirroringField = document.getElementById('itop-newsroom-mirroring-enabled')
 
 			saveButton.disabled = true
 			const originalButtonText = saveButton.innerHTML
 			saveButton.innerHTML = '<span class="icon">⏳</span> Saving...'
 
-			const newsroomMirroringField = document.getElementById('itop-newsroom-mirroring-enabled')
+			// A key is sent only when its control is on the page. Posting '0'
+			// for an absent toggle would overwrite a preference the user set
+			// while linked, the moment they pressed Save after being unlinked --
+			// silently, since the control they would check is not there.
+			// ConfigController::setConfig() iterates the submitted keys, so an
+			// omitted key leaves the stored value untouched.
+			const params = {}
 
-			const params = {
-				notification_enabled: notificationEnabled,
-				search_enabled: searchEnabled && searchEnabled.checked ? '1' : '0',
-				newsroom_mirroring_enabled: newsroomMirroringField && newsroomMirroringField.checked ? '1' : '0',
+			if (notificationEnabledField) {
+				params.notification_enabled = notificationEnabledField.checked ? '1' : '0'
+			}
+			if (searchEnabledField) {
+				params.search_enabled = searchEnabledField.checked ? '1' : '0'
+			}
+			if (newsroomMirroringField) {
+				params.newsroom_mirroring_enabled = newsroomMirroringField.checked ? '1' : '0'
 			}
 
 			// Send personal_token if provided (used for identity verification only)
@@ -498,7 +520,7 @@ import { generateUrl } from '@nextcloud/router'
 			// server-side (DiscoveryController::notSelfServiceableMessage()), and
 			// intentionally names no one regardless of tier.
 			const message = body.message || t('integration_itop', 'Your account could not be linked automatically. Please ask an administrator to link it for you.')
-			showDiscoveryMessage(message, status !== 200)
+			showDiscoveryMessage(message, status !== 200, ASK_ADMIN_STATUSES.includes(body.status))
 		}
 
 		/**
@@ -549,8 +571,11 @@ import { generateUrl } from '@nextcloud/router'
 		 *
 		 * @param {string} message the text to display
 		 * @param {boolean} isError whether to style it as an error
+		 * @param {boolean} withRequestLinks whether to append the request-access
+		 *   links, for the outcomes that leave the user with nothing to do but
+		 *   ask an administrator
 		 */
-		function showDiscoveryMessage(message, isError) {
+		function showDiscoveryMessage(message, isError, withRequestLinks = false) {
 			discoverResult.innerHTML = ''
 			discoverResult.className = isError ? 'itop-discover-result error' : 'itop-discover-result'
 
@@ -558,7 +583,29 @@ import { generateUrl } from '@nextcloud/router'
 			text.textContent = message
 			discoverResult.appendChild(text)
 
+			if (withRequestLinks) {
+				appendRequestLinks(discoverResult)
+			}
+
 			discoverResult.classList.remove('hidden')
+		}
+
+		/**
+		 * Appends the administrator-configured request-access links, if any.
+		 *
+		 * The markup is cloned from the <template> the server rendered, so the
+		 * URL pattern and the labels exist in exactly one place
+		 * (lib/Settings/Personal.php) and nothing untrusted is interpolated
+		 * here. Absent template -- no ids configured -- appends nothing.
+		 *
+		 * @param {HTMLElement} target the element to append to
+		 */
+		function appendRequestLinks(target) {
+			const template = document.getElementById('itop-request-access-template')
+			if (!template || !template.content) {
+				return
+			}
+			target.appendChild(template.content.cloneNode(true))
 		}
 	})
 })()

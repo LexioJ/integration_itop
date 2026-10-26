@@ -1237,3 +1237,37 @@ body[data-theme-dark] .itop-discover-result.error {
     margin-top: 12px;
 }
 
+
+/* Request-access links -- shown wherever a user is told to ask an
+   administrator. Rendered inline by templates/personalSettings.php and cloned
+   into .itop-discover-result by src/personal-settings.js, so the rules must
+   hold in both contexts. */
+.itop-request-access {
+    margin-top: 12px;
+}
+
+.itop-request-access .hint {
+    margin: 0 0 6px 0;
+}
+
+.itop-request-access-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.itop-request-access-links li {
+    margin: 0;
+}
+
+.itop-request-access-links a {
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+.itop-discover-result .itop-request-access-links a {
+    color: inherit;
+}

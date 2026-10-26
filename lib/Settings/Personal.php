@@ -116,6 +116,7 @@ class Personal implements ISettings {
 		$parameters = [
 			'display_name' => $displayName,
 			'admin_url' => $adminUrl,
+			'request_links' => $this->buildRequestLinks($adminUrl),
 			'person_id_configured' => $personIdConfigured,
 			'person_id' => $personId, // For display purposes only
 			'has_application_token' => $hasApplicationToken,
@@ -144,6 +145,64 @@ class Personal implements ISettings {
 		];
 
 		return new TemplateResponse(Application::APP_ID, 'personalSettings', $parameters);
+	}
+
+	/**
+	 * The request forms an administrator configured, as ready-to-render links.
+	 *
+	 * Built here and nowhere else: the static template and src/personal-settings.js
+	 * both need these, and two copies of the URL pattern would drift. The JS
+	 * clones the rendered markup rather than rebuilding a URL of its own.
+	 *
+	 * The same id in both fields is a supported configuration -- one form that
+	 * covers both cases -- and collapses to a single neutral link, because two
+	 * links to the same form reads as a bug.
+	 *
+	 * @return list<array{url: string, label: string}> empty when nothing is configured
+	 */
+	private function buildRequestLinks(string $adminUrl): array {
+		if ($adminUrl === '') {
+			return [];
+		}
+
+		$incidentId = $this->bindingConfig->getRequestIncidentId();
+		$userRequestId = $this->bindingConfig->getRequestUserRequestId();
+
+		if ($incidentId !== '' && $incidentId === $userRequestId) {
+			return [[
+				'url' => $this->requestFormUrl($adminUrl, $incidentId),
+				'label' => $this->l10n->t('Request access'),
+			]];
+		}
+
+		$links = [];
+		if ($incidentId !== '') {
+			$links[] = [
+				'url' => $this->requestFormUrl($adminUrl, $incidentId),
+				'label' => $this->l10n->t('Report a problem'),
+			];
+		}
+		if ($userRequestId !== '') {
+			$links[] = [
+				'url' => $this->requestFormUrl($adminUrl, $userRequestId),
+				'label' => $this->l10n->t('Request assistance'),
+			];
+		}
+
+		return $links;
+	}
+
+	/**
+	 * The iTop portal URL for one ServiceSubcategory.
+	 *
+	 * $id is always digits -- BindingConfig re-validates on read, so an id that
+	 * reached storage by some other route than the settings form still cannot
+	 * get into this URL.
+	 */
+	private function requestFormUrl(string $adminUrl, string $id): string {
+		return rtrim($adminUrl, '/')
+			. '/pages/exec.php/object/view/ServiceSubcategory/' . $id
+			. '?exec_module=itop-portal-base&exec_page=index.php&portal_id=itop-portal';
 	}
 
 	public function getSection(): string {
