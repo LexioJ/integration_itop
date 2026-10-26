@@ -261,7 +261,7 @@ import { generateUrl } from '@nextcloud/router'
 		// placeholders by default, which would double-escape everything esc()
 		// then saw. esc() is what keeps this safe inside an attribute.
 		return ' title="' + esc(t('integration_itop', 'Linked on {date} · method {method}',
-			{ date, method: row.method || unknown }, { escape: false })) + '"'
+			{ date, method: row.method || unknown }, undefined, { escape: false })) + '"'
 	}
 
 	/**
