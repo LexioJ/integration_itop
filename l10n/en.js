@@ -539,6 +539,7 @@ OC.L10N.register(
     "Ticket system type saved" : "Ticket system type saved",
     "Ticket {ref}: {title}" : "Ticket {ref}: {title}",
     "Tickets" : "Tickets",
+    "Ticket:" : "Ticket:",
     "Tickets:" : "Tickets:",
     "Title:" : "Title:",
     "Today" : "Today",
