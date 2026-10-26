@@ -126,14 +126,8 @@ class BindingController extends Controller {
 	}
 
 	private function setExcluded(array $uids, bool $excluded): DataResponse {
-		$changed = [];
-		foreach ($uids as $uid) {
-			if (!is_string($uid) || $uid === '') {
-				continue;
-			}
-			$this->bindingConfig->setExcluded($uid, $excluded);
-			$changed[] = $uid;
-		}
+		$uids = array_values(array_filter($uids, static fn ($uid) => is_string($uid) && $uid !== ''));
+		$changed = $this->bindingConfig->setExcludedMany($uids, $excluded);
 
 		$this->logger->info('iTop binding exclusions updated', [
 			'app' => Application::APP_ID,

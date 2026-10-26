@@ -181,11 +181,53 @@ class BindingConfig {
 	}
 
 	public function setExcluded(string $uid, bool $excluded): void {
-		$current = $this->getExcludedUsers();
-		$next = $excluded
-			? array_values(array_unique([...$current, $uid]))
-			: array_values(array_diff($current, [$uid]));
+		$this->setExcludedMany([$uid], $excluded);
+	}
 
-		$this->appConfig->setValueString(Application::APP_ID, 'binding_excluded_users', json_encode($next), true);
+	/**
+	 * Exclude or restore several accounts in one read-modify-write.
+	 *
+	 * setExcluded() per uid is 2N config operations for a bulk action, and two
+	 * administrators acting at once lose one another's edit. The bulk bar on
+	 * the associations screen makes that reachable.
+	 *
+	 * @param array $uids accounts to change
+	 * @param bool $excluded true to exclude, false to restore
+	 * @return array the uids actually changed
+	 */
+	public function setExcludedMany(array $uids, bool $excluded): array {
+		$current = $this->getExcludedUsers();
+		$set = array_fill_keys($current, true);
+		$changed = [];
+
+		foreach ($uids as $uid) {
+			$uid = (string)$uid;
+			if ($uid === '') {
+				continue;
+			}
+			if ($excluded && !isset($set[$uid])) {
+				$set[$uid] = true;
+				$changed[] = $uid;
+			} elseif (!$excluded && isset($set[$uid])) {
+				unset($set[$uid]);
+				$changed[] = $uid;
+			}
+		}
+
+		if ($changed !== []) {
+			$this->writeExcludedUsers(array_keys($set));
+		}
+
+		return $changed;
+	}
+
+	/**
+	 * Persists the exclusion list. The only place that writes
+	 * binding_excluded_users, so the lazy flag and JSON encoding exist once.
+	 *
+	 * @param string[] $uids
+	 */
+	private function writeExcludedUsers(array $uids): void {
+		$this->appConfig->setValueString(Application::APP_ID, 'binding_excluded_users', json_encode($uids), true);
 	}
 }

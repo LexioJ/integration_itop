@@ -40,6 +40,7 @@ class BindingListService {
 		private BindingConfig $bindingConfig,
 		private IUserManager $userManager,
 		private IUserConfig $userConfig,
+		private IdentityResolver $identityResolver,
 	) {
 	}
 
@@ -63,14 +64,22 @@ class BindingListService {
 		// row meant one decode per account on the instance.
 		$excluded = array_fill_keys($this->bindingConfig->getExcludedUsers(), true);
 
+		// Four reads total instead of four per account: on a 20k-account
+		// instance that is the difference between ~80k queries and 4 to then
+		// throw all but a page away.
+		$personIds = $this->userConfig->getValuesByUsers(Application::APP_ID, 'person_id');
+		$userIds = $this->userConfig->getValuesByUsers(Application::APP_ID, 'user_id');
+		$methods = $this->userConfig->getValuesByUsers(Application::APP_ID, 'binding_method');
+		$boundAts = $this->userConfig->getValuesByUsers(Application::APP_ID, 'binding_at');
+
 		$rows = [];
-		$this->userManager->callForAllUsers(function (IUser $user) use (&$rows, $filter, $search, $restrict, $excluded) {
-			// Checked before describe(), which costs four config reads.
+		$this->userManager->callForAllUsers(function (IUser $user) use (&$rows, $filter, $search, $restrict, $excluded, $personIds, $userIds, $methods, $boundAts) {
+			// Checked before describe(), which costs four array lookups.
 			if ($restrict !== null && !isset($restrict[$user->getUID()])) {
 				return;
 			}
 
-			$row = $this->describe($user, $excluded);
+			$row = $this->describe($user, $excluded, $personIds, $userIds, $methods, $boundAts);
 
 			if (!$this->matchesSearch($row, $search)) {
 				return;
@@ -95,17 +104,21 @@ class BindingListService {
 
 	/**
 	 * @param array<string,true> $excluded hash set of excluded uids, read once by list()
+	 * @param array<string,mixed> $personIds uid => person_id, read once by list()
+	 * @param array<string,mixed> $userIds uid => user_id, read once by list()
+	 * @param array<string,mixed> $methods uid => binding_method, read once by list()
+	 * @param array<string,mixed> $boundAts uid => binding_at, read once by list()
 	 * @return array{uid: string, displayName: string, email: string, bound: bool,
 	 *               personId: ?string, userId: ?string, method: ?string,
-	 *               boundAt: ?int, excluded: bool}
+	 *               boundAt: ?int, excluded: bool, sourceValue: string}
 	 */
-	private function describe(IUser $user, array $excluded): array {
+	private function describe(IUser $user, array $excluded, array $personIds, array $userIds, array $methods, array $boundAts): array {
 		$uid = $user->getUID();
 
-		$personId = $this->userConfig->getValueString($uid, Application::APP_ID, 'person_id', '');
-		$userId = $this->userConfig->getValueString($uid, Application::APP_ID, 'user_id', '');
-		$method = $this->userConfig->getValueString($uid, Application::APP_ID, 'binding_method', '');
-		$boundAt = $this->userConfig->getValueString($uid, Application::APP_ID, 'binding_at', '');
+		$personId = (string)($personIds[$uid] ?? '');
+		$userId = (string)($userIds[$uid] ?? '');
+		$method = (string)($methods[$uid] ?? '');
+		$boundAt = (string)($boundAts[$uid] ?? '');
 
 		return [
 			'uid' => $uid,
@@ -117,6 +130,9 @@ class BindingListService {
 			'method' => $method !== '' ? $method : null,
 			'boundAt' => $boundAt !== '' ? (int)$boundAt : null,
 			'excluded' => isset($excluded[$uid]),
+			// The tier column needs to show what is actually being compared
+			// when the rule matches on uid or display name, not just email.
+			'sourceValue' => $this->identityResolver->sourceValueFor($user),
 		];
 	}
 

@@ -37,25 +37,6 @@ class IdentityBindingService {
 	}
 
 	/**
-	 * @return array{person_id: string, user_id: ?string, method: string, bound_at: int}|null
-	 */
-	public function getBinding(string $uid): ?array {
-		$personId = $this->userConfig->getValueString($uid, Application::APP_ID, 'person_id', '');
-		if ($personId === '') {
-			return null;
-		}
-
-		$userId = $this->userConfig->getValueString($uid, Application::APP_ID, 'user_id', '');
-
-		return [
-			'person_id' => $personId,
-			'user_id' => $userId !== '' ? $userId : null,
-			'method' => $this->userConfig->getValueString($uid, Application::APP_ID, 'binding_method', ''),
-			'bound_at' => (int)$this->userConfig->getValueString($uid, Application::APP_ID, 'binding_at', '0'),
-		];
-	}
-
-	/**
 	 * The account already linked to this iTop person, if it is not $exceptUid.
 	 *
 	 * person_id is the authorisation boundary, so two accounts holding the same
