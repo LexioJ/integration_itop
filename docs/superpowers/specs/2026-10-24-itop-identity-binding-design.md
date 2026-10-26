@@ -247,6 +247,35 @@ Phase 2 delivers the main value; phases 3 and 4 are additive.
 
 ## Deferred
 
+### Carried over from the phase 2a implementation review
+
+- `BindingListService::describe()` re-derives binding state from raw config keys instead of
+  `IdentityBindingService::getBinding()`, and the two already differ: `getBinding()` returns
+  `method => ''` while `describe()` returns `method => null`. Phase 2b's origin badge will read
+  the `null` variant while service and occ code see `''`. Collapse them onto one accessor.
+- A row carries no `sourceValue`, so the table cannot show what is actually being matched. With
+  source `uid` or `displayname` the email column is unrelated to the match. Add it from
+  `IdentityResolver::sourceValueFor()`.
+- The four filters overlap: a bound-and-excluded account appears under both `bound` and
+  `excluded`, while `unbound` deliberately omits excluded accounts, so the counts do not sum to
+  `all`. Each is individually correct -- do not present the tabs as a breakdown that totals.
+- `describe()` issues four `getValueString` calls per user. Acceptable now, but the association
+  table loads exactly this path, so at a few hundred users it compounds with the accepted
+  enumerate-all decision. Use `getValuesByUsers()` -- one query per key.
+- `BindingConfig::setExcluded()` is a read-modify-write over a single JSON blob, called per uid.
+  A bulk exclude of N accounts is 2N config operations and two concurrent admins lose an edit.
+  Phase 2b's bulk action bar needs a `setExcludedMany()`.
+- The template's mutability lookup fails *open*: `!empty($_['binding_source_mutability'][$source])`
+  renders `data-mutable="0"` for a source missing from the map. It only opens if a `SOURCE_*`
+  constant is added without a matching map entry, but `?? true` in both places fails closed.
+- `exclude`/`restore` yield a framework 500 rather than 400 for a missing or scalar `uids` key.
+- `IdentityBindingService::unbind()` logs "iTop identity unbound" for an account that exists but
+  was never bound -- an audit line for something that did not happen.
+- The binding Save button is not disabled while its POST is in flight, so two rapid clicks could
+  interleave a failed save's resync behind a later successful one.
+- `#itop-binding-rule-save` lacks the `btn-primary` class every other save button in the template
+  uses.
+
 ### Carried over from the phase 1 implementation review
 
 Found during phase 1, judged not worth blocking that merge. Phase 2 touches most of this code, so
