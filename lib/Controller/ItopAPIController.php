@@ -16,6 +16,7 @@ use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\ItopAPIService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IAppConfig;
 use OCP\IL10N;
@@ -40,11 +41,10 @@ class ItopAPIController extends Controller {
 	/**
 	 * Get user created tickets
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @param int $limit
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function getTickets(int $limit = 10): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Unauthorized'], Http::STATUS_UNAUTHORIZED);
@@ -62,10 +62,9 @@ class ItopAPIController extends Controller {
 	/**
 	 * Get count of user created tickets
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function getTicketsCount(): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Unauthorized'], Http::STATUS_UNAUTHORIZED);
@@ -83,11 +82,10 @@ class ItopAPIController extends Controller {
 	/**
 	 * Get specific ticket details
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @param int $ticketId
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function getTicket(int $ticketId): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Unauthorized'], Http::STATUS_UNAUTHORIZED);
@@ -105,13 +103,12 @@ class ItopAPIController extends Controller {
 	/**
 	 * Search iTop objects
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @param string $term
 	 * @param int $offset
 	 * @param int $limit
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function search(string $term, int $offset = 0, int $limit = 10): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Unauthorized'], Http::STATUS_UNAUTHORIZED);
@@ -129,11 +126,10 @@ class ItopAPIController extends Controller {
 	/**
 	 * Get Configuration Items
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @param int $limit
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function getCIs(int $limit = 10): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Unauthorized'], Http::STATUS_UNAUTHORIZED);
@@ -155,10 +151,9 @@ class ItopAPIController extends Controller {
 	/**
 	 * Get avatar/image - placeholder for future implementation
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function getAvatar(): DataResponse {
 		// Placeholder - iTop doesn't have user avatars like Zammad
 		// This could be extended to return organization logos or CI images
@@ -168,10 +163,9 @@ class ItopAPIController extends Controller {
 	/**
 	 * Get dashboard data for current user
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function getDashboardData(): DataResponse {
 		$this->logger->info('getDashboardData called for user: ' . ($this->userId ?? 'null'), ['app' => Application::APP_ID]);
 		
@@ -223,10 +217,9 @@ class ItopAPIController extends Controller {
 	/**
 	 * Get agent dashboard data (agent-specific metrics and queues)
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function getAgentDashboardData(): DataResponse {
 		$this->logger->info('getAgentDashboardData called for user: ' . ($this->userId ?? 'null'), ['app' => Application::APP_ID]);
 

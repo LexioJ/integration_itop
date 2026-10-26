@@ -58,8 +58,17 @@
 				</div>
 				<!-- Row 2: Service breadcrumb (Tickets) OR CI subtitle (CIs) -->
 				<div class="row-2">
-					<!-- Ticket service breadcrumb -->
-					<span v-if="!isCI && serviceBreadcrumb" class="service-breadcrumb" v-html="serviceBreadcrumb" />
+					<!--
+						Ticket service breadcrumb. The caller is an iTop
+						friendlyname, so it is bound as text in a real anchor
+						rather than built into an HTML string -- the plain-text
+						run before it and the organisation after it carry
+						their own spacing so no markup whitespace matters.
+					-->
+					<span v-if="!isCI && serviceBreadcrumb" class="service-breadcrumb">{{ serviceBreadcrumb.text }}<a v-if="serviceBreadcrumb.caller"
+						:href="serviceBreadcrumb.callerUrl"
+						class="author-link"
+						target="_blank">{{ serviceBreadcrumb.caller }}</a>{{ serviceBreadcrumb.suffix }}</span>
 					<!-- CI subtitle: For PhysicalDevice show brand/model/serial inline; for others show regular subtitle -->
 					<span v-if="isCI && physicalDeviceSubtitle" class="ci-subtitle physical-device">
 						{{ physicalDeviceSubtitle }}
@@ -70,7 +79,10 @@
 				</div>
 				<!-- Row 3: Org/Team/Agent breadcrumb (Tickets) OR CI Chips (CIs) -->
 				<div v-if="!isCI && orgTeamAgentBreadcrumb" class="row-3 ticket-org">
-					<span class="org-breadcrumb" v-html="orgTeamAgentBreadcrumb" />
+					<span class="org-breadcrumb">{{ orgTeamAgentBreadcrumb.text }}<a v-if="orgTeamAgentBreadcrumb.agentUrl"
+						:href="orgTeamAgentBreadcrumb.agentUrl"
+						class="agent-link"
+						target="_blank">{{ orgTeamAgentBreadcrumb.agent }}</a><template v-else>{{ orgTeamAgentBreadcrumb.agent }}</template></span>
 				</div>
 				<div v-if="isCI && filteredChips.length > 0" class="row-3 ci-chips">
 					<span v-for="chip in filteredChips" :key="chip.label" class="ci-chip">
@@ -195,7 +207,7 @@ export default {
 			return this.richObject.chips
 		},
 		ticketUrl() {
-			return this.richObject.url
+			return this.safeUrl(this.richObject.url)
 		},
 		ticketTitle() {
 			if (this.isCI) {
@@ -208,14 +220,14 @@ export default {
 		callerUrl() {
 			// Build URL to person details if we have person_id
 			if (this.richObject.itop_url && this.richObject.caller_id) {
-				return this.richObject.itop_url + '/pages/UI.php?operation=details&class=Person&id=' + this.richObject.caller_id
+				return this.safeUrl(this.richObject.itop_url + '/pages/UI.php?operation=details&class=Person&id=' + this.richObject.caller_id)
 			}
 			return this.ticketUrl
 		},
 		agentUrl() {
 			// Build URL to agent details if we have agent_id
 			if (this.richObject.itop_url && this.richObject.agent_id) {
-				return this.richObject.itop_url + '/pages/UI.php?operation=details&class=Person&id=' + this.richObject.agent_id
+				return this.safeUrl(this.richObject.itop_url + '/pages/UI.php?operation=details&class=Person&id=' + this.richObject.agent_id)
 			}
 			return null
 		},
@@ -311,6 +323,18 @@ export default {
 			}
 			return '🟢'
 		},
+		/**
+		 * The row-2 breadcrumb, split so the one linked part -- the caller --
+		 * can be bound as text instead of concatenated into markup.
+		 *
+		 * `caller_id_friendlyname` is whatever iTop holds for that Person, and
+		 * this widget unfurls for everyone in a Talk room, so a friendlyname
+		 * of `"><img src=x onerror=…>` must not be able to become an element
+		 * or break out of the href. `text` and `suffix` are the plain-text
+		 * runs either side of the link and carry their own spacing.
+		 *
+		 * @return {?object} null when there is nothing to show
+		 */
 		serviceBreadcrumb() {
 			const service = this.richObject.service_name
 			const subcategory = this.richObject.servicesubcategory_name
@@ -321,27 +345,37 @@ export default {
 				return null
 			}
 
-			const parts = []
+			let text = ''
 
 			// Add service emoji and name if exists
 			if (service) {
-				parts.push('🏷️ ' + service)
+				text += '🏷️ ' + service
 			}
 
 			// Add subcategory with breadcrumb separator if exists
 			if (subcategory) {
-				parts.push(' > ' + subcategory)
+				text += ' > ' + subcategory
 			}
 
-			// Add caller with link if exists
+			// The link itself follows, so only its lead-in belongs here
 			if (caller) {
-				const callerLink = `<a href="${this.callerUrl}" target="_blank" class="author-link">${caller}</a>`
-				const orgText = org ? ` (${org})` : ''
-				parts.push(' for ' + callerLink + orgText)
+				text += ' for '
 			}
 
-			return parts.join('')
+			return {
+				text,
+				caller: caller || '',
+				callerUrl: this.callerUrl,
+				suffix: caller && org ? ' (' + org + ')' : '',
+			}
 		},
+		/**
+		 * The row-3 breadcrumb, split the same way: `agent` is the only part
+		 * that can be a link, so it is returned on its own and the separator
+		 * leading to it is folded into the plain-text prefix.
+		 *
+		 * @return {?object} null when there is nothing to show
+		 */
 		orgTeamAgentBreadcrumb() {
 			const org = this.richObject.org_id_friendlyname
 			const team = this.richObject.team_id_friendlyname
@@ -363,16 +397,16 @@ export default {
 				parts.push('👥 ' + team)
 			}
 
-			// Add agent with link if exists
-			if (agent) {
-				if (this.agentUrl) {
-					parts.push(`<a href="${this.agentUrl}" target="_blank" class="agent-link">👤 ${agent}</a>`)
-				} else {
-					parts.push('👤 ' + agent)
-				}
+			let text = parts.join(' > ')
+			if (agent && text) {
+				text += ' > '
 			}
 
-			return parts.join(' > ')
+			return {
+				text,
+				agent: agent ? '👤 ' + agent : '',
+				agentUrl: agent ? this.agentUrl : null,
+			}
 		},
 		createdAtFormatted() {
 			const m = moment(this.richObject.creation_date)
@@ -404,6 +438,28 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * Every URL in this widget is derived from iTop-supplied data, and all
+		 * of them end up in an `href`. Vue binds an href verbatim, so a
+		 * `javascript:` or `data:` value would be a one-click script run for
+		 * anyone the ticket unfurls to. Only http(s) and same-origin relative
+		 * URLs survive; anything else yields null, which drops the attribute
+		 * and leaves inert text.
+		 *
+		 * @param {?string} url the candidate URL
+		 * @return {?string} the URL unchanged, or null if it is not navigable
+		 */
+		safeUrl(url) {
+			if (!url || typeof url !== 'string') {
+				return null
+			}
+			try {
+				const parsed = new URL(url, window.location.origin)
+				return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? url : null
+			} catch (e) {
+				return null
+			}
+		},
 		getChipIcon(iconName) {
 			// Map icon names to emoji/symbols
 			const iconMap = {

@@ -20,9 +20,58 @@ $ciClassLabels = [
 	'Software' => $l->t('Software Catalog')
 ];
 
+// Request-access links, pre-built in lib/Settings/Personal.php and keyed by the
+// situation each answers: 'assistance' where policy prevents linking,
+// 'problem' where linking broke. Rendered inline where self-service is off, and
+// inside the two <template> elements src/personal-settings.js clones from after
+// a discovery, so the markup lives in this one closure rather than being
+// written four times.
+//
+// A kind whose id an administrator has not configured renders nothing at all --
+// not the other kind, and not the hint line either.
+$requestLinks = $_['request_links'] ?? [];
+$renderRequestLink = function (string $kind) use ($requestLinks, $l) {
+	if (!isset($requestLinks[$kind])) {
+		return;
+	}
+	$requestLink = $requestLinks[$kind];
+	?>
+	<div class="itop-request-access">
+		<p class="hint"><?php p($l->t('You can ask for this here:')); ?></p>
+		<ul class="itop-request-access-links">
+			<li>
+				<a href="<?php p($requestLink['url']); ?>" target="_blank" rel="noopener noreferrer">
+					<?php p($requestLink['label']); ?> ↗
+				</a>
+			</li>
+		</ul>
+	</div>
+	<?php
+};
+
+// Whether the two blocks of the .itop-personal-info footer have anything to
+// say. Computed once and used by the blocks and by their wrapper: the wrapper
+// is styled, so rendering it around two hidden blocks painted an empty grey
+// box at the foot of the page, and a third copy of these conditions is a third
+// thing that has to be kept in agreement.
+$showTokenHelp = $_['binding_token_enabled'] ?? false;
+$showFeatures = ($_['person_id_configured'] ?? false) || $showTokenHelp || ($_['binding_discovery_enabled'] ?? false);
 ?>
 
 <div id="itop_prefs" class="section">
+	<?php /* Page-level, not nested in a field: src/personal-settings.js clones
+	         one of these onto a discovery outcome, picking by what went wrong,
+	         and they have to be reachable independently of which self-service
+	         toggles are on. One element per kind, each gated on its own id being
+	         configured, so an absent template means "that kind is not offered
+	         here" and the JS appends nothing. Inert markup -- a <template> is
+	         never rendered as-is. */ ?>
+	<?php if (isset($requestLinks['assistance'])): ?>
+	<template id="itop-request-access-template-assistance"><?php $renderRequestLink('assistance'); ?></template>
+	<?php endif; ?>
+	<?php if (isset($requestLinks['problem'])): ?>
+	<template id="itop-request-access-template-problem"><?php $renderRequestLink('problem'); ?></template>
+	<?php endif; ?>
 	<div class="itop-personal-header">
 		<div class="icon-container">
 			<div class="app-icon"></div>
@@ -83,6 +132,7 @@ $ciClassLabels = [
 	<div class="itop-personal-settings">
 		<h3><?php p($l->t('My Settings')); ?></h3>
 
+		<?php if ($_['binding_token_enabled']): ?>
 		<div class="field token-field">
 			<label for="itop-personal-token" class="token-label">
 				<span class="token-icon">🔑</span>
@@ -105,7 +155,64 @@ $ciClassLabels = [
 				</a>
 				<?php endif; ?>
 			</p>
+			<p class="hint itop-portal-hint">
+				<strong><?php p($l->t('Portal user?')); ?></strong>
+				<?php if ($_['binding_discovery_enabled']): ?>
+					<?php p($l->t('Personal tokens are only issued to back-end users. If you cannot get one, try "Discover me in %s" below instead.', [$_['display_name']])); ?>
+				<?php else: ?>
+					<?php p($l->t('Personal tokens are only issued to back-end users. If you cannot get one, please ask an administrator to link your account.')); ?>
+				<?php endif; ?>
+			</p>
+			<?php /* Token binding on, discovery off, and no token obtainable: a
+			         portal user is told to ask an administrator with no way to do
+			         it. The likeliest configuration to reach that message, so the
+			         link belongs here too -- not only in the both-toggles-off
+			         case below. Suppressed once the account is linked: there is
+			         then nothing left to request.
+			         'assistance': an iTop profile that is not allowed personal
+			         tokens is a policy decision, not a malfunction. */ ?>
+			<?php if (!$_['binding_discovery_enabled'] && !$_['person_id_configured']): ?>
+				<?php $renderRequestLink('assistance'); ?>
+			<?php endif; ?>
 		</div>
+		<?php endif; ?>
+
+		<?php if ($_['binding_discovery_enabled']): ?>
+		<div class="field discovery-field">
+			<label class="discovery-label">
+				<span class="token-icon">🔍</span>
+				<?php p($l->t('Automatic linking')); ?>
+			</label>
+			<p class="hint"><?php p($l->t('Let %s try to match your account to your person record automatically. No token needed.', [$_['display_name']])); ?></p>
+			<button id="itop-discover-button" type="button" class="button">
+				<?php p($l->t('Discover me in %s', [$_['display_name']])); ?>
+			</button>
+			<div id="itop-discover-result" class="itop-discover-result hidden"></div>
+		</div>
+		<?php endif; ?>
+
+		<?php /* person_id_configured is part of the condition, not just the two
+		         toggles: an already-linked user needs neither the notice (their
+		         account is linked, so asking an administrator to link it is
+		         nonsense) nor the links (they have nothing to request). The
+		         notice predates this change and was shown to linked users too;
+		         the links must not inherit that. */ ?>
+		<?php if (!$_['person_id_configured'] && !$_['binding_token_enabled'] && !$_['binding_discovery_enabled']): ?>
+		<div class="field">
+			<p class="hint"><?php p($l->t('Self-service account linking is disabled. Please ask an administrator to link your account to %s.', [$_['display_name']])); ?></p>
+			<?php /* 'assistance': nothing is broken here, the server is
+			         configured not to let accounts link themselves. */ ?>
+			<?php $renderRequestLink('assistance'); ?>
+		</div>
+		<?php endif; ?>
+
+		<?php /* Search, notifications and CI classes all act on the linked iTop
+		         person, so they are meaningless -- and their saved values
+		         unreachable -- until the account is linked. Hidden rather than
+		         disabled: nothing here would do anything.
+		         src/personal-settings.js must therefore treat every control in
+		         these three sections as optional, including #itop-notification-enabled. */ ?>
+		<?php if ($_['person_id_configured']): ?>
 
 		<!-- Search Settings -->
 		<div class="field search-section">
@@ -131,7 +238,7 @@ $ciClassLabels = [
 				<div class="notification-user-toggle">
 					<input id="itop-notification-enabled" type="checkbox" <?php echo $_['notification_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 					<label for="itop-notification-enabled" class="notification-user-label-container">
-						<span class="notification-user-label"><strong><?php p($l->t('Enable iTop Notifications')); ?></strong></span>
+						<span class="notification-user-label"><strong><?php p($l->t('Enable %s Notifications', [$_['display_name']])); ?></strong></span>
 					</label>
 				</div>
 
@@ -142,11 +249,11 @@ $ciClassLabels = [
 						<?php echo $_['newsroom_mirroring_enabled'] ? 'checked' : ''; ?>
 						<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 					<label for="itop-newsroom-mirroring-enabled" class="notification-user-label-container">
-						<span class="notification-user-label"><?php p($l->t('Mirror iTop Newsroom notifications')); ?></span>
+						<span class="notification-user-label"><?php p($l->t('Mirror %s Newsroom notifications', [$_['display_name']])); ?></span>
 					</label>
 				</div>
 				<p class="hint" style="margin-left: 28px; margin-top: 2px; margin-bottom: 8px;">
-					<?php p($l->t('Receive iTop Newsroom announcements as Nextcloud notifications (requires ActionNewsroom triggers configured in iTop)')); ?>
+					<?php p($l->t('Receive %s Newsroom announcements as Nextcloud notifications (requires ActionNewsroom triggers configured in %s)', [$_['display_name'], $_['display_name']])); ?>
 				</p>
 			</div>
 			
@@ -354,28 +461,31 @@ $ciClassLabels = [
 		</div>
 		<?php endif; ?>
 
+		<?php endif; /* person_id_configured */ ?>
+
+		<?php /* Unlinked with token binding off leaves no persistable field on
+		         the page at all: Save would post {} and the server would still
+		         answer "Settings saved successfully", confirming a save that
+		         saved nothing. Kept when token binding is on but unlinked -- the
+		         token field is there and is submitted through this same button.
+		         #itop-result stays unconditional; src/personal-settings.js gates
+		         the save path on both, and no longer returns early without them. */ ?>
+		<?php if ($_['person_id_configured'] || $_['binding_token_enabled']): ?>
 		<button id="itop-save" class="button" <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 			<span class="icon icon-checkmark"></span>
 			<?php p($l->t('Save')); ?>
 		</button>
+		<?php endif; ?>
 
 		<div id="itop-result" class="result hidden">
 			<span class="icon"></span>
 			<span class="message"></span>
 		</div>
-		<?php if (!empty($_['admin_url'])): ?>
-		<div class="itop-personal-config-hint">
-			<span class="icon icon-info"></span>
-			<div>
-				<strong><?php p($l->t('Can\'t create a personal token?')); ?></strong>
-				<p><?php p($l->t('If the "Personal Tokens" option is missing from your %s account, your iTop profile may not be allowed to create tokens. Ask your iTop administrator to add your profile to personal_tokens_allowed_profiles in the iTop Configuration File Editor.', [$_['display_name']])); ?></p>
-			</div>
-		</div>
-		<?php endif; ?>
-
 	</div>
 
+	<?php if ($showTokenHelp || $showFeatures): ?>
 	<div class="itop-personal-info">
+		<?php if ($showTokenHelp): ?>
 		<h3><?php p($l->t('How to get your Personal Token')); ?></h3>
 		<ol>
 			<li><?php p($l->t('Log into %s', [$_['display_name']])); ?></li>
@@ -392,7 +502,14 @@ $ciClassLabels = [
 			<li><?php p($l->t('Paste the token in the field above and click "Save"')); ?></li>
 			<li><strong><?php p($l->t('Important:')); ?></strong> <?php p($l->t('The token is used ONCE to verify your Identity, then discarded for security.')); ?></li>
 		</ol>
+		<?php endif; ?>
 
+		<?php /* Same condition as the "ask an administrator" notice above. A user
+		         who is not linked and has no self-service route cannot reach any
+		         of these, so listing them only advertises what they cannot have.
+		         Kept wherever a self-service route exists -- there the list is
+		         the reason to bother linking. */ ?>
+		<?php if ($showFeatures): ?>
 		<h3><?php p($l->t('Available features')); ?></h3>
 		<ul>
 			<li><?php p($l->t('Dashboard widget with your assigned tickets')); ?></li>
@@ -400,5 +517,7 @@ $ciClassLabels = [
 			<li><?php p($l->t('Rich previews when sharing %s links', [$_['display_name']])); ?></li>
 			<li><?php p($l->t('Notifications for newly assigned tickets')); ?></li>
 		</ul>
+		<?php endif; ?>
 	</div>
+	<?php endif; /* $showTokenHelp || $showFeatures */ ?>
 </div>

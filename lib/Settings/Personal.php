@@ -13,6 +13,7 @@
 namespace OCA\Itop\Settings;
 
 use OCA\Itop\AppInfo\Application;
+use OCA\Itop\Service\Binding\BindingConfig;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\Config\IUserConfig;
@@ -30,6 +31,7 @@ class Personal implements ISettings {
 		private ICrypto $crypto,
 		private ?string $userId,
 		private IAppManager $appManager,
+		private BindingConfig $bindingConfig,
 	) {
 	}
 
@@ -114,6 +116,7 @@ class Personal implements ISettings {
 		$parameters = [
 			'display_name' => $displayName,
 			'admin_url' => $adminUrl,
+			'request_links' => $this->buildRequestLinks($adminUrl),
 			'person_id_configured' => $personIdConfigured,
 			'person_id' => $personId, // For display purposes only
 			'has_application_token' => $hasApplicationToken,
@@ -127,6 +130,8 @@ class Personal implements ISettings {
 			'user_choice_ci_classes' => $userChoiceCIClasses,
 			'forced_ci_classes' => $forcedCIClasses,
 			'user_disabled_ci_classes' => $userDisabledClasses,
+			'binding_token_enabled' => $this->bindingConfig->isTokenBindingEnabled(),
+			'binding_discovery_enabled' => $this->bindingConfig->isDiscoveryEnabled(),
 			// 3-state notification configuration
 			'user_choice_portal_notifications' => $userChoicePortalNotifications,
 			'user_choice_agent_notifications' => $userChoiceAgentNotifications,
@@ -140,6 +145,68 @@ class Personal implements ISettings {
 		];
 
 		return new TemplateResponse(Application::APP_ID, 'personalSettings', $parameters);
+	}
+
+	/**
+	 * The request forms an administrator configured, as ready-to-render links,
+	 * keyed by the situation each one answers.
+	 *
+	 * Built here and nowhere else: the static template and src/personal-settings.js
+	 * both need these, and two copies of the URL pattern would drift. The JS
+	 * clones the rendered markup rather than rebuilding a URL of its own.
+	 *
+	 * Exactly one of these is ever offered at a time, and which one is decided
+	 * by what went wrong: being unable to link *because of policy* is a service
+	 * request ('assistance'), while trying to link and having it *break* is an
+	 * incident ('problem'). The two carry different SLAs, which is why an
+	 * administrator configures two ServiceSubcategory ids.
+	 *
+	 * A key is absent when its id is unset, and a caller that finds its key
+	 * absent must render nothing rather than fall back to the other one:
+	 * offering "Report a problem" to somebody who merely cannot link their
+	 * account files the wrong kind of ticket, which is what this split exists
+	 * to prevent. The same id in both fields stays supported -- one form
+	 * covering both cases -- and each situation then shows its own label.
+	 *
+	 * @return array{assistance?: array{url: string, label: string}, problem?: array{url: string, label: string}}
+	 */
+	private function buildRequestLinks(string $adminUrl): array {
+		if ($adminUrl === '') {
+			return [];
+		}
+
+		$links = [];
+
+		$userRequestId = $this->bindingConfig->getRequestUserRequestId();
+		if ($userRequestId !== '') {
+			$links['assistance'] = [
+				'url' => $this->requestFormUrl($adminUrl, $userRequestId),
+				'label' => $this->l10n->t('Request assistance'),
+			];
+		}
+
+		$incidentId = $this->bindingConfig->getRequestIncidentId();
+		if ($incidentId !== '') {
+			$links['problem'] = [
+				'url' => $this->requestFormUrl($adminUrl, $incidentId),
+				'label' => $this->l10n->t('Report a problem'),
+			];
+		}
+
+		return $links;
+	}
+
+	/**
+	 * The iTop portal URL for one ServiceSubcategory.
+	 *
+	 * $id is always digits -- BindingConfig re-validates on read, so an id that
+	 * reached storage by some other route than the settings form still cannot
+	 * get into this URL.
+	 */
+	private function requestFormUrl(string $adminUrl, string $id): string {
+		return rtrim($adminUrl, '/')
+			. '/pages/exec.php/object/view/ServiceSubcategory/' . $id
+			. '?exec_module=itop-portal-base&exec_page=index.php&portal_id=itop-portal';
 	}
 
 	public function getSection(): string {

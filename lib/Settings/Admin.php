@@ -13,6 +13,7 @@
 namespace OCA\Itop\Settings;
 
 use OCA\Itop\AppInfo\Application;
+use OCA\Itop\Service\Binding\BindingConfig;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\Files\AppData\IAppDataFactory;
@@ -29,6 +30,7 @@ class Admin implements ISettings {
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
 		private IAppDataFactory $appDataFactory,
+		private BindingConfig $bindingConfig,
 	) {
 		$this->logger->info('iTop Admin settings constructor called', ['app' => Application::APP_ID]);
 	}
@@ -87,6 +89,10 @@ class Admin implements ISettings {
 			'admin_instance_url' => $adminInstanceUrl,
 			'user_facing_name' => $userFacingName,
 			'has_application_token' => $hasApplicationToken,
+			// Both are required before any iTop call can succeed, so a
+			// half-filled form still counts as unconfigured: the page hides
+			// everything except the connection form until both are present.
+			'is_configured' => $adminInstanceUrl !== '' && $hasApplicationToken,
 			'last_updated' => date('Y-m-d H:i:s'),
 			'version' => Application::getVersion($this->appManager),
 			// Notification configuration
@@ -114,6 +120,17 @@ class Admin implements ISettings {
 			'simple_ticket_incident_value' => $simpleTicketIncidentValue,
 			'simple_ticket_request_value' => $simpleTicketRequestValue,
 			'ticket_system_type_detected' => $ticketSystemTypeDetected,
+			// Identity binding match rule
+			'binding_match_source' => $this->bindingConfig->getMatchSource(),
+			'binding_match_target' => $this->bindingConfig->getMatchTarget(),
+			'binding_sources' => $this->bindingConfig->getSources(),
+			'binding_targets' => $this->bindingConfig->getTargets(),
+			'binding_source_user_mutable' => $this->bindingConfig->isSourceUserMutable(),
+			'binding_source_mutability' => $this->bindingConfig->getSourceMutability(),
+			'binding_token_enabled' => $this->bindingConfig->isTokenBindingEnabled(),
+			'binding_discovery_enabled' => $this->bindingConfig->isDiscoveryEnabled(),
+			'binding_request_incident_id' => $this->bindingConfig->getRequestIncidentId(),
+			'binding_request_userrequest_id' => $this->bindingConfig->getRequestUserRequestId(),
 		];
 
 		return new TemplateResponse(Application::APP_ID, 'adminSettings', $parameters);

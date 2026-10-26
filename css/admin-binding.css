@@ -1,0 +1,368 @@
+/* Admin: user association table */
+.itop-binding-toolbar {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+	margin-bottom: 10px;
+}
+
+/*
+ * Not `.itop-binding-scope-picker`: Vue 2's $mount(el) replaces that
+ * mount-point div entirely, so the class never reaches the DOM. Target the
+ * id that lands on the mounted NcSelect's own root element instead.
+ */
+#itop-binding-scope-select {
+	min-width: 320px;
+}
+
+.itop-binding-filter.active {
+	font-weight: bold;
+	text-decoration: underline;
+}
+
+/*
+ * The one scope-aware action bar, in place of the old static toolbar pair
+ * plus the panel that appeared below it with the same labels again.
+ *
+ * Not `#itop-binding-actions-bar`: Vue 2's $mount(el) replaces that
+ * mount-point div, so only the component's own root class reaches the DOM
+ * (the same gotcha as the scope picker above).
+ *
+ * It wraps, on purpose, which is the opposite of the rule the table rows
+ * follow. A row cannot afford a second line -- it would stand taller than
+ * its neighbours or push the card -- so RowActions keeps one label and hides
+ * the rest behind "⋯". This bar owns a full-width line that nothing is laid
+ * out against, so a long locale costs it a few pixels of height and that is
+ * all. Hiding its actions to avoid that would cost discoverability in every
+ * locale instead, including the short ones. Hence four labelled buttons and
+ * `flex-wrap`, not one button and an overflow menu.
+ */
+.itop-binding-action-bar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	margin-bottom: 8px;
+}
+
+/*
+ * A real table, so a column has one width for every row by construction.
+ * This replaced a per-row CSS grid, under which each row resolved its own
+ * `grid-template-columns` against its own content: the actions track came
+ * out a different width depending on whether that row's button said
+ * "Unlink" or "Link…", and the status and account columns could not line up
+ * between two rows at all.
+ */
+.itop-binding-grid {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+/*
+ * The wrapper scrolls horizontally rather than the table reflowing.
+ *
+ * This is a deliberate trade made when the rows became a real table, not an
+ * oversight -- please do not "fix" it back. There used to be a
+ * `max-width: 600px` media query that restacked each row into three lines
+ * with `grid-template-areas`. A table cannot do that without `display:
+ * block` overrides on its rows and cells, which discard the row/cell
+ * semantics that are what fixed the column misalignment in the first place
+ * (and what a screen reader needs to read this as a table at all).
+ * Restacking would therefore reintroduce the original bug on narrow
+ * viewports, to save a horizontal scroll on a screen that is rarely driven
+ * from a phone. A scroll keeps the columns aligned and the header attached
+ * to them.
+ *
+ * The region is focusable in the template, because content that can only be
+ * reached by scrolling has to be reachable by keyboard too -- a pointer is
+ * otherwise the only way to see the actions column on a narrow window. That
+ * makes it a tab stop, so it needs a visible focus ring of its own.
+ */
+#itop-binding-table {
+	overflow-x: auto;
+}
+
+#itop-binding-table:focus-visible {
+	outline: 2px solid var(--color-primary-element, #0082c9);
+	outline-offset: 2px;
+}
+
+.itop-binding-grid th {
+	padding: 4px;
+	text-align: left;
+	font-size: 90%;
+	color: var(--color-text-maxcontrast, #767676);
+	border-bottom: 1px solid var(--color-border, #ededed);
+	white-space: nowrap;
+}
+
+.itop-binding-grid td {
+	padding: 6px 4px;
+	vertical-align: middle;
+	border-bottom: 1px solid var(--color-border, #ededed);
+}
+
+.itop-binding-col-select {
+	width: 44px;
+}
+
+/*
+ * The textless <label> around each checkbox, header one included. It exists
+ * only to turn a 14px native checkbox into a target the width of its column
+ * and the height of its row -- a bare checkbox is well under the 44px
+ * minimum, and this is a column an administrator clicks repeatedly.
+ */
+.itop-binding-select {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 34px;
+	cursor: pointer;
+}
+
+/*
+ * `width: 1%` with the table's automatic layout means "no wider than your
+ * content": the column ends up at the widest row's NcActions and stays
+ * there. Combined with `nowrap` that is what makes a long translated label
+ * widen one column for every row instead of wrapping inside one cell.
+ */
+.itop-binding-col-actions {
+	width: 1%;
+	text-align: right;
+	white-space: nowrap;
+}
+
+/*
+ * Avatar and account text share one cell so the names align on one edge.
+ *
+ * The flex container is this div inside the <td>, never the <td> itself:
+ * `display: flex` on a table cell drops its `table-cell` role, so the
+ * browser wraps it in an anonymous cell and the table stops owning that
+ * column's width -- which is precisely the bug a table was adopted to fix.
+ * The same goes for .itop-binding-actions below.
+ */
+.itop-binding-account-line {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.itop-binding-avatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	/* An avatar that has not loaded must not collapse the column and shift
+	   every row to its left. */
+	background-color: var(--color-background-dark, #ededed);
+}
+
+/*
+ * `max-width` is what keeps a long display name or email from widening the
+ * account column -- and with it the table -- until the wrapper has to
+ * scroll. The cap is in `em` rather than a percentage because what it
+ * bounds is user data, not a translated label: it has to hold roughly the
+ * same number of characters whatever the locale. `min-width: 0` is what
+ * lets the ellipsis rules below bite inside a flex item at all.
+ */
+.itop-binding-account {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	max-width: 24em;
+}
+
+.itop-binding-account strong,
+.itop-binding-account > .itop-binding-muted {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/*
+ * The wrapper inside the actions cell. Vue 2's $mount(el) replaces the mount
+ * point, so NcActions' own root element ends up here as the single child --
+ * something inside the <td> has to survive as the mount point's parent, and
+ * it cannot be the <td>, which has to stay a table cell.
+ *
+ * `justify-content: flex-end` keeps every row's action against the column's
+ * right edge even though a row offering "Unlink" and one offering "Link"
+ * have different button widths; without it the "⋯" toggles form a ragged
+ * column.
+ */
+.itop-binding-actions {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+}
+
+/* One labelled button per row, so this is not a sizing constraint -- it just
+ * stops a two-word label breaking mid-phrase and making one row taller than
+ * its neighbours. A long translated label widens the whole column instead,
+ * which is the behaviour a table gives for free and the per-row grid this
+ * replaced could not. */
+.itop-binding-actions button {
+	white-space: nowrap;
+}
+
+.itop-binding-muted {
+	color: var(--color-text-maxcontrast, #767676);
+	font-size: 90%;
+}
+
+.itop-binding-badge {
+	display: inline-block;
+	padding: 1px 6px;
+	border-radius: var(--border-radius, 3px);
+	font-size: 85%;
+	background-color: var(--color-background-dark, #ededed);
+}
+
+.itop-binding-badge.excluded {
+	opacity: 0.7;
+}
+
+.itop-binding-badge.origin.unknown {
+	font-style: italic;
+}
+
+.itop-binding-badge.tier-exact {
+	background-color: var(--color-success, #46ba61);
+	color: var(--color-success-text, #fff);
+}
+
+.itop-binding-badge.tier-ambiguous {
+	background-color: var(--color-warning, #ffb752);
+	color: var(--color-warning-text, #230);
+}
+
+.itop-binding-badge.tier-conflict {
+	background-color: var(--color-error, #e9322d);
+	color: var(--color-error-text, #fff);
+}
+
+.itop-binding-badge.error {
+	background-color: var(--color-error, #e9322d);
+	color: var(--color-error-text, #fff);
+}
+
+.itop-binding-tier-compare {
+	font-size: 90%;
+}
+
+/*
+ * The value the matching rule actually compared for this account. Shown only
+ * where it answers a question the admin already has -- a review row ("these
+ * names differ, what matched?") and a none row ("why no match, what did it even
+ * look for?") -- so it stays on its own muted line, and is clipped rather than
+ * allowed to widen the status column and push the names around.
+ *
+ * The `max-width` is what makes that clipping possible: the status column is
+ * sized by its content, so without a cap this line would simply widen the
+ * column to fit and the ellipsis would never appear. Capped in `em` for the
+ * same reason as the account column -- it bounds an iTop-supplied value, not
+ * a translated label.
+ */
+.itop-binding-source-value {
+	display: block;
+	max-width: 22em;
+	color: var(--color-text-maxcontrast, #767676);
+	font-size: 85%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/*
+ * The status cell of a bound row, built as the structural twin of
+ * .itop-binding-account-line above: icon slot, then two stacked lines.
+ *
+ * The flex container is this div inside the <td> for exactly the reason
+ * spelled out on .itop-binding-account-line -- `display: flex` on a table
+ * cell drops its `table-cell` role and hands the column's width to an
+ * anonymous box, which is the bug a real table was adopted to cure.
+ */
+.itop-binding-person-line {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+/*
+ * The two stacked lines beside the icon. Capped for the same reason as
+ * .itop-binding-account: the status column is sized by its content, so
+ * without a cap an iTop-supplied name or email would widen the column, push
+ * every other column around and never show an ellipsis at all. In `em`
+ * rather than a percentage because what it bounds is user data, not a
+ * translated label -- it has to hold roughly the same number of characters
+ * whatever the locale. `min-width: 0` is what lets the ellipsis rules bite
+ * inside a flex item.
+ */
+.itop-binding-person {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	max-width: 22em;
+}
+
+.itop-binding-person strong,
+.itop-binding-person > .itop-binding-muted {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/*
+ * A person iTop no longer has is a broken link an administrator has to go and
+ * repair, so the second line is called out instead of staying muted.
+ * `--color-warning-text` rather than `--color-warning`: the latter is the pale
+ * warning *background* in current Nextcloud themes (#FFEEC5), unreadable as
+ * text on the page.
+ *
+ * iTop merely being unreachable never reaches this rule -- its cell shows the
+ * id and the badge, exactly as a row nothing was ever asked about does, because
+ * an outage must not be dressed up as a broken link.
+ */
+.itop-binding-person > .itop-binding-muted.not-found {
+	color: var(--color-warning-text, #664700);
+}
+
+/*
+ * The icon takes the avatar's geometry -- same 32px box, same position at the
+ * head of the flex row -- so the Status column's text starts on an edge that
+ * mirrors the Account column's. The slot is rendered on every bound row even
+ * when empty, which is what keeps that edge common to all of them.
+ *
+ * Deliberately *not* `border-radius: 50%`. The avatar is a portrait and reads
+ * correctly as a circle; these are landscape illustrations drawn at 240x240,
+ * and circular clipping would cut the lanyard off security-pass.svg -- the one
+ * detail that distinguishes it from the other two.
+ *
+ * `flex: 0 0 auto` keeps the icon at that size while the lines next to it are
+ * the part that gets clipped.
+ */
+.itop-person-profile {
+	flex: 0 0 auto;
+	width: 32px;
+	height: 32px;
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+
+/* `css/` and `img/` are siblings in the app directory, so these resolve with
+   no PHP or JS plumbing. */
+.itop-person-profile.agent {
+	background-image: url('../img/security-pass.svg');
+}
+
+.itop-person-profile.portal {
+	background-image: url('../img/team.svg');
+}
+
+.itop-binding-pager {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	margin-top: 10px;
+}

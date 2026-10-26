@@ -25,6 +25,24 @@ return [
 		['name' => 'config#saveUserDisabledCIClasses', 'url' => '/user-disabled-ci-classes', 'verb' => 'POST'],
 		['name' => 'config#checkVersion', 'url' => '/version-check', 'verb' => 'GET'],
 
+		// Identity binding (admin)
+		['name' => 'binding#getUsers', 'url' => '/binding/users', 'verb' => 'GET'],
+		['name' => 'binding#searchScopes', 'url' => '/binding/scopes', 'verb' => 'GET'],
+		['name' => 'binding#suggest', 'url' => '/binding/suggest', 'verb' => 'POST'],
+		['name' => 'binding#apply', 'url' => '/binding/apply', 'verb' => 'POST'],
+		['name' => 'binding#applyOne', 'url' => '/binding/apply-one', 'verb' => 'POST'],
+		['name' => 'binding#searchPerson', 'url' => '/binding/search-person', 'verb' => 'GET'],
+		['name' => 'binding#getRule', 'url' => '/binding/rule', 'verb' => 'GET'],
+		['name' => 'binding#setRule', 'url' => '/binding/rule', 'verb' => 'POST'],
+		['name' => 'binding#setSelfService', 'url' => '/binding/self-service', 'verb' => 'POST'],
+		['name' => 'binding#exclude', 'url' => '/binding/exclude', 'verb' => 'POST'],
+		['name' => 'binding#restore', 'url' => '/binding/restore', 'verb' => 'POST'],
+		['name' => 'binding#unbind', 'url' => '/binding/{uid}', 'verb' => 'DELETE'],
+
+		// Identity binding (self-service discovery, off by default)
+		['name' => 'discovery#discover', 'url' => '/binding/discover', 'verb' => 'POST'],
+		['name' => 'discovery#confirm', 'url' => '/binding/discover/confirm', 'verb' => 'POST'],
+
 		// API routes
 		['name' => 'itopAPI#getTickets', 'url' => '/tickets', 'verb' => 'GET'],
 		['name' => 'itopAPI#getTicketsCount', 'url' => '/tickets/count', 'verb' => 'GET'],

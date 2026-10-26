@@ -17,6 +17,7 @@ use Exception;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\ServerException;
+use GuzzleHttp\Exception\TransferException;
 use OCA\Itop\AppInfo\Application;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClient;
@@ -133,7 +134,7 @@ class ItopAPIService {
 	 * @param string $value Value to escape
 	 * @return string Escaped value safe for OQL
 	 */
-	private function escapeOQLString(string $value): string {
+	public function escapeOQLString(string $value): string {
 		// Escape backslashes first to prevent double-escaping
 		$value = str_replace('\\', '\\\\', $value);
 		// Escape single quotes
@@ -392,10 +393,11 @@ class ItopAPIService {
 		if (empty($fullName)) {
 			return ['incidents' => 0, 'requests' => 0, 'status' => 'no_user'];
 		}
-		
+
 		$incidentCount = 0;
 		$requestCount = 0;
-		
+		$isSimple = $this->getEffectiveTicketSystemType($userId) === Application::TICKET_SYSTEM_TYPE_SIMPLE;
+
 		// Query UserRequest tickets
 		$escapedFullName = $this->escapeOQLString($fullName);
 		$userRequestQuery = "SELECT UserRequest WHERE caller_id_friendlyname = '$escapedFullName' AND status != 'closed'";
@@ -411,25 +413,29 @@ class ItopAPIService {
 			$requestCount = count($userRequestResult['objects']);
 		}
 
-		// Query Incident tickets
-		$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$escapedFullName' AND status != 'closed'";
-		$incidentParams = [
-			'operation' => 'core/get',
-			'class' => 'Incident',
-			'key' => $incidentQuery,
-			'output_fields' => 'id'
-		];
+		// In simple ticketing mode the Incident class does not exist; querying it
+		// would just burn a round trip and come back as an iTop-level error.
+		if (!$isSimple) {
+			$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$escapedFullName' AND status != 'closed'";
+			$incidentParams = [
+				'operation' => 'core/get',
+				'class' => 'Incident',
+				'key' => $incidentQuery,
+				'output_fields' => 'id'
+			];
 
-		$incidentResult = $this->request($userId, $incidentParams);
-		if (isset($incidentResult['objects'])) {
-			$incidentCount = count($incidentResult['objects']);
+			$incidentResult = $this->request($userId, $incidentParams);
+			if (isset($incidentResult['objects'])) {
+				$incidentCount = count($incidentResult['objects']);
+			}
 		}
-		
+
 		// Return separate counts
 		return [
 			'incidents' => $incidentCount,
 			'requests' => $requestCount,
 			'total' => $incidentCount + $requestCount,
+			'simple' => $isSimple,
 			'status' => 'success'
 		];
 	}
@@ -1179,6 +1185,73 @@ class ItopAPIService {
 			}
 			return ['error' => $e->getMessage()];
 		} catch (ConnectException $e) {
+			return ['error' => $e->getMessage()];
+		}
+	}
+
+	/**
+	 * Make an application-scoped request to the iTop REST API
+	 *
+	 * Unlike request(), this does not require the caller to be a bound user. It is
+	 * used by identity binding, which by definition runs for users that have no
+	 * person_id yet. Always uses the admin instance URL and the application token,
+	 * and never consults the query cache, because callers act across users.
+	 *
+	 * @param array $params API parameters (operation, class, key, output_fields)
+	 * @return array Decoded response, or ['error' => string] on failure
+	 */
+	public function appRequest(array $params): array {
+		$itopUrl = $this->appConfig->getValueString(Application::APP_ID, 'admin_instance_url', '');
+		if ($itopUrl === '') {
+			return ['error' => $this->l10n->t('iTop URL not configured')];
+		}
+
+		$accessToken = $this->getApplicationToken();
+		if (!$accessToken) {
+			return [
+				'error' => $this->l10n->t('Application token not configured'),
+				'error_detail' => 'Administrator must configure the application token in Admin Settings → iTop Integration'
+			];
+		}
+
+		try {
+			$response = $this->client->post(rtrim($itopUrl, '/') . '/webservices/rest.php?version=1.3', [
+				'headers' => [
+					'User-Agent' => 'Nextcloud iTop integration',
+					'Auth-Token' => $accessToken,
+				],
+				'form_params' => [
+					'json_data' => json_encode($params),
+				],
+			]);
+
+			$result = json_decode($response->getBody(), true);
+			if ($result === null) {
+				return ['error' => $this->l10n->t('Invalid JSON response from iTop')];
+			}
+
+			// iTop answers HTTP 200 with {"code":N,"message":"..."} for not-authorised,
+			// unknown-class and malformed-OQL errors, so a successful HTTP response can
+			// still be a failed API call.
+			if (isset($result['code']) && $result['code'] !== 0) {
+				return ['error' => $result['message'] ?? 'iTop returned code ' . $result['code']];
+			}
+
+			return $this->normalizeResponseDates($result);
+		} catch (ServerException|ClientException $e) {
+			$this->logger->warning('iTop app request failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			$response = $e->getResponse();
+			$statusCode = $response->getStatusCode();
+			if ($statusCode === Http::STATUS_UNAUTHORIZED) {
+				return ['error' => $this->l10n->t('Bad credentials'), 'error-code' => $statusCode];
+			} elseif ($statusCode === Http::STATUS_FORBIDDEN) {
+				return ['error' => 'Forbidden'];
+			} elseif ($statusCode === Http::STATUS_NOT_FOUND) {
+				return ['error' => 'Not found'];
+			}
+			return ['error' => $e->getMessage()];
+		} catch (TransferException $e) {
+			$this->logger->warning('iTop app request failed: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return ['error' => $e->getMessage()];
 		}
 	}

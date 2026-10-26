@@ -220,7 +220,7 @@ class ProfileService {
 	 * @param mixed $profileList Profile list from iTop (string or array)
 	 * @return array List of profile names
 	 */
-	private function parseProfileList($profileList): array {
+	public function parseProfileList($profileList): array {
 		if (empty($profileList)) {
 			return [];
 		}

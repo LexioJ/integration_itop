@@ -33,6 +33,21 @@ import { generateUrl } from '@nextcloud/router'
 
 		// Load connected users count via AJAX
 		loadConnectedUsersCount()
+
+		// Smooth scroll for the section chips. prefers-reduced-motion is
+		// honoured because a full-page jump-scroll is exactly the kind of
+		// motion that triggers vestibular symptoms.
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+		if (!reduceMotion) {
+			document.querySelectorAll('.itop-chip').forEach(function(chip) {
+				chip.addEventListener('click', function(e) {
+					const target = document.querySelector(chip.getAttribute('href'))
+					if (!target) return
+					e.preventDefault()
+					target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+				})
+			})
+		}
 	})
 
 	/**
@@ -185,6 +200,11 @@ import { generateUrl } from '@nextcloud/router'
 
 		// CI class state toggle buttons (delegated to also cover dynamically added custom class rows)
 		document.addEventListener('click', function(e) {
+			// A click whose target is not an Element -- document itself, or a
+			// text node from a synthetic event -- has no closest(). Each
+			// handler below is a single delegated listener, so letting it
+			// throw would kill that interaction until the page is reloaded.
+			if (!(e.target instanceof Element)) return
 			const button = e.target.closest('.state-button')
 			if (!button) return
 
@@ -204,6 +224,7 @@ import { generateUrl } from '@nextcloud/router'
 
 		// Remove custom CI class button (delegated)
 		document.addEventListener('click', function(e) {
+			if (!(e.target instanceof Element)) return
 			const btn = e.target.closest('.remove-custom-class')
 			if (!btn) return
 			e.preventDefault()
@@ -213,11 +234,47 @@ import { generateUrl } from '@nextcloud/router'
 
 		// Upload/overwrite a custom CI class icon by clicking the icon image (delegated)
 		document.addEventListener('click', function(e) {
+			if (!(e.target instanceof Element)) return
 			const iconEl = e.target.closest('#custom-ci-class-config-grid .ci-class-icon')
 			if (!iconEl) return
 			e.preventDefault()
 			const row = iconEl.closest('.ci-class-config-row')
 			uploadCustomClassIcon(iconEl.dataset.class || (row ? row.id.replace('custom-ci-row-', '') : ''))
+		})
+
+		// Identity binding match rule (delegated, like the handlers above, so a
+		// direct getElementById().addEventListener() lookup at attach time can't
+		// miss the button)
+		document.addEventListener('click', function(e) {
+			if (!(e.target instanceof Element)) return
+			if (!e.target.closest('#itop-binding-rule-save')) return
+			e.preventDefault()
+			saveBindingRule()
+		})
+
+		// Self-service toggles: personal token and discovery (delegated, same
+		// reason as the matching-rule save button above)
+		document.addEventListener('click', function(e) {
+			if (!(e.target instanceof Element)) return
+			if (!e.target.closest('#itop-binding-self-service-save')) return
+			e.preventDefault()
+			saveSelfServiceMethods()
+		})
+
+		// Warn as soon as the admin picks a mutable source, before they save --
+		// mutability is per source and server-controlled (it depends on
+		// allow_user_to_change_email / allow_user_to_change_display_name), so
+		// it's read from the data-mutable attribute the server rendered on
+		// each <option>, not guessed client-side.
+		document.addEventListener('change', function(e) {
+			if (!(e.target instanceof Element)) return
+			const select = e.target.closest('#itop-binding-source')
+			if (!select) return
+			const warning = document.getElementById('itop-binding-mutable-warning')
+			if (!warning) return
+			const option = select.selectedOptions[0]
+			const mutable = option ? option.dataset.mutable === '1' : false
+			warning.classList.toggle('hidden', !mutable)
 		})
 
 		// Custom CI classes: browse button
@@ -240,6 +297,113 @@ import { generateUrl } from '@nextcloud/router'
 
 		// Make sure existing rows always expose a visible remove button
 		ensureCustomClassRemoveButtons()
+	}
+
+	/**
+	 * Persist the identity-binding match rule.
+	 */
+	function saveBindingRule() {
+		const source = document.getElementById('itop-binding-source').value
+		const target = document.getElementById('itop-binding-target').value
+
+		fetch(generateUrl('/apps/integration_itop/binding/rule'), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				requesttoken: getRequestToken(),
+			},
+			body: JSON.stringify({ source, target }),
+		})
+			.then(response => response.json().then(data => ({ ok: response.ok, data })))
+			.then(({ ok, data }) => {
+				if (!ok) {
+					showNotification(data.message || t('integration_itop', 'Could not save the matching rule'), true)
+					resyncBindingRuleForm()
+					return
+				}
+				// The warning depends on the chosen source, so refresh it from the
+				// server's answer rather than guessing client-side.
+				const warning = document.getElementById('itop-binding-mutable-warning')
+				if (warning) {
+					warning.classList.toggle('hidden', !data.source_user_mutable)
+				}
+				showNotification(t('integration_itop', 'Matching rule saved'), false)
+				// A tier computed under the old rule is a claim that is no
+				// longer true. admin-binding.js listens for this to drop any
+				// suggestions it is holding.
+				document.dispatchEvent(new CustomEvent('itop:binding-rule-changed'))
+			})
+			.catch(() => {
+				showNotification(t('integration_itop', 'Could not save the matching rule'), true)
+				resyncBindingRuleForm()
+			})
+	}
+
+	/**
+	 * Persist the two self-service binding toggles: personal token and
+	 * discovery. Admin-side binding has no toggle -- it is always available.
+	 */
+	function saveSelfServiceMethods() {
+		const tokenEnabled = document.getElementById('itop-binding-token-enabled').checked
+		const discoveryEnabled = document.getElementById('itop-binding-discovery-enabled').checked
+		const requestIncidentId = document.getElementById('itop-binding-request-incident-id').value.trim()
+		const requestUserRequestId = document.getElementById('itop-binding-request-userrequest-id').value.trim()
+
+		fetch(generateUrl('/apps/integration_itop/binding/self-service'), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				requesttoken: getRequestToken(),
+			},
+			body: JSON.stringify({ tokenEnabled, discoveryEnabled, requestIncidentId, requestUserRequestId }),
+		})
+			.then(response => response.json().then(data => ({ ok: response.ok, data })))
+			.then(({ ok, data }) => {
+				if (!ok) {
+					showNotification(data.message || t('integration_itop', 'Could not save the self-service settings'), true)
+					return
+				}
+				showNotification(t('integration_itop', 'Self-service settings saved'), false)
+			})
+			.catch(() => {
+				showNotification(t('integration_itop', 'Could not save the self-service settings'), true)
+			})
+	}
+
+	/**
+	 * Re-read the stored matching rule from the server and reset the form to
+	 * it. Used after a failed save so the UI doesn't keep asserting the
+	 * unsaved selection (both the selects and the mutability warning).
+	 */
+	function resyncBindingRuleForm() {
+		fetch(generateUrl('/apps/integration_itop/binding/rule'), {
+			method: 'GET',
+			headers: {
+				requesttoken: getRequestToken(),
+			},
+		})
+			.then(response => {
+				if (!response.ok) throw new Error('Server error: ' + response.status)
+				return response.json()
+			})
+			.then(data => {
+				const sourceSelect = document.getElementById('itop-binding-source')
+				const targetSelect = document.getElementById('itop-binding-target')
+				const warning = document.getElementById('itop-binding-mutable-warning')
+				if (sourceSelect && data.source !== undefined) sourceSelect.value = data.source
+				if (targetSelect && data.target !== undefined) targetSelect.value = data.target
+				if (warning) warning.classList.toggle('hidden', !data.source_user_mutable)
+			})
+			.catch(() => {
+				// The recovery GET hit the same endpoint on the same server, so
+				// it likely failed for the same reason the save did. Fail
+				// toward alarming rather than reassuring: show the warning
+				// (safe even if it doesn't apply) rather than leave it hidden
+				// while the stored source may still be mutable.
+				const warning = document.getElementById('itop-binding-mutable-warning')
+				if (warning) warning.classList.remove('hidden')
+				showNotification(t('integration_itop', 'Could not read the stored matching rule — reload the page to see the saved state'), true)
+			})
 	}
 
 	/**

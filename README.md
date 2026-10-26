@@ -432,6 +432,21 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
 ### ⚠️ Breaking
 - **Minimum Nextcloud version is now 32**: `IUserConfig` is only available from Nextcloud 32 onwards, so migrating user preferences off the deprecated API raises `min-version` from 30 to 32 — Nextcloud 30 and 31 are no longer supported
 
+### Added
+- **Admin-side identity binding**: link Nextcloud accounts to iTop people with `occ itop:bind`, without users needing an iTop personal token. Dry-run by default; matches are graded exact / review / ambiguous / conflict so near-misses are never bound silently, and a match whose person is already linked to another account is never bound automatically. **Admin settings → iTop → User associations** lists every Nextcloud account with its binding state, and lets accounts be excluded from matching or unlinked; the matching rule itself is configured in the **🔗 Matching rule** subsection beneath the table. Matches can now be suggested and applied directly from the screen. A single picker above the table searches accounts, groups and Teams, so the list can be narrowed to one group's members before excluding or unlinking them. A third route, **self-service discovery**, lets a user link their own account from personal settings on an exact match alone, with no administrator and no personal token involved — a way forward for portal-only users, who cannot obtain a personal token; it is off by default and enabled from the same settings page, alongside an independent toggle for the personal-token route. The equivalent `occ` commands remain available for scripted setups:
+
+  ```bash
+  occ config:app:set integration_itop binding_match_source --value=email   # email | uid | displayname
+  occ config:app:set integration_itop binding_match_target --value=person.email  # person.email | person.employee_number | user.login
+  occ config:app:set integration_itop binding_excluded_users --value='["svc.monitor"]'
+  occ config:app:set integration_itop binding_token_enabled --value=0      # '1' | '0', default '1'
+  occ config:app:set integration_itop binding_discovery_enabled --value=1  # '1' | '0', default '0'
+  occ config:app:set integration_itop binding_request_incident_id --value=3      # ServiceSubcategory id for "I have a problem" (Incident), optional
+  occ config:app:set integration_itop binding_request_userrequest_id --value=4   # ServiceSubcategory id for "I need assistance" (User Request), optional
+  ```
+
+  Either id may be left unset; a user who cannot link their own account then sees a request-access link only for the request form(s) that are configured. Setting both to the same id collapses the two links into a single "Request access" link. Both ids are ignored, and no link is shown, until the iTop instance URL itself is configured — there is otherwise no base URL to build the request link on.
+
 ### Fixed
 - **Portal users with an additional profile were treated as back-end users**: iTop locks a user out of the back office as soon as the `Portal user` profile is assigned, even alongside a profile such as `Service Desk Agent`. These users were previously given back-office ticket links they cannot open, the agent widget and agent notifications, and unscoped CI search results. Detection now keys on the profile being present rather than being the only one. `Portal power user` is unaffected — it still means a back-end user with portal access
 

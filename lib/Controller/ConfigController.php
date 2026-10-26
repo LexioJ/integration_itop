@@ -14,10 +14,16 @@ namespace OCA\Itop\Controller;
 
 use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\ItopAPIService;
+use OCA\Itop\Service\Binding\BindingConfig;
+use OCA\Itop\Service\Binding\IdentityBindingService;
 use OCA\Itop\Service\CacheService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\BruteForceProtection;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\Files\AppData\IAppDataFactory;
@@ -53,6 +59,8 @@ class ConfigController extends Controller {
 		private IL10N $l10n,
 		private ItopAPIService $itopAPIService,
 		private CacheService $cacheService,
+		private IdentityBindingService $identityBindingService,
+		private BindingConfig $bindingConfig,
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
 		private IClientService $clientService,
@@ -61,6 +69,18 @@ class ConfigController extends Controller {
 		private ?string $userId
 	) {
 		parent::__construct($appName, $request);
+	}
+
+	/**
+	 * Reads and decodes the raw JSON request body.
+	 *
+	 * Split out from setConfig() so tests can override it -- php://input
+	 * cannot be swapped per-test otherwise.
+	 *
+	 * @return mixed
+	 */
+	protected function getRequestInput() {
+		return json_decode(file_get_contents('php://input'), true);
 	}
 
 	/**
@@ -83,18 +103,32 @@ class ConfigController extends Controller {
 	 * - Application token: All subsequent queries (admin-level, bypasses Portal user block)
 	 * - Person ID filtering: Ensures data isolation between users
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @return DataResponse
 	 * @throws PreConditionNotMetException
 	 */
+	/**
+	 * Both limits are on the whole method rather than the token branch alone,
+	 * which is safe because the endpoint has exactly one caller: the Save
+	 * button in personal settings (src/personal-settings.js), which batches
+	 * every preference on the page into a single PUT. Five manual saves a
+	 * minute is ample, so an ordinary preference change is never refused,
+	 * while a loop that brute-forces iTop personal tokens -- two outbound iTop
+	 * requests per call -- gets a ceiling. The UserRateLimit matches
+	 * DiscoveryController, the comparable self-service route;
+	 * BruteForceProtection adds the exponential delay, and is armed only by
+	 * the throttle() on the validation-failure return below, so a successful
+	 * save or a call carrying no token never counts against it.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 5, period: 60)]
+	#[BruteForceProtection(action: 'itopTokenValidation')]
 	public function setConfig(): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse([], Http::STATUS_BAD_REQUEST);
 		}
 
 		// Get JSON data from request body
-		$input = json_decode(file_get_contents('php://input'), true);
+		$input = $this->getRequestInput();
 		if (!is_array($input)) {
 			return new DataResponse(['message' => $this->l10n->t('Invalid request data')], Http::STATUS_BAD_REQUEST);
 		}
@@ -191,6 +225,12 @@ class ConfigController extends Controller {
 			// Remove person_id and user_id
 			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'person_id');
 			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'user_id');
+			// The provenance and the cached portal verdict describe a binding that no
+			// longer exists; drop them along with the identity itself.
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'binding_method');
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'binding_at');
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'is_portal_only');
+			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'profiles_last_check');
 			// Also clean up any old token storage (Phase 1 leftover)
 			$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'token');
 			$this->logger->info('iTop: Person ID and User ID removed for user', ['app' => Application::APP_ID]);
@@ -209,25 +249,99 @@ class ConfigController extends Controller {
 			]);
 		}
 
+		// The personal-token path is one of the two self-service binding
+		// routes and is gated on its own admin toggle. Checked before any
+		// validation or write so a disabled toggle is never decorative.
+		if (!$this->bindingConfig->isTokenBindingEnabled()) {
+			return new DataResponse([
+				'message' => $this->l10n->t('Linking your account with a personal token is disabled by your administrator.'),
+				'person_id_configured' => false,
+			], Http::STATUS_FORBIDDEN);
+		}
+
+		// An exclusion is absolute: an administrator who excludes an account from
+		// matching means it is never linked, by any route. The canonical rule
+		// lives in IdentityBindingService::bind(), which refuses an excluded
+		// account as its first act and re-checks it below; this copy exists only
+		// to map that refusal onto the status code this endpoint's callers
+		// expect. Checked before the token is validated so an excluded account
+		// does not get a token-validation oracle either.
+		if ($this->bindingConfig->isExcluded($this->userId)) {
+			return new DataResponse([
+				'message' => $this->l10n->t('This account is excluded from %s matching. Please contact an administrator.', [$this->getUserFacingName()]),
+				'person_id_configured' => false,
+			], Http::STATUS_FORBIDDEN);
+		}
+
 		// Phase 2: Validate personal token and extract Person ID using :current_contact_id
 		$validation = $this->validatePersonalTokenAndExtractPersonId($personalToken);
 
 		if (!$validation['success']) {
-			return new DataResponse([
+			$response = new DataResponse([
 				'message' => $this->l10n->t('Token validation failed'),
 				'error' => $validation['error'],
 				'person_id_configured' => false
 			], Http::STATUS_BAD_REQUEST);
+			// Arms the BruteForceProtection on this method. Only a rejected
+			// token counts, so guessing is delayed exponentially while a user
+			// saving ordinary preferences is never affected.
+			$response->throttle();
+			return $response;
 		}
 
 		// Success! Store Person ID and User ID (NOT the token)
 		$personId = $validation['person_id'];
 		$userId = $validation['user_id'];
-		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'person_id', $personId);
-		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'user_id', $userId);
+
+		// Refuse rather than silently double-link: person_id is the authorisation
+		// boundary for everything downstream, so two Nextcloud accounts both
+		// holding a personal token for the same iTop person must never both end
+		// up bound to it. $this->userId is excepted so re-confirming one's own
+		// existing binding still succeeds.
+		$conflictUid = $this->identityBindingService->findConflictingUid($personId, $this->userId);
+		if ($conflictUid !== null) {
+			$this->logger->warning(
+				'iTop: refusing to bind user ' . $this->userId . ' to person ' . $personId
+				. ' - already linked to another Nextcloud account',
+				['app' => Application::APP_ID]
+			);
+			return new DataResponse([
+				'message' => $this->l10n->t('This iTop account is already linked to another Nextcloud user. Please contact your administrator.'),
+				'person_id_configured' => false
+			], Http::STATUS_CONFLICT);
+		}
+
+		// The write goes through the one chokepoint rather than being repeated
+		// here. bind() drops the derived state in the order that keeps a user_id
+		// from ever outliving a different person_id -- iTop profiles hang off the
+		// User, so a mismatched pair can grant a profile that was never
+		// authorised -- re-checks both the exclusion and the conflict, and emits
+		// the audit line. The two checks above are not a second copy of those
+		// rules, only the mapping from them to this endpoint's status codes.
+		try {
+			$this->identityBindingService->bind(
+				$this->userId,
+				$personId,
+				$userId,
+				IdentityBindingService::METHOD_TOKEN
+			);
+		} catch (\RuntimeException $e) {
+			// Only reachable by a race against the checks above: the person taken
+			// by another account, or this account excluded, between validating
+			// the token and writing. The message names another account, so it is
+			// logged for the administrator and not returned to the user.
+			$this->logger->warning('iTop: personal-token binding refused at the write chokepoint for ' . $this->userId, [
+				'app' => Application::APP_ID,
+				'exception' => $e,
+			]);
+			return new DataResponse([
+				'message' => $this->l10n->t('This iTop account is already linked to another Nextcloud user. Please contact your administrator.'),
+				'person_id_configured' => false
+			], Http::STATUS_CONFLICT);
+		}
+
 		// Clean up any old token storage (Phase 1 leftover)
 		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'token');
-		$this->logger->info('iTop: Person ID ' . $personId . ' and User ID ' . $userId . ' configured for user ' . $this->userId, ['app' => Application::APP_ID]);
 
 		// Personal token is now discarded (never stored)
 		$userInfo = $validation['user_info'];
@@ -246,12 +360,21 @@ class ConfigController extends Controller {
 	}
 
 	/**
+	 * The administrator-configured display name, defaulting to the real
+	 * product name -- the same read as DiscoveryController and
+	 * lib/Settings/Personal.php, so the personal page never names the product
+	 * an administrator chose to rename.
+	 */
+	private function getUserFacingName(): string {
+		return $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
+	}
+
+	/**
 	 * Get current user information from iTop
-	 *
-	 * @NoAdminRequired
 	 *
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function getUserInfo(): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
@@ -955,9 +1078,9 @@ class ConfigController extends Controller {
 	/**
 	 * Get user's disabled CI classes
 	 *
-	 * @NoAdminRequired
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function getUserDisabledCIClasses(): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
@@ -987,10 +1110,10 @@ class ConfigController extends Controller {
 	/**
 	 * Save user's disabled CI classes
 	 *
-	 * @NoAdminRequired
 	 * @param array $disabledClasses Array of CI class names user wants to disable
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
 	public function saveUserDisabledCIClasses(array $disabledClasses): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => $this->l10n->t('User not authenticated')], Http::STATUS_UNAUTHORIZED);
@@ -1990,11 +2113,11 @@ class ConfigController extends Controller {
 	 * Looks for a custom icon uploaded via uploadCIClassIcon() in appdata first.
 	 * Falls back to Peripheral.svg from the app's img/ directory when none exists.
 	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
 	 * @param string $class CI class name
 	 * @return DataDisplayResponse
 	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function getCIClassIcon(string $class): DataDisplayResponse {
 		// Strip anything that could form a path traversal
 		$class = preg_replace('/[^A-Za-z0-9_]/', '', $class);

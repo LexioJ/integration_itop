@@ -25,7 +25,7 @@
 				<div class="itop-header-compact itop-header-compact-clickable"
 					@click="openPortalTickets">
 					<h3 class="itop-header-compact__title">
-						{{ totalTickets }} {{ t('integration_itop', totalTickets === 1 ? 'Ticket' : 'Tickets') }}
+						{{ totalTickets }} {{ n('integration_itop', 'Ticket', 'Tickets', totalTickets) }}
 					</h3>
 					<div class="itop-status-badges">
 						<span v-if="byStatus.open" class="status-badge status-open">

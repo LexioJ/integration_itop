@@ -5,6 +5,8 @@
 $appId = OCA\Itop\AppInfo\Application::APP_ID;
 script($appId, $appId . '-admin-settings');
 style($appId, 'admin-settings');
+script($appId, $appId . '-admin-binding');
+style($appId, 'admin-binding');
 
 // CI class label mapping
 $ciClassLabels = [
@@ -35,8 +37,18 @@ $ciClassLabels = [
 			<div class="version-badge">v<?php p($_['version']); ?></div>
 		</div>
 
+		<?php if ($_['is_configured']) { ?>
+		<nav class="itop-nav-chips" aria-label="<?php p($l->t('Jump to a settings section')); ?>">
+			<a class="itop-chip" href="#itop-binding-associations"><?php p($l->t('👥 User associations')); ?></a>
+			<a class="itop-chip" href="#itop-section-tickets"><?php p($l->t('🎫 Tickets')); ?></a>
+			<a class="itop-chip" href="#itop-section-notifications"><?php p($l->t('🔔 Notifications')); ?></a>
+			<a class="itop-chip" href="#itop-section-cache"><?php p($l->t('⚡ Cache')); ?></a>
+			<a class="itop-chip" href="#itop-section-ci-classes"><?php p($l->t('🎯 CI classes')); ?></a>
+			<a class="itop-chip" href="#itop-section-custom-ci"><?php p($l->t('🔧 Custom CI')); ?></a>
+			<a class="itop-chip" href="#itop-section-connection"><?php p($l->t('📡 Connection')); ?></a>
+		</nav>
 		<!-- Current Status Section -->
-		<div class="settings-section">
+		<div class="settings-section" id="itop-section-status">
 			<div class="section-header">
 				<h3><?php p($l->t('📊 Current Status')); ?></h3>
 			</div>
@@ -103,150 +115,147 @@ $ciClassLabels = [
 			</div>
 		</div>
 
-		<!-- Connection Configuration Section -->
-		<div class="settings-section">
+		<!-- User Associations Section -->
+		<div class="settings-section" id="itop-binding-associations">
 			<div class="section-header">
-				<h3><?php p($l->t('📡 Connection Configuration')); ?></h3>
-				<p class="section-description"><?php p($l->t('Configure the connection to your iTop system instance')); ?></p>
+				<h3><?php p($l->t('👥 User associations')); ?></h3>
+				<p class="section-description"><?php p($l->t('Which Nextcloud accounts are linked to a person in %s. Accounts excluded here are skipped by matching and by the occ itop:bind command.', [$_['user_facing_name']])); ?></p>
 			</div>
 
-			<div class="settings-form">
-				<div class="form-group">
-					<label for="itop-user-facing-name" class="form-label">
-						<span class="icon">🏷️</span>
-						<?php p($l->t('Display Name')); ?>
-					</label>
+			<div class="itop-binding-toolbar">
+				<div id="itop-binding-scope-picker" class="itop-binding-scope-picker"></div>
+				<span class="itop-binding-filters" id="itop-binding-filters">
+					<button type="button" class="itop-binding-filter active" data-filter="all"><?php p($l->t('All')); ?></button>
+					<button type="button" class="itop-binding-filter" data-filter="unbound"><?php p($l->t('Unbound')); ?></button>
+					<button type="button" class="itop-binding-filter" data-filter="bound"><?php p($l->t('Bound')); ?></button>
+					<button type="button" class="itop-binding-filter" data-filter="excluded"><?php p($l->t('Excluded')); ?></button>
+				</span>
+			</div>
+
+			<!--
+				Mount point for BindingActionBar: one scope-aware bar that replaces
+				both the old static "Suggest matches"/"Apply exact only" pair and the
+				panel that used to appear below it with the same labels again. It acts
+				on the selection when there is one and on the current page otherwise,
+				so neither label exists twice on screen.
+			-->
+			<div id="itop-binding-actions-bar"></div>
+			<!--
+				The table's scroll container. Narrower than roughly 600px the four
+				columns do not fit and this scrolls horizontally rather than the rows
+				restacking -- a table cannot restack without discarding the row and
+				cell semantics that fixed the column alignment (see the long note in
+				css/admin-binding.css).
+
+				tabindex and role are what make that scroll usable without a mouse: a
+				region whose content is only reachable by scrolling must be focusable,
+				or on a narrow window the actions column cannot be reached by keyboard
+				at all. A focusable region also needs an accessible name, hence the
+				aria-label -- these three attributes belong here rather than in
+				admin-binding.js because they have to survive its innerHTML repaints.
+			-->
+			<div id="itop-binding-table" class="itop-binding-table"
+				tabindex="0" role="region" aria-label="<?php p($l->t('User associations')); ?>"></div>
+			<div id="itop-binding-pager" class="itop-binding-pager"></div>
+
+			<div class="itop-binding-rule-block">
+				<h4 class="itop-subsection-title"><?php p($l->t('🔗 Matching rule')); ?></h4>
+				<p class="section-description"><?php p($l->t('How Nextcloud accounts are matched to people in %s. Used by admin-side binding and by the occ itop:bind command.', [$_['user_facing_name']])); ?></p>
+
+			<?php
+			$sourceLabels = [
+				'email' => $l->t('Email address'),
+				'uid' => $l->t('User ID'),
+				'displayname' => $l->t('Display name'),
+			];
+			$targetLabels = [
+				'person.email' => $l->t('Person: email'),
+				'person.employee_number' => $l->t('Person: employee number'),
+				'user.login' => $l->t('User: login'),
+			];
+			?>
+
+			<div class="itop-binding-rule-row">
+				<label for="itop-binding-source"><?php p($l->t('Match Nextcloud')); ?></label>
+				<select id="itop-binding-source">
+					<?php foreach ($_['binding_sources'] as $source) { ?>
+						<option value="<?php p($source); ?>" data-mutable="<?php p(!empty($_['binding_source_mutability'][$source]) ? '1' : '0'); ?>" <?php if ($source === $_['binding_match_source']) { p('selected'); } ?>>
+							<?php p($sourceLabels[$source] ?? $source); ?>
+						</option>
+					<?php } ?>
+				</select>
+
+				<label for="itop-binding-target"><?php p($l->t('against iTop')); ?></label>
+				<select id="itop-binding-target">
+					<?php foreach ($_['binding_targets'] as $target) { ?>
+						<option value="<?php p($target); ?>" <?php if ($target === $_['binding_match_target']) { p('selected'); } ?>>
+							<?php p($targetLabels[$target] ?? $target); ?>
+						</option>
+					<?php } ?>
+				</select>
+
+				<button id="itop-binding-rule-save"><?php p($l->t('Save matching rule')); ?></button>
+			</div>
+
+			<div id="itop-binding-mutable-warning" class="itop-binding-warning<?php if (!$_['binding_source_user_mutable']) { p(' hidden'); } ?>">
+				<strong><?php p($l->t('Users can change this attribute themselves on this instance.')); ?></strong>
+				<?php p($l->t('A user could set their value to a colleague\'s and be linked to that person, gaining read access to their tickets. Set allow_user_to_change_email — or allow_user_to_change_display_name if matching on display name — to false, or match on User ID, which cannot be changed. Admin-side binding and occ itop:bind match on the same attribute, so they are affected too: they refuse a person already linked to another account, but one not yet linked can be claimed this way.')); ?>
+			</div>
+
+			<div class="itop-binding-selfservice-block">
+			<h5 class="itop-subsection-title itop-subsection-title--sub"><?php p($l->t('Self-service account linking')); ?></h5>
+
+			<div class="itop-binding-self-service-row">
+				<label for="itop-binding-token-enabled" class="checkbox-label">
+					<input type="checkbox" id="itop-binding-token-enabled" <?php if ($_['binding_token_enabled']) { p('checked'); } ?> />
+					<?php p($l->t('Let users link their own account by pasting an iTop personal token')); ?>
+				</label>
+			</div>
+			<div class="itop-binding-self-service-row">
+				<label for="itop-binding-discovery-enabled" class="checkbox-label">
+					<input type="checkbox" id="itop-binding-discovery-enabled" <?php if ($_['binding_discovery_enabled']) { p('checked'); } ?> />
+					<?php p($l->t('Let users link themselves by matching their account attribute (off by default — the matched attribute decides which iTop person they receive)')); ?>
+				</label>
+			</div>
+
+			<div class="form-row">
+				<div class="form-field">
+					<label for="itop-binding-request-incident-id"><?php p($l->t("ServiceSubcategory ID for 'I have a problem' (Incident)")); ?></label>
 					<input
 						type="text"
-						id="itop-user-facing-name"
-						value="<?php p($_['user_facing_name']); ?>"
-						placeholder="<?php p($l->t('e.g., ServicePoint, Helpdesk, iTop')); ?>"
+						id="itop-binding-request-incident-id"
+						value="<?php p($_['binding_request_incident_id']); ?>"
+						placeholder="<?php p($l->t('e.g., 3')); ?>"
 						class="form-input"
-						maxlength="100"
 					/>
-					<p class="form-hint"><?php p($l->t('The name users will see throughout Nextcloud (e.g., "ServicePoint Integration")')); ?></p>
 				</div>
-
-				<div class="form-group">
-					<label for="itop-instance-url" class="form-label">
-						<span class="icon">🌐</span>
-						<?php p($l->t('Server URL')); ?>
-					</label>
-					<div class="form-input-group">
-						<input
-							type="url"
-							id="itop-instance-url"
-							value="<?php p($_['admin_instance_url']); ?>"
-							placeholder="<?php p($l->t('https://your-itop-server.com')); ?>"
-							class="form-input"
-						/>
-						<button id="test-connection" class="btn-secondary btn-inline" <?php echo empty($_['admin_instance_url']) ? 'disabled' : ''; ?>
-							data-text-test="<?php p($l->t('Test Connection')); ?>"
-							data-text-testing="<?php p($l->t('Testing...')); ?>">
-							<span class="btn-icon">🔍</span>
-							<?php p($l->t('Test Connection')); ?>
-							</button>
-						</div>
-						<p class="form-hint"><?php p($l->t('The complete URL to your iTop system instance')); ?></p>
-						<div class="form-info-box info">
-							<strong><?php p($l->t('ℹ️ Note:')); ?></strong> <?php p($l->t('If using a private/local IP address (e.g., 192.168.x.x, 10.x.x.x), you must enable')); ?> <code>allow_local_remote_servers</code> <?php p($l->t('in Nextcloud config')); ?> (<a href="https://docs.nextcloud.com/server/32/admin_manual/configuration_server/config_sample_php_parameters.html#proxy-configurations" target="_blank"><?php p($l->t('See documentation →')); ?></a> <?php p($l->t('Nextcloud 30+')); ?>).<br>
-							<?php p($l->t('Run:')); ?> <code>occ config:system:set allow_local_remote_servers --value=true --type=boolean</code>
-						</div>
-					</div>
-
-				<div class="form-group">
-					<label for="itop-application-token" class="form-label">
-						<span class="icon">🔑</span>
-						<?php p($l->t('Application Token (Administrator)')); ?>
-					</label>
-					<div class="form-input-group">
-						<input
-							type="text"
-							id="itop-application-token"
-							value=""
-							placeholder="<?php echo $_['has_application_token'] ? '••••••••••••••••  ' . $l->t('(Configuration is saved - enter new token to update)') : $l->t('Paste your personal token here'); ?>"
-							class="form-input password-style"
-							autocomplete="off"
-						/>
-						<button id="test-application-token" class="btn-secondary btn-inline" disabled>
-							<span class="btn-icon">🔍</span>
-							<?php p($l->t('Test Token')); ?>
-						</button>
-					</div>
-					<p class="form-hint">
-						<?php p($l->t('Required Administrator-level token for querying user data')); ?>.
-						<a href="https://github.com/LexioJ/integration_itop#admin-configuration-phase-2" target="_blank"><?php p($l->t('How to create →')); ?></a>
-					</p>
-					<div class="form-info-box">
-						<strong><?php p($l->t('⚠️ Important:')); ?></strong> <?php p($l->t('This token must have')); ?> <strong><?php p($l->t('Administrator')); ?></strong> + <strong><?php p($l->t('REST Services User')); ?></strong> <?php p($l->t('profiles')); ?>. <?php p($l->t('It will be used securely to query user data (filtered by Person ID for security)')); ?>.
-					</div>
+				<div class="form-field">
+					<label for="itop-binding-request-userrequest-id"><?php p($l->t("ServiceSubcategory ID for 'I need assistance' (User Request)")); ?></label>
+					<input
+						type="text"
+						id="itop-binding-request-userrequest-id"
+						value="<?php p($_['binding_request_userrequest_id']); ?>"
+						placeholder="<?php p($l->t('e.g., 4')); ?>"
+						class="form-input"
+					/>
 				</div>
+			</div>
+			<p class="form-hint"><?php p($l->t('Both are optional; leaving one empty hides that link. Entering the same ID in both is fine when one form covers both cases — the user then sees a single link.')); ?></p>
+			<p class="form-hint"><?php p($l->t('Both IDs are ignored and no request link is shown until the instance URL below is configured, since there is no base URL to build the link on.')); ?></p>
 
-				<div class="form-actions">
-					<button id="save-itop-config" class="btn-primary">
-						<span class="btn-icon">💾</span>
-						<?php p($l->t('Save Configuration')); ?>
-					</button>
-				</div>
+			<div class="itop-binding-rule-row">
+				<button id="itop-binding-self-service-save"><?php p($l->t('Save self-service settings')); ?></button>
+			</div>
+			</div>
+			</div>
 
-				<!-- User Permission Requirements (expandable) -->
-				<details class="permission-details">
-					<summary>
-						<span class="permission-summary-title"><?php p($l->t('⚙️ User Permission Requirements')); ?></span>
-						<span class="permission-summary-hint"><?php p($l->t('Important: Configure these iTop user permissions to prevent connection issues')); ?></span>
-					</summary>
-					<div class="info-cards info-cards-stacked">
-						<div class="info-card permission-steps">
-							<div class="info-icon">📋</div>
-							<div class="info-content">
-								<h4><?php p($l->t('How to Configure User Permissions')); ?></h4>
-								<ol>
-									<li><strong><?php p($l->t('Admin Setup')); ?>:</strong> <?php p($l->t('Log into %s', ['iTop'])); ?></li>
-									<li><strong><?php p($l->t('User Profiles')); ?>:</strong> <?php p($l->t('Admin Tools → User Management → User Accounts')); ?></li>
-									<li><strong><?php p($l->t('Edit User')); ?>:</strong> <?php p($l->t('Each user must create a Personal Token with specific settings')); ?></li>
-									<li><strong><?php p($l->t('Add Profile')); ?>:</strong> <?php p($l->t('Profiles')); ?></li>
-									<li><strong><?php p($l->t('Save User')); ?>:</strong> <?php p($l->t('Save User')); ?></li>
-									<li><strong><?php p($l->t('User Token')); ?>:</strong> <?php p($l->t('Each user must create a Personal Token with specific settings')); ?></li>
-									<li><strong><?php p($l->t('⚠️ CRITICAL')); ?>:</strong> <?php p($l->t('"REST API"')); ?></li>
-								</ol>
-							</div>
-						</div>
-
-						<div class="info-card token-requirements">
-							<div class="info-icon">🔑</div>
-							<div class="info-content">
-								<h4><?php p($l->t('Personal Token Requirements')); ?></h4>
-								<p><strong><?php p($l->t('Each user must create a Personal Token with specific settings')); ?>:</strong></p>
-								<ul>
-									<li><strong><?php p($l->t('Location')); ?>:</strong> <?php p($l->t('Navigate to "My Account" → "Personal Tokens"')); ?></li>
-									<li><strong><?php p($l->t('Application Name')); ?>:</strong> <?php p($l->t('Nextcloud Integration')); ?></li>
-									<li><strong><?php p($l->t('⚠️ REQUIRED')); ?>:</strong> <?php p($l->t('REST/JSON (Required!)')); ?></li>
-									<li><strong><?php p($l->t('Expiration')); ?>:</strong> <?php p($l->t('Choose based on your policy')); ?></li>
-									<li><strong><?php p($l->t('Important')); ?>:</strong> <?php p($l->t('Copy the generated token immediately (it won\'t be shown again)')); ?></li>
-								</ul>
-								<div class="itop-config-editor-hint">
-									<h5><?php p($l->t('⚠️ iTop Configuration Required')); ?></h5>
-									<p><?php p($l->t('By default, only Administrators can create personal tokens in iTop. To allow agents (e.g. Service Desk Agents, Service Managers) to create their own tokens, you must add the following to the $MyModuleSettings array in iTop\'s Configuration File Editor')); ?>:</p>
-									<pre class="itop-config-example"><code>$MyModuleSettings = array(
-    'authent-token' => array(
-        'personal_tokens_allowed_profiles' => array(
-            0 => 'Administrator',
-            1 => 'Service Manager',
-            2 => 'Service Desk Agent',
-        ),
-    ),
-);</code></pre>
-									<p class="itop-config-disclaimer"><?php p($l->t('The example above is for reference only — adjust the profile list to match the iTop profiles used in your organisation. After saving, affected users need to log out and back into iTop for the change to take effect.')); ?></p>
-								</div>
-							</div>
-						</div>
-					</div>
-				</details>
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
 			</div>
 		</div>
 
 		<!-- Ticket System Type Section -->
-		<div class="settings-section">
+		<div class="settings-section" id="itop-section-tickets">
 			<div class="section-header">
 				<h3><?php p($l->t('🎫 Ticket System Type')); ?></h3>
 				<p class="section-description"><?php p($l->t('Choose how your iTop instance organises tickets. Standard ITIL setups use separate UserRequest and Incident classes; some installations use a single class for all tickets (simple ticketing).')); ?></p>
@@ -332,10 +341,14 @@ $ciClassLabels = [
 					</button>
 				</div>
 			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
+			</div>
 		</div>
 
 		<!-- Notification Configuration Section -->
-		<div class="settings-section">
+		<div class="settings-section" id="itop-section-notifications">
 			<div class="section-header">
 				<h3>🔔 <?php p($l->t('Notification Configuration')); ?></h3>
 				<p class="section-description"><?php p($l->t('Configure which notifications are available to users and set default check interval')); ?></p>
@@ -486,10 +499,14 @@ $ciClassLabels = [
 					</button>
 				</div>
 			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
+			</div>
 		</div>
 
 		<!-- Cache & Performance Settings Section -->
-		<div class="settings-section">
+		<div class="settings-section" id="itop-section-cache">
 			<div class="section-header">
 				<h3><?php p($l->t('⚡ Cache & Performance Settings')); ?></h3>
 				<p class="section-description"><?php p($l->t('Configure cache TTL (Time To Live) settings to balance performance and data freshness')); ?></p>
@@ -589,10 +606,14 @@ $ciClassLabels = [
 					</button>
 				</div>
 			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
+			</div>
 		</div>
 
 		<!-- CI Class Configuration Section -->
-		<div class="settings-section">
+		<div class="settings-section" id="itop-section-ci-classes">
 			<div class="section-header">
 				<h3><?php p($l->t('🎯 CI Class Configuration')); ?></h3>
 				<p class="section-description"><?php p($l->t('Configure access levels for Configuration Item types in search, smart picker, and previews')); ?></p>
@@ -649,10 +670,14 @@ $ciClassLabels = [
 					</button>
 				</div>
 			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
+			</div>
 		</div>
 
 	<!-- Custom CI Classes Section -->
-	<div class="settings-section">
+	<div class="settings-section" id="itop-section-custom-ci">
 		<div class="section-header">
 			<h3><?php p($l->t('🔧 Custom CI Classes')); ?></h3>
 			<p class="section-description"><?php p($l->t('Add iTop CI classes not in the built-in list (e.g. Monitor, Scanner, NetworkDevice) to search, smart picker, and previews')); ?></p>
@@ -744,6 +769,157 @@ $ciClassLabels = [
 				</button>
 			</div>
 		</div>
+
+		<div class="itop-section-foot">
+			<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
+		</div>
 	</div>
+		<?php } ?>
+
+		<!-- Connection Configuration Section -->
+		<div class="settings-section" id="itop-section-connection">
+			<div class="section-header">
+				<h3><?php p($l->t('📡 Connection Configuration')); ?></h3>
+				<p class="section-description"><?php p($l->t('Configure the connection to your iTop system instance')); ?></p>
+			</div>
+
+			<div class="settings-form">
+				<div class="form-group">
+					<label for="itop-user-facing-name" class="form-label">
+						<span class="icon">🏷️</span>
+						<?php p($l->t('Display Name')); ?>
+					</label>
+					<input
+						type="text"
+						id="itop-user-facing-name"
+						value="<?php p($_['user_facing_name']); ?>"
+						placeholder="<?php p($l->t('e.g., ServicePoint, Helpdesk, iTop')); ?>"
+						class="form-input"
+						maxlength="100"
+					/>
+					<p class="form-hint"><?php p($l->t('The name users will see throughout Nextcloud (e.g., "ServicePoint Integration")')); ?></p>
+				</div>
+
+				<div class="form-group">
+					<label for="itop-instance-url" class="form-label">
+						<span class="icon">🌐</span>
+						<?php p($l->t('Server URL')); ?>
+					</label>
+					<div class="form-input-group">
+						<input
+							type="url"
+							id="itop-instance-url"
+							value="<?php p($_['admin_instance_url']); ?>"
+							placeholder="<?php p($l->t('https://your-itop-server.com')); ?>"
+							class="form-input"
+						/>
+						<button id="test-connection" class="btn-secondary btn-inline" <?php echo empty($_['admin_instance_url']) ? 'disabled' : ''; ?>
+							data-text-test="<?php p($l->t('Test Connection')); ?>"
+							data-text-testing="<?php p($l->t('Testing...')); ?>">
+							<span class="btn-icon">🔍</span>
+							<?php p($l->t('Test Connection')); ?>
+							</button>
+						</div>
+						<p class="form-hint"><?php p($l->t('The complete URL to your iTop system instance')); ?></p>
+						<div class="form-info-box info">
+							<strong><?php p($l->t('ℹ️ Note:')); ?></strong> <?php p($l->t('If using a private/local IP address (e.g., 192.168.x.x, 10.x.x.x), you must enable')); ?> <code>allow_local_remote_servers</code> <?php p($l->t('in Nextcloud config')); ?> (<a href="https://docs.nextcloud.com/server/32/admin_manual/configuration_server/config_sample_php_parameters.html#proxy-configurations" target="_blank"><?php p($l->t('See documentation →')); ?></a> <?php p($l->t('Nextcloud 30+')); ?>).<br>
+							<?php p($l->t('Run:')); ?> <code>occ config:system:set allow_local_remote_servers --value=true --type=boolean</code>
+						</div>
+					</div>
+
+				<div class="form-group">
+					<label for="itop-application-token" class="form-label">
+						<span class="icon">🔑</span>
+						<?php p($l->t('Application Token (Administrator)')); ?>
+					</label>
+					<div class="form-input-group">
+						<input
+							type="text"
+							id="itop-application-token"
+							value=""
+							placeholder="<?php echo $_['has_application_token'] ? '••••••••••••••••  ' . $l->t('(Configuration is saved - enter new token to update)') : $l->t('Paste your personal token here'); ?>"
+							class="form-input password-style"
+							autocomplete="off"
+						/>
+						<button id="test-application-token" class="btn-secondary btn-inline" disabled>
+							<span class="btn-icon">🔍</span>
+							<?php p($l->t('Test Token')); ?>
+						</button>
+					</div>
+					<p class="form-hint">
+						<?php p($l->t('Required Administrator-level token for querying user data')); ?>.
+						<a href="https://github.com/LexioJ/integration_itop#admin-configuration-phase-2" target="_blank"><?php p($l->t('How to create →')); ?></a>
+					</p>
+					<div class="form-info-box">
+						<strong><?php p($l->t('⚠️ Important:')); ?></strong> <?php p($l->t('This token must have')); ?> <strong><?php p($l->t('Administrator')); ?></strong> + <strong><?php p($l->t('REST Services User')); ?></strong> <?php p($l->t('profiles')); ?>. <?php p($l->t('It will be used securely to query user data (filtered by Person ID for security)')); ?>.
+					</div>
+				</div>
+
+				<div class="form-actions">
+					<button id="save-itop-config" class="btn-primary">
+						<span class="btn-icon">💾</span>
+						<?php p($l->t('Save Configuration')); ?>
+					</button>
+				</div>
+
+				<!-- User Permission Requirements (expandable) -->
+				<details class="permission-details">
+					<summary>
+						<span class="permission-summary-title"><?php p($l->t('⚙️ User Permission Requirements')); ?></span>
+						<span class="permission-summary-hint"><?php p($l->t('Important: Configure these iTop user permissions to prevent connection issues')); ?></span>
+					</summary>
+					<div class="info-cards info-cards-stacked">
+						<div class="info-card permission-steps">
+							<div class="info-icon">📋</div>
+							<div class="info-content">
+								<h4><?php p($l->t('How to Configure User Permissions')); ?></h4>
+								<ol>
+									<li><strong><?php p($l->t('Admin Setup')); ?>:</strong> <?php p($l->t('Log into %s', ['iTop'])); ?></li>
+									<li><strong><?php p($l->t('User Profiles')); ?>:</strong> <?php p($l->t('Admin Tools → User Management → User Accounts')); ?></li>
+									<li><strong><?php p($l->t('Edit User')); ?>:</strong> <?php p($l->t('Each user must create a Personal Token with specific settings')); ?></li>
+									<li><strong><?php p($l->t('Add Profile')); ?>:</strong> <?php p($l->t('Profiles')); ?></li>
+									<li><strong><?php p($l->t('Save User')); ?>:</strong> <?php p($l->t('Save User')); ?></li>
+									<li><strong><?php p($l->t('User Token')); ?>:</strong> <?php p($l->t('Each user must create a Personal Token with specific settings')); ?></li>
+									<li><strong><?php p($l->t('⚠️ CRITICAL')); ?>:</strong> <?php p($l->t('"REST API"')); ?></li>
+								</ol>
+							</div>
+						</div>
+
+						<div class="info-card token-requirements">
+							<div class="info-icon">🔑</div>
+							<div class="info-content">
+								<h4><?php p($l->t('Personal Token Requirements')); ?></h4>
+								<p><strong><?php p($l->t('Each user must create a Personal Token with specific settings')); ?>:</strong></p>
+								<ul>
+									<li><strong><?php p($l->t('Location')); ?>:</strong> <?php p($l->t('Navigate to "My Account" → "Personal Tokens"')); ?></li>
+									<li><strong><?php p($l->t('Application Name')); ?>:</strong> <?php p($l->t('Nextcloud Integration')); ?></li>
+									<li><strong><?php p($l->t('⚠️ REQUIRED')); ?>:</strong> <?php p($l->t('REST/JSON (Required!)')); ?></li>
+									<li><strong><?php p($l->t('Expiration')); ?>:</strong> <?php p($l->t('Choose based on your policy')); ?></li>
+									<li><strong><?php p($l->t('Important')); ?>:</strong> <?php p($l->t('Copy the generated token immediately (it won\'t be shown again)')); ?></li>
+								</ul>
+								<div class="itop-config-editor-hint">
+									<h5><?php p($l->t('⚠️ iTop Configuration Required')); ?></h5>
+									<p><?php p($l->t('By default, only Administrators can create personal tokens in iTop. To allow agents (e.g. Service Desk Agents, Service Managers) to create their own tokens, you must add the following to the $MyModuleSettings array in iTop\'s Configuration File Editor')); ?>:</p>
+									<pre class="itop-config-example"><code>$MyModuleSettings = array(
+    'authent-token' => array(
+        'personal_tokens_allowed_profiles' => array(
+            0 => 'Administrator',
+            1 => 'Service Manager',
+            2 => 'Service Desk Agent',
+        ),
+    ),
+);</code></pre>
+									<p class="itop-config-disclaimer"><?php p($l->t('The example above is for reference only — adjust the profile list to match the iTop profiles used in your organisation. After saving, affected users need to log out and back into iTop for the change to take effect.')); ?></p>
+								</div>
+							</div>
+						</div>
+					</div>
+				</details>
+			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
+			</div>
+		</div>
 	</div>
 </div>

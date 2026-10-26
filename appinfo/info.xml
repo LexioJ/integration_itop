@@ -133,6 +133,7 @@ Seamlessly connect your Nextcloud collaboration platform with iTop IT Service Ma
 
 	<commands>
 		<command>OCA\Itop\Command\NotificationsTestUser</command>
+		<command>OCA\Itop\Command\BindUsers</command>
 	</commands>
 
 	<settings>

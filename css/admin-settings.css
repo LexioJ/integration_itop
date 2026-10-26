@@ -1133,3 +1133,100 @@ input.password-style {
     color: var(--color-text-maxcontrast);
     margin-bottom: 4px;
 }
+
+/* Identity binding: matching rule as a subsection of the associations card */
+.itop-binding-rule-block {
+	margin-top: 24px;
+	padding-top: 16px;
+	border-top: 1px solid var(--color-border);
+}
+
+.itop-subsection-title {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 0 0 8px 0;
+	color: var(--color-main-text);
+}
+
+.itop-binding-rule-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-bottom: 12px;
+}
+
+.itop-binding-warning {
+	padding: 10px 12px;
+	border-left: 4px solid var(--color-error, #c00);
+	background-color: var(--color-background-hover, #f5f5f5);
+	border-radius: var(--border-radius, 3px);
+	max-width: 700px;
+}
+
+.itop-binding-warning.hidden {
+	display: none;
+}
+
+.itop-binding-selfservice-block {
+	margin-top: 16px;
+	padding-top: 12px;
+	border-top: 1px solid var(--color-border);
+}
+
+.itop-subsection-title--sub {
+	font-size: 14px;
+}
+
+.itop-binding-self-service-row {
+	margin-bottom: 8px;
+}
+
+.itop-binding-self-service-row .checkbox-label {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	cursor: pointer;
+}
+
+/* Section navigation chips */
+.itop-nav-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0 0 16px 0;
+}
+
+.itop-chip {
+	display: inline-block;
+	padding: 4px 12px;
+	border-radius: var(--border-radius-pill, 100px);
+	border: 1px solid var(--color-border, #ededed);
+	background-color: var(--color-background-hover, #f5f5f5);
+	color: var(--color-main-text, #222);
+	font-size: 90%;
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+.itop-chip:hover,
+.itop-chip:focus {
+	background-color: var(--color-primary-element-light, #e8f0fe);
+	text-decoration: none;
+}
+
+/* Keeps the target heading clear of Nextcloud's sticky header when a chip
+   jumps to it. */
+.settings-section {
+	scroll-margin-top: 60px;
+}
+
+.itop-section-foot {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 12px;
+}
+
+.itop-to-top {
+	color: var(--color-text-maxcontrast, #767676);
+}
