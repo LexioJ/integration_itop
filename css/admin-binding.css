@@ -39,29 +39,26 @@
 /*
  * The actions cell can hold up to three buttons (a tier action such as
  * "Apply…" or "Confirm…", the manual-link action, and Exclude/Restore), and
- * every label is translated -- some languages run longer than English.
+ * every label is translated -- some languages run longer than English. The
+ * last track stays `max-content` so the row never shrinks it below what its
+ * buttons actually need and the buttons never wrap, in any language --
+ * `white-space: nowrap` on the buttons (below) keeps each label on one line,
+ * and capping this track to a fixed width would make it wrap in English too,
+ * on a row that has plenty of room to spare.
  *
- * `max-content` on that last track used to force the column to whatever
- * width the buttons need unwrapped, squeezing every other track -- on this
- * card's fixed ~900px max-width, a long translated label set (German
- * "Verknüpfung entfernen" / "Manuell verknüpfen…" / "Ausschließen") pushed
- * the account column down to its 150px floor and still overflowed it. A
- * `minmax()` track gives actions a fair, bounded share instead: when its
- * buttons do not fit on one line at that width, they wrap onto a second
- * line (see `flex-wrap: wrap` below) rather than forcing the column wider.
- * Each button's own label still never wraps mid-word -- `white-space:
- * nowrap` on the buttons -- so "Link manually…" degrades by moving to its
- * own line, never by breaking across two.
- *
- * The account column keeps its `minmax(150px, 2fr)` floor, but can no
- * longer rely on getting more than that floor under a long label set, so
- * its own content is truncated with an ellipsis (see `.itop-binding-
- * account`) rather than overflowing the cell -- the full text stays
- * reachable via `title`.
+ * What used to overflow under a long label set (German "Verknüpfung
+ * entfernen" / "Manuell verknüpfen…" / "Ausschließen" squeezing the account
+ * column to its 150px floor) was never this track's fault: a grid item's
+ * default `min-width: auto` means the account column could not actually
+ * shrink to that floor, it just kept demanding its content's full intrinsic
+ * width instead. That is fixed on `.itop-binding-account` itself (`min-width:
+ * 0` plus an ellipsis) -- not here -- so account is what gives at the floor,
+ * while actions keeps every button on one line regardless of how much wider
+ * than German a translation turns out to be.
  */
 .itop-binding-row {
 	display: grid;
-	grid-template-columns: 32px 32px minmax(150px, 2fr) minmax(110px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr);
+	grid-template-columns: 32px 32px minmax(150px, 2fr) minmax(110px, 1fr) minmax(140px, 1fr) max-content;
 	gap: 8px;
 	align-items: center;
 	padding: 6px 4px;
@@ -143,10 +140,11 @@
  * A real flex row, not the default inline span, so the three possible
  * buttons (tier action, manual-link, Exclude/Restore) lay out side by side.
  * `white-space: nowrap` on the buttons keeps each individual label on one
- * line; `flex-wrap: wrap` on the row lets the buttons themselves move to a
- * second line when the column -- now bounded by minmax(), see
- * .itop-binding-row -- is too narrow to fit them all on one, instead of
- * overflowing it.
+ * line. `flex-wrap: wrap` here is a last-resort safety net only -- the
+ * column is `max-content` (see .itop-binding-row), so in the normal case
+ * there is always exactly enough room and this never triggers; it only
+ * matters below the 600px breakpoint, where the column's own width is
+ * capped to `1fr` and wrapping is preferable to a second overflow.
  */
 .itop-binding-actions {
 	display: flex;
