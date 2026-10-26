@@ -9,7 +9,7 @@
  */
 
 import { getRequestToken } from '@nextcloud/auth'
-import { showError } from '@nextcloud/dialogs'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 
@@ -187,6 +187,32 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
+	 * Apply an exclusion change to a set of uids, then reload.
+	 *
+	 * @param {string[]} uids accounts to change
+	 * @param {boolean} excluded true to exclude, false to restore
+	 */
+	async function setExcluded(uids, excluded) {
+		if (uids.length === 0) return
+		try {
+			await apiCall('/binding/' + (excluded ? 'exclude' : 'restore'), {
+				method: 'POST',
+				body: JSON.stringify({ uids }),
+			})
+			showSuccess(excluded
+				? t('integration_itop', '{count} account(s) excluded from matching', { count: uids.length })
+				: t('integration_itop', '{count} account(s) restored to matching', { count: uids.length }))
+			state.selected.clear()
+			await load()
+		} catch (e) {
+			showError(t('integration_itop', 'Could not update exclusions: {msg}', { msg: e.message }))
+			// Reload anyway: a partial change may have landed, and the table must
+			// show what the server actually holds rather than what we attempted.
+			await load()
+		}
+	}
+
+	/**
 	 * Wire the toolbar and pager.
 	 *
 	 * Delegated from document, matching the pattern used elsewhere in this app:
@@ -216,6 +242,31 @@ import { generateUrl } from '@nextcloud/router'
 				filterBtn.classList.add('active')
 				load()
 				return
+			}
+
+			const selectBox = e.target.closest('input[data-select]')
+			if (selectBox) {
+				const uid = selectBox.dataset.select
+				if (selectBox.checked) state.selected.add(uid)
+				else state.selected.delete(uid)
+				renderBulkBar()
+				return
+			}
+
+			const rowExclude = e.target.closest('button[data-exclude]')
+			if (rowExclude) { setExcluded([rowExclude.dataset.exclude], true); return }
+
+			const rowRestore = e.target.closest('button[data-restore]')
+			if (rowRestore) { setExcluded([rowRestore.dataset.restore], false); return }
+
+			if (e.target.closest('#itop-binding-bulk-exclude')) {
+				setExcluded([...state.selected], true); return
+			}
+			if (e.target.closest('#itop-binding-bulk-restore')) {
+				setExcluded([...state.selected], false); return
+			}
+			if (e.target.closest('#itop-binding-bulk-clear')) {
+				state.selected.clear(); render(); return
 			}
 
 			if (e.target.closest('#itop-binding-prev')) {
