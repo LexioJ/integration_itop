@@ -439,7 +439,7 @@ import { generateUrl } from '@nextcloud/router'
 				+ '</table>'
 		}
 
-		syncSelectAll()
+		syncSelectionBoxes()
 		renderActionBar()
 		renderPager()
 		// Deliberately not awaited: render() is synchronous for every caller,
@@ -449,22 +449,43 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
-	 * Bring the toggle-all checkbox in line with what is actually selected.
+	 * Derive every checkbox on screen -- each row's and the header's -- from
+	 * state.selected.
 	 *
-	 * Called after every repaint as well as on every row checkbox click,
-	 * because the selection can change without anyone touching a checkbox: a
-	 * filter change or a page turn drops the selections for rows that left
-	 * view (see load()), and the header must follow them.
+	 * The single place that does so, deliberately. The two directions used to
+	 * be handled separately and drifted apart at once: toggling the header
+	 * updated state.selected without touching the row checkboxes, so each one
+	 * still rendered the `checked` it was painted with. Clicking a row then
+	 * made an already-selected box checked, which *added* a uid that was
+	 * already in the set -- so the selection never shrank and the header never
+	 * reached the indeterminate state it should have. One function reading one
+	 * source of truth is what stops that recurring.
+	 *
+	 * Called after every repaint as well as on every checkbox click, because
+	 * the selection also changes with nobody touching a checkbox: a filter
+	 * change or a page turn drops the selections for rows that left view (see
+	 * load()).
+	 *
+	 * Cheaper than a render() on a click, which is the alternative: a repaint
+	 * destroys and remounts one RowActions per row (~3 ms each, ~80 ms for a
+	 * full page) to change nothing but a boolean on an <input>.
 	 *
 	 * `indeterminate` is a DOM property, not an attribute, so it cannot be
-	 * written into the markup above and has to be set here.
+	 * written into the markup in the first place and has to be set here.
 	 */
-	function syncSelectAll() {
-		const box = document.getElementById('itop-binding-select-all')
-		if (!box) return
+	function syncSelectionBoxes() {
+		const table = document.getElementById('itop-binding-table')
+		if (!table) return
+
+		for (const box of table.querySelectorAll('input[data-select]')) {
+			box.checked = state.selected.has(box.dataset.select)
+		}
+
+		const all = table.querySelector('#itop-binding-select-all')
+		if (!all) return
 		const selectedOnPage = state.rows.filter(r => state.selected.has(r.uid)).length
-		box.checked = selectedOnPage > 0 && selectedOnPage === state.rows.length
-		box.indeterminate = selectedOnPage > 0 && selectedOnPage < state.rows.length
+		all.checked = selectedOnPage > 0 && selectedOnPage === state.rows.length
+		all.indeterminate = selectedOnPage > 0 && selectedOnPage < state.rows.length
 	}
 
 	/**
@@ -955,9 +976,11 @@ import { generateUrl } from '@nextcloud/router'
 			const selectAll = e.target.closest('#itop-binding-select-all')
 			if (selectAll) {
 				setPageSelected(selectAll.checked)
-				// The click already set .checked; this clears the
-				// indeterminate flag that was on it a moment ago.
-				syncSelectAll()
+				// Both branches re-derive every box from state.selected rather
+				// than trusting the one the browser just toggled: the header
+				// has to repaint the rows it selected, and a row has to
+				// repaint the header above it.
+				syncSelectionBoxes()
 				renderActionBar()
 				return
 			}
@@ -967,7 +990,7 @@ import { generateUrl } from '@nextcloud/router'
 				const uid = selectBox.dataset.select
 				if (selectBox.checked) state.selected.add(uid)
 				else state.selected.delete(uid)
-				syncSelectAll()
+				syncSelectionBoxes()
 				renderActionBar()
 				return
 			}
