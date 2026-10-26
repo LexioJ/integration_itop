@@ -15,11 +15,14 @@ import { generateUrl } from '@nextcloud/router'
 	document.addEventListener('DOMContentLoaded', function() {
 
 		const saveButton = document.getElementById('itop-save')
+		// Absent, not merely disabled, when an administrator has turned the
+		// token binding path off -- see templates/personalSettings.php. Every
+		// use below must tolerate that.
 		const personalTokenField = document.getElementById('itop-personal-token')
 		const notificationEnabledField = document.getElementById('itop-notification-enabled')
 		const resultDiv = document.getElementById('itop-result')
 
-		if (!saveButton || !personalTokenField || !resultDiv) {
+		if (!saveButton || !resultDiv) {
 			return
 		}
 
@@ -231,8 +234,10 @@ import { generateUrl } from '@nextcloud/router'
 				// For success, only show Nextcloud notification
 				showSuccess(message)
 
-				// Clear token field after successful validation
-				personalTokenField.value = ''
+				// Clear token field after successful validation, if present
+				if (personalTokenField) {
+					personalTokenField.value = ''
+				}
 
 				// Hide any previous error messages
 				resultDiv.classList.add('hidden')
@@ -242,7 +247,7 @@ import { generateUrl } from '@nextcloud/router'
 		saveButton.addEventListener('click', function() {
 			resultDiv.classList.add('hidden')
 
-			const personalToken = personalTokenField.value.trim()
+			const personalToken = personalTokenField ? personalTokenField.value.trim() : ''
 			const notificationEnabled = notificationEnabledField.checked ? '1' : '0'
 			const searchEnabled = document.getElementById('itop-search-enabled')
 
