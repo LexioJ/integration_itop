@@ -45,6 +45,13 @@ $renderRequestLinks = function () use ($requestLinks, $l) {
 	<?php
 };
 
+// Whether the two blocks of the .itop-personal-info footer have anything to
+// say. Computed once and used by the blocks and by their wrapper: the wrapper
+// is styled, so rendering it around two hidden blocks painted an empty grey
+// box at the foot of the page, and a third copy of these conditions is a third
+// thing that has to be kept in agreement.
+$showTokenHelp = $_['binding_token_enabled'] ?? false;
+$showFeatures = ($_['person_id_configured'] ?? false) || $showTokenHelp || ($_['binding_discovery_enabled'] ?? false);
 ?>
 
 <div id="itop_prefs" class="section">
@@ -472,8 +479,9 @@ $renderRequestLinks = function () use ($requestLinks, $l) {
 
 	</div>
 
+	<?php if ($showTokenHelp || $showFeatures): ?>
 	<div class="itop-personal-info">
-		<?php if ($_['binding_token_enabled']): ?>
+		<?php if ($showTokenHelp): ?>
 		<h3><?php p($l->t('How to get your Personal Token')); ?></h3>
 		<ol>
 			<li><?php p($l->t('Log into %s', [$_['display_name']])); ?></li>
@@ -497,7 +505,7 @@ $renderRequestLinks = function () use ($requestLinks, $l) {
 		         of these, so listing them only advertises what they cannot have.
 		         Kept wherever a self-service route exists -- there the list is
 		         the reason to bother linking. */ ?>
-		<?php if ($_['person_id_configured'] || $_['binding_token_enabled'] || $_['binding_discovery_enabled']): ?>
+		<?php if ($showFeatures): ?>
 		<h3><?php p($l->t('Available features')); ?></h3>
 		<ul>
 			<li><?php p($l->t('Dashboard widget with your assigned tickets')); ?></li>
@@ -507,4 +515,5 @@ $renderRequestLinks = function () use ($requestLinks, $l) {
 		</ul>
 		<?php endif; ?>
 	</div>
+	<?php endif; /* $showTokenHelp || $showFeatures */ ?>
 </div>
