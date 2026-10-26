@@ -9,6 +9,7 @@
 
 namespace OCA\Itop\Controller;
 
+use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\Binding\DiscoveryService;
 use OCA\Itop\Service\Binding\MatchResult;
 use OCP\AppFramework\Controller;
@@ -16,6 +17,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\IAppConfig;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IUserSession;
@@ -44,6 +46,7 @@ class DiscoveryController extends Controller {
 		private DiscoveryService $discoveryService,
 		private IUserSession $userSession,
 		private IL10N $l10n,
+		private IAppConfig $appConfig,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -81,24 +84,25 @@ class DiscoveryController extends Controller {
 	 * @param array $result as returned by DiscoveryService
 	 */
 	private function respond(array $result): DataResponse {
+		$name = $this->getDisplayName();
 		[$message, $status] = match ($result['status'] ?? '') {
 			'disabled' => [
 				$this->l10n->t('Linking your own account is not enabled on this server. Please ask an administrator to link it for you.'),
 				Http::STATUS_FORBIDDEN,
 			],
 			'excluded' => [
-				$this->l10n->t('This account is excluded from iTop matching. Please contact an administrator.'),
+				$this->l10n->t('This account is excluded from %s matching. Please contact an administrator.', [$name]),
 				Http::STATUS_FORBIDDEN,
 			],
 			'already_bound' => [
-				$this->l10n->t('This account is already linked to an iTop person. An administrator has to unlink it before it can be linked again.'),
+				$this->l10n->t('This account is already linked to an %s person. An administrator has to unlink it before it can be linked again.', [$name]),
 				Http::STATUS_CONFLICT,
 			],
 			'failed' => [
-				$this->l10n->t('iTop could not be reached. Please try again later.'),
+				$this->l10n->t('%s could not be reached. Please try again later.', [$name]),
 				Http::STATUS_BAD_GATEWAY,
 			],
-			'not_self_serviceable' => [$this->notSelfServiceableMessage((string)($result['tier'] ?? '')), Http::STATUS_OK],
+			'not_self_serviceable' => [$this->notSelfServiceableMessage((string)($result['tier'] ?? ''), $name), Http::STATUS_OK],
 			'proposal', 'bound' => ['', Http::STATUS_OK],
 			default => [$this->l10n->t('Something went wrong. Please contact an administrator.'), Http::STATUS_INTERNAL_SERVER_ERROR],
 		};
@@ -119,13 +123,21 @@ class DiscoveryController extends Controller {
 	 * matched person to someone who may not be that person would be a
 	 * disclosure.
 	 */
-	private function notSelfServiceableMessage(string $tier): string {
+	private function notSelfServiceableMessage(string $tier, string $name): string {
 		return match ($tier) {
 			MatchResult::TIER_REVIEW => $this->l10n->t('A matching person was found, but the name on that person does not match your account. Please ask an administrator to link it for you.'),
 			MatchResult::TIER_AMBIGUOUS => $this->l10n->t('More than one person matches your account, so it cannot be linked automatically. Please ask an administrator to link it for you.'),
 			MatchResult::TIER_CONFLICT => $this->l10n->t('The matching person is already linked to a different Nextcloud account. Please ask an administrator to link it for you.'),
-			MatchResult::TIER_NONE => $this->l10n->t('No iTop person matches your account. Please ask an administrator to link it for you.'),
+			MatchResult::TIER_NONE => $this->l10n->t('No %s person matches your account. Please ask an administrator to link it for you.', [$name]),
 			default => $this->l10n->t('Your account cannot be linked automatically. Please ask an administrator to link it for you.'),
 		};
+	}
+
+	/**
+	 * The administrator-configured display name, defaulting to the real
+	 * product name -- see lib/Settings/Personal.php for the same read.
+	 */
+	private function getDisplayName(): string {
+		return $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
 	}
 }

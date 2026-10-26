@@ -160,7 +160,7 @@ $showFeatures = ($_['person_id_configured'] ?? false) || $showTokenHelp || ($_['
 				<?php if ($_['binding_discovery_enabled']): ?>
 					<?php p($l->t('Personal tokens are only issued to back-end users. If you cannot get one, try "Discover me in %s" below instead.', [$_['display_name']])); ?>
 				<?php else: ?>
-					<?php p($l->t('Personal tokens are only issued to back-end users. If you cannot get one, please ask an administrator to link your account. An administrator can also enable self-service discovery, or install the "iTop Portal Personal Tokens" extension to issue tokens to portal users.')); ?>
+					<?php p($l->t('Personal tokens are only issued to back-end users. If you cannot get one, please ask an administrator to link your account.')); ?>
 				<?php endif; ?>
 			</p>
 			<?php /* Token binding on, discovery off, and no token obtainable: a
@@ -238,7 +238,7 @@ $showFeatures = ($_['person_id_configured'] ?? false) || $showTokenHelp || ($_['
 				<div class="notification-user-toggle">
 					<input id="itop-notification-enabled" type="checkbox" <?php echo $_['notification_enabled'] ? 'checked' : ''; ?> <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 					<label for="itop-notification-enabled" class="notification-user-label-container">
-						<span class="notification-user-label"><strong><?php p($l->t('Enable iTop Notifications')); ?></strong></span>
+						<span class="notification-user-label"><strong><?php p($l->t('Enable %s Notifications', [$_['display_name']])); ?></strong></span>
 					</label>
 				</div>
 
@@ -249,11 +249,11 @@ $showFeatures = ($_['person_id_configured'] ?? false) || $showTokenHelp || ($_['
 						<?php echo $_['newsroom_mirroring_enabled'] ? 'checked' : ''; ?>
 						<?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 					<label for="itop-newsroom-mirroring-enabled" class="notification-user-label-container">
-						<span class="notification-user-label"><?php p($l->t('Mirror iTop Newsroom notifications')); ?></span>
+						<span class="notification-user-label"><?php p($l->t('Mirror %s Newsroom notifications', [$_['display_name']])); ?></span>
 					</label>
 				</div>
 				<p class="hint" style="margin-left: 28px; margin-top: 2px; margin-bottom: 8px;">
-					<?php p($l->t('Receive iTop Newsroom announcements as Nextcloud notifications (requires ActionNewsroom triggers configured in iTop)')); ?>
+					<?php p($l->t('Receive %s Newsroom announcements as Nextcloud notifications (requires ActionNewsroom triggers configured in %s)', [$_['display_name'], $_['display_name']])); ?>
 				</p>
 			</div>
 			
@@ -481,16 +481,6 @@ $showFeatures = ($_['person_id_configured'] ?? false) || $showTokenHelp || ($_['
 			<span class="icon"></span>
 			<span class="message"></span>
 		</div>
-		<?php if ($_['binding_token_enabled'] && !empty($_['admin_url'])): ?>
-		<div class="itop-personal-config-hint">
-			<span class="icon icon-info"></span>
-			<div>
-				<strong><?php p($l->t('Can\'t create a personal token?')); ?></strong>
-				<p><?php p($l->t('If the "Personal Tokens" option is missing from your %s account, your iTop profile may not be allowed to create tokens. Ask your iTop administrator to add your profile to personal_tokens_allowed_profiles in the iTop Configuration File Editor.', [$_['display_name']])); ?></p>
-			</div>
-		</div>
-		<?php endif; ?>
-
 	</div>
 
 	<?php if ($showTokenHelp || $showFeatures): ?>
