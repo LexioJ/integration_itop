@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Identity binding settings and API**: the matching rule (which Nextcloud attribute is matched against which iTop attribute) is now configurable from Admin settings → iTop instead of only through `occ config:app:set`, and shows a warning when a risky attribute is selected, before the rule is saved. Adds admin endpoints for listing accounts with their binding state, managing exclusions, and unbinding, which the association table builds on
+- **User associations screen**: Admin settings → iTop now lists every Nextcloud account with its iTop binding state, filterable by all / unbound / bound / excluded and searchable by name, user ID or email. Accounts can be excluded from matching (individually or in bulk) and links can be removed. Bindings made before this app recorded provenance show their origin as "unknown" rather than blank. Computing matches is not part of this screen
 
 ---
 

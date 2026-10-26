@@ -433,7 +433,7 @@ Adjust cache TTLs in **Admin Settings → Cache & Performance**:
 - **Minimum Nextcloud version is now 32**: `IUserConfig` is only available from Nextcloud 32 onwards, so migrating user preferences off the deprecated API raises `min-version` from 30 to 32 — Nextcloud 30 and 31 are no longer supported
 
 ### Added
-- **Admin-side identity binding**: link Nextcloud accounts to iTop people with `occ itop:bind`, without users needing an iTop personal token — the only route available to portal-only users. Dry-run by default; matches are graded exact / review / ambiguous so near-misses are never bound silently. The matching rule is configured in **Admin settings → iTop → Identity binding**. Accounts can be excluded from matching via `occ config:app:set integration_itop binding_excluded_users` or the admin API; the settings screen itself only configures the matching rule. The equivalent `occ` commands remain available for scripted setups:
+- **Admin-side identity binding**: link Nextcloud accounts to iTop people with `occ itop:bind`, without users needing an iTop personal token — the only route available to portal-only users. Dry-run by default; matches are graded exact / review / ambiguous so near-misses are never bound silently. The matching rule is configured in **Admin settings → iTop → Identity binding**. **Admin settings → iTop → User associations** lists every Nextcloud account with its binding state, and lets accounts be excluded from matching or unlinked. The equivalent `occ` commands remain available for scripted setups:
 
   ```bash
   occ config:app:set integration_itop binding_match_source --value=email   # email | uid | displayname
