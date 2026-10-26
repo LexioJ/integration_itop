@@ -140,15 +140,41 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
+	 * The value the matching rule compares for one account, as a muted line
+	 * under the tier.
+	 *
+	 * Only worth the space on the two tiers where it answers a question the
+	 * admin already has: review ("these names differ -- what actually
+	 * matched?") and none ("why no match -- what did it even look for?"). On an
+	 * exact row it would only repeat what the badge already says.
+	 *
+	 * An empty value is the most informative case of all on a none row: the
+	 * rule has nothing to compare, so no amount of iTop data could ever match.
+	 *
+	 * @param {object} row a row from /binding/users
+	 * @return {string} HTML for the source-value line
+	 */
+	function describeSourceValue(row) {
+		if (!row.sourceValue) {
+			return '<span class="itop-binding-source-value">'
+				+ esc(t('integration_itop', 'nothing to match on')) + '</span>'
+		}
+		return '<span class="itop-binding-source-value" title="'
+			+ esc(t('integration_itop', 'The value the matching rule compares for this account'))
+			+ '">' + esc(t('integration_itop', 'matched on {value}', { value: row.sourceValue })) + '</span>'
+	}
+
+	/**
 	 * Render the tier cell for one row from its last /binding/suggest result.
 	 *
 	 * Suggestions are requested on demand (see suggest()), never computed on
 	 * load, so most rows show nothing until the admin asks for matches.
 	 *
-	 * @param {string} uid Nextcloud user id
+	 * @param {object} row a row from /binding/users
 	 * @return {string} HTML for the tier cell
 	 */
-	function describeTier(uid) {
+	function describeTier(row) {
+		const uid = row.uid
 		const s = state.suggestions[uid]
 		if (!s) return '<span class="itop-binding-muted">—</span>'
 
@@ -174,7 +200,7 @@ import { generateUrl } from '@nextcloud/router'
 		case 'review':
 			return '<span class="itop-binding-tier-compare">'
 				+ esc(s.ncName) + ' <span class="itop-binding-muted">vs</span> ' + esc(s.itopName)
-				+ '</span>'
+				+ '</span>' + describeSourceValue(row)
 		case 'ambiguous':
 			return '<span class="itop-binding-badge tier-ambiguous">'
 				+ esc(t('integration_itop', '{count} candidates', { count: s.candidates.length }))
@@ -186,6 +212,7 @@ import { generateUrl } from '@nextcloud/router'
 		case 'none':
 		default:
 			return '<span class="itop-binding-muted">' + esc(t('integration_itop', 'no match')) + '</span>'
+				+ describeSourceValue(row)
 		}
 	}
 
@@ -255,7 +282,7 @@ import { generateUrl } from '@nextcloud/router'
 				+ '<span class="itop-binding-muted">' + esc(row.uid)
 				+ (row.email ? ' · ' + esc(row.email) : '') + '</span></span>'
 				+ '<span class="itop-binding-state">' + describeBinding(row) + '</span>'
-				+ '<span class="itop-binding-tier">' + describeTier(row.uid) + '</span>'
+				+ '<span class="itop-binding-tier">' + describeTier(row) + '</span>'
 				+ '<span class="itop-binding-actions">'
 				+ describeTierAction(row)
 				+ (row.bound

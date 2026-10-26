@@ -104,6 +104,22 @@
 	font-size: 90%;
 }
 
+/*
+ * The value the matching rule actually compared for this account. Shown only
+ * where it answers a question the admin already has -- a review row ("these
+ * names differ, what matched?") and a none row ("why no match, what did it even
+ * look for?") -- so it stays on its own muted line, and is clipped rather than
+ * allowed to widen the tier column and push the names around.
+ */
+.itop-binding-source-value {
+	display: block;
+	color: var(--color-text-maxcontrast, #767676);
+	font-size: 85%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .itop-binding-pager {
 	display: flex;
 	gap: 8px;
