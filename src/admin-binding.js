@@ -94,7 +94,10 @@ import { generateUrl } from '@nextcloud/router'
 	 * Escape text for safe insertion into innerHTML.
 	 *
 	 * Display names, emails and uids are user-controlled, so they must never be
-	 * interpolated raw.
+	 * interpolated raw. Since the person detail line was added, the same is
+	 * true of iTop-controlled name and email strings: an iTop person is
+	 * created and edited inside iTop, not this app, so this page has no more
+	 * control over what they contain than it does over a Nextcloud account's.
 	 *
 	 * Quotes are escaped as well as the markup characters, because every call
 	 * site below interpolates into a double-quoted attribute value. The obvious
@@ -140,7 +143,7 @@ import { generateUrl } from '@nextcloud/router'
 				: '<span class="itop-binding-badge origin unknown" title="'
 					+ esc(t('integration_itop', 'Linked before this app recorded how bindings were made'))
 					+ '">' + esc(t('integration_itop', 'unknown')) + '</span>'
-			return '<strong>' + esc(t('integration_itop', 'person {id}', { id: row.personId })) + '</strong> ' + origin
+			return '<strong>' + esc(t('integration_itop', 'person {id}', { id: row.personId }, undefined, { escape: false })) + '</strong> ' + origin
 				+ describePerson(row)
 		}
 		const s = state.suggestions[row.uid]
@@ -283,7 +286,7 @@ import { generateUrl } from '@nextcloud/router'
 		}
 		return '<span class="itop-binding-source-value" title="'
 			+ esc(t('integration_itop', 'The value the matching rule compares for this account'))
-			+ '">' + esc(t('integration_itop', 'matched on {value}', { value: row.sourceValue })) + '</span>'
+			+ '">' + esc(t('integration_itop', 'matched on {value}', { value: row.sourceValue }, undefined, { escape: false })) + '</span>'
 	}
 
 	/**
@@ -316,11 +319,11 @@ import { generateUrl } from '@nextcloud/router'
 		switch (s.tier) {
 		case 'exact':
 			return '<span class="itop-binding-badge tier-exact">'
-				+ esc(t('integration_itop', '{name} (person {id})', { name: s.itopName, id: s.personId }))
+				+ esc(t('integration_itop', '{name} (person {id})', { name: s.itopName, id: s.personId }, undefined, { escape: false }))
 				+ '</span>'
 		case 'review':
 			return '<span class="itop-binding-tier-compare">'
-				+ esc(t('integration_itop', '{ncName} vs. {itopName}', { ncName: s.ncName, itopName: s.itopName }))
+				+ esc(t('integration_itop', '{ncName} vs. {itopName}', { ncName: s.ncName, itopName: s.itopName }, undefined, { escape: false }))
 				+ '</span>' + describeSourceValue(row)
 		case 'ambiguous':
 			return '<span class="itop-binding-badge tier-ambiguous">'
@@ -328,7 +331,7 @@ import { generateUrl } from '@nextcloud/router'
 				+ '</span>'
 		case 'conflict':
 			return '<span class="itop-binding-badge tier-conflict">'
-				+ esc(t('integration_itop', 'already linked to {uid}', { uid: s.conflictUid }))
+				+ esc(t('integration_itop', 'already linked to {uid}', { uid: s.conflictUid }, undefined, { escape: false }))
 				+ '</span>'
 		case 'none':
 		default:
@@ -475,7 +478,7 @@ import { generateUrl } from '@nextcloud/router'
 			+ '<td class="itop-binding-col-select">'
 			+ '<label class="itop-binding-select">'
 			+ '<input type="checkbox" data-select="' + esc(row.uid) + '"'
-			+ ' aria-label="' + esc(t('integration_itop', 'Select {account}', { account })) + '"'
+			+ ' aria-label="' + esc(t('integration_itop', 'Select {account}', { account }, undefined, { escape: false })) + '"'
 			+ (state.selected.has(row.uid) ? ' checked' : '') + '>'
 			+ '</label>'
 			+ '</td>'
