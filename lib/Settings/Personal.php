@@ -13,6 +13,7 @@
 namespace OCA\Itop\Settings;
 
 use OCA\Itop\AppInfo\Application;
+use OCA\Itop\Service\Binding\BindingConfig;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\Config\IUserConfig;
@@ -30,6 +31,7 @@ class Personal implements ISettings {
 		private ICrypto $crypto,
 		private ?string $userId,
 		private IAppManager $appManager,
+		private BindingConfig $bindingConfig,
 	) {
 	}
 
@@ -127,6 +129,8 @@ class Personal implements ISettings {
 			'user_choice_ci_classes' => $userChoiceCIClasses,
 			'forced_ci_classes' => $forcedCIClasses,
 			'user_disabled_ci_classes' => $userDisabledClasses,
+			'binding_token_enabled' => $this->bindingConfig->isTokenBindingEnabled(),
+			'binding_discovery_enabled' => $this->bindingConfig->isDiscoveryEnabled(),
 			// 3-state notification configuration
 			'user_choice_portal_notifications' => $userChoicePortalNotifications,
 			'user_choice_agent_notifications' => $userChoiceAgentNotifications,

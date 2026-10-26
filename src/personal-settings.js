@@ -381,5 +381,179 @@ import { generateUrl } from '@nextcloud/router'
 
 			req.send(JSON.stringify(params))
 		})
+
+		// Self-service discovery: "Discover me in <instance>" button.
+		const discoverButton = document.getElementById('itop-discover-button')
+		const discoverResult = document.getElementById('itop-discover-result')
+
+		if (discoverButton && discoverResult) {
+			discoverButton.addEventListener('click', function() {
+				runDiscovery()
+			})
+		}
+
+		/**
+		 * POSTs to one of the self-service discovery endpoints and resolves
+		 * with both the HTTP status and the parsed body, because the tier
+		 * messages and the 429 case both need the status to decide what to show.
+		 *
+		 * @param {string} url the full endpoint URL, from generateUrl()
+		 * @return {Promise<{status: number, body: object}>}
+		 */
+		function postBinding(url) {
+			return fetch(url, {
+				method: 'POST',
+				headers: {
+					requesttoken: getRequestToken(),
+				},
+			}).then(function(response) {
+				return response.json()
+					.catch(function() {
+						return {}
+					})
+					.then(function(body) {
+						return { status: response.status, body }
+					})
+			})
+		}
+
+		/**
+		 * Starts the two-step discovery flow by calling /binding/discover.
+		 */
+		function runDiscovery() {
+			discoverButton.disabled = true
+			discoverResult.classList.add('hidden')
+			discoverResult.innerHTML = ''
+
+			postBinding(generateUrl('/apps/integration_itop/binding/discover'))
+				.then(function(result) {
+					discoverButton.disabled = false
+					handleDiscoveryResponse(result, runDiscovery)
+				})
+				.catch(function() {
+					discoverButton.disabled = false
+					showDiscoveryMessage(t('integration_itop', 'Could not reach the server. Please try again.'), true)
+				})
+		}
+
+		/**
+		 * Confirms a previously shown proposal by calling /binding/discover/confirm.
+		 *
+		 * @param {HTMLButtonElement} confirmButton the button that triggered this, disabled while in flight
+		 */
+		function confirmDiscovery(confirmButton) {
+			confirmButton.disabled = true
+
+			postBinding(generateUrl('/apps/integration_itop/binding/discover/confirm'))
+				.then(function(result) {
+					if (result.status === 200 && result.body && result.body.status === 'bound') {
+						showSuccess(t('integration_itop', 'Your account is now linked.'))
+						window.location.reload()
+						return
+					}
+
+					confirmButton.disabled = false
+					handleDiscoveryResponse(result)
+				})
+				.catch(function() {
+					confirmButton.disabled = false
+					showDiscoveryMessage(t('integration_itop', 'Could not reach the server. Please try again.'), true)
+				})
+		}
+
+		/**
+		 * Renders whatever /binding/discover or /binding/discover/confirm came
+		 * back with.
+		 *
+		 * A `proposal` is the only case with something to confirm, so it is the
+		 * only one that renders a button; every other outcome -- including
+		 * `not_self_serviceable`, which deliberately carries no name or id, only
+		 * a tier -- is shown as a plain message that ends at "ask an
+		 * administrator".
+		 *
+		 * @param {{status: number, body: object}} result
+		 * @param {Function} [retry] called if the user hits the rate limit and wants to try again
+		 */
+		function handleDiscoveryResponse(result, retry) {
+			const status = result.status
+			const body = result.body || {}
+
+			if (status === 429) {
+				showDiscoveryMessage(t('integration_itop', 'You have tried this a few times already. Please wait a moment and try again.'), true)
+				return
+			}
+
+			if (status === 200 && body.status === 'proposal') {
+				showDiscoveryProposal(body.itopName || '')
+				return
+			}
+
+			// Every other outcome (not_self_serviceable, already_bound, excluded,
+			// disabled, failed, or an unexpected error) carries a ready-to-show
+			// message from the server; not_self_serviceable's is already worded
+			// by tier server-side, and intentionally names no one.
+			const message = body.message || t('integration_itop', 'Your account could not be linked automatically. Please ask an administrator to link it for you.')
+			showDiscoveryMessage(message, status !== 200)
+		}
+
+		/**
+		 * Shows the matched iTop name and a confirm/cancel pair.
+		 *
+		 * @param {string} itopName the name as returned by iTop; untrusted, so it
+		 *   is only ever set via textContent, never innerHTML
+		 */
+		function showDiscoveryProposal(itopName) {
+			discoverResult.innerHTML = ''
+			discoverResult.className = 'itop-discover-result proposal'
+
+			const text = document.createElement('p')
+			text.textContent = t('integration_itop', 'We found a matching person: {name}. Is this you?', {
+				name: itopName,
+			})
+			discoverResult.appendChild(text)
+
+			const actions = document.createElement('div')
+			actions.className = 'itop-discover-actions'
+
+			const confirmButton = document.createElement('button')
+			confirmButton.className = 'button primary'
+			confirmButton.type = 'button'
+			confirmButton.textContent = t('integration_itop', 'Yes, this is me')
+			confirmButton.addEventListener('click', function() {
+				confirmDiscovery(confirmButton)
+			})
+
+			const cancelButton = document.createElement('button')
+			cancelButton.className = 'button'
+			cancelButton.type = 'button'
+			cancelButton.textContent = t('integration_itop', 'Cancel')
+			cancelButton.addEventListener('click', function() {
+				discoverResult.classList.add('hidden')
+				discoverResult.innerHTML = ''
+			})
+
+			actions.appendChild(confirmButton)
+			actions.appendChild(cancelButton)
+			discoverResult.appendChild(actions)
+
+			discoverResult.classList.remove('hidden')
+		}
+
+		/**
+		 * Shows a plain message below the discover button.
+		 *
+		 * @param {string} message
+		 * @param {boolean} isError
+		 */
+		function showDiscoveryMessage(message, isError) {
+			discoverResult.innerHTML = ''
+			discoverResult.className = isError ? 'itop-discover-result error' : 'itop-discover-result'
+
+			const text = document.createElement('p')
+			text.textContent = message
+			discoverResult.appendChild(text)
+
+			discoverResult.classList.remove('hidden')
+		}
 	})
 })()

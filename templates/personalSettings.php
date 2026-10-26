@@ -83,6 +83,7 @@ $ciClassLabels = [
 	<div class="itop-personal-settings">
 		<h3><?php p($l->t('My Settings')); ?></h3>
 
+		<?php if ($_['binding_token_enabled']): ?>
 		<div class="field token-field">
 			<label for="itop-personal-token" class="token-label">
 				<span class="token-icon">🔑</span>
@@ -105,7 +106,36 @@ $ciClassLabels = [
 				</a>
 				<?php endif; ?>
 			</p>
+			<p class="hint itop-portal-hint">
+				<strong><?php p($l->t('Portal user?')); ?></strong>
+				<?php if ($_['binding_discovery_enabled']): ?>
+					<?php p($l->t('Personal tokens are only issued to back-end users. If you cannot get one, try "Discover me in %s" below instead.', [$_['display_name']])); ?>
+				<?php else: ?>
+					<?php p($l->t('Personal tokens are only issued to back-end users. If you cannot get one, please ask an administrator to link your account. An administrator can also enable self-service discovery, or install the "iTop Portal Personal Tokens" extension to issue tokens to portal users.')); ?>
+				<?php endif; ?>
+			</p>
 		</div>
+		<?php endif; ?>
+
+		<?php if ($_['binding_discovery_enabled']): ?>
+		<div class="field discovery-field">
+			<label class="discovery-label">
+				<span class="token-icon">🔍</span>
+				<?php p($l->t('Automatic linking')); ?>
+			</label>
+			<p class="hint"><?php p($l->t('Let %s try to match your account to your person record automatically. No token needed.', [$_['display_name']])); ?></p>
+			<button id="itop-discover-button" type="button" class="button">
+				<?php p($l->t('Discover me in %s', [$_['display_name']])); ?>
+			</button>
+			<div id="itop-discover-result" class="itop-discover-result hidden"></div>
+		</div>
+		<?php endif; ?>
+
+		<?php if (!$_['binding_token_enabled'] && !$_['binding_discovery_enabled']): ?>
+		<div class="field">
+			<p class="hint"><?php p($l->t('Self-service account linking is disabled. Please ask an administrator to link your account to %s.', [$_['display_name']])); ?></p>
+		</div>
+		<?php endif; ?>
 
 		<!-- Search Settings -->
 		<div class="field search-section">
@@ -363,7 +393,7 @@ $ciClassLabels = [
 			<span class="icon"></span>
 			<span class="message"></span>
 		</div>
-		<?php if (!empty($_['admin_url'])): ?>
+		<?php if ($_['binding_token_enabled'] && !empty($_['admin_url'])): ?>
 		<div class="itop-personal-config-hint">
 			<span class="icon icon-info"></span>
 			<div>
@@ -376,6 +406,7 @@ $ciClassLabels = [
 	</div>
 
 	<div class="itop-personal-info">
+		<?php if ($_['binding_token_enabled']): ?>
 		<h3><?php p($l->t('How to get your Personal Token')); ?></h3>
 		<ol>
 			<li><?php p($l->t('Log into %s', [$_['display_name']])); ?></li>
@@ -392,6 +423,7 @@ $ciClassLabels = [
 			<li><?php p($l->t('Paste the token in the field above and click "Save"')); ?></li>
 			<li><strong><?php p($l->t('Important:')); ?></strong> <?php p($l->t('The token is used ONCE to verify your Identity, then discarded for security.')); ?></li>
 		</ol>
+		<?php endif; ?>
 
 		<h3><?php p($l->t('Available features')); ?></h3>
 		<ul>
