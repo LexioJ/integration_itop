@@ -20,8 +20,10 @@ use OCA\Itop\Service\CacheService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\BruteForceProtection;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\Files\AppData\IAppDataFactory;
@@ -104,7 +106,22 @@ class ConfigController extends Controller {
 	 * @return DataResponse
 	 * @throws PreConditionNotMetException
 	 */
+	/**
+	 * Both limits are on the whole method rather than the token branch alone,
+	 * which is safe because the endpoint has exactly one caller: the Save
+	 * button in personal settings (src/personal-settings.js), which batches
+	 * every preference on the page into a single PUT. Five manual saves a
+	 * minute is ample, so an ordinary preference change is never refused,
+	 * while a loop that brute-forces iTop personal tokens -- two outbound iTop
+	 * requests per call -- gets a ceiling. The UserRateLimit matches
+	 * DiscoveryController, the comparable self-service route;
+	 * BruteForceProtection adds the exponential delay, and is armed only by
+	 * the throttle() on the validation-failure return below, so a successful
+	 * save or a call carrying no token never counts against it.
+	 */
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 5, period: 60)]
+	#[BruteForceProtection(action: 'itopTokenValidation')]
 	public function setConfig(): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse([], Http::STATUS_BAD_REQUEST);
@@ -260,11 +277,16 @@ class ConfigController extends Controller {
 		$validation = $this->validatePersonalTokenAndExtractPersonId($personalToken);
 
 		if (!$validation['success']) {
-			return new DataResponse([
+			$response = new DataResponse([
 				'message' => $this->l10n->t('Token validation failed'),
 				'error' => $validation['error'],
 				'person_id_configured' => false
 			], Http::STATUS_BAD_REQUEST);
+			// Arms the BruteForceProtection on this method. Only a rejected
+			// token counts, so guessing is delayed exponentially while a user
+			// saving ordinary preferences is never affected.
+			$response->throttle();
+			return $response;
 		}
 
 		// Success! Store Person ID and User ID (NOT the token)
