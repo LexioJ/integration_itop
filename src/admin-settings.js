@@ -229,6 +229,21 @@ import { generateUrl } from '@nextcloud/router'
 			saveBindingRule()
 		})
 
+		// Warn as soon as the admin picks a mutable source, before they save --
+		// mutability is per source and server-controlled (it depends on
+		// allow_user_to_change_email / allow_user_to_change_display_name), so
+		// it's read from the data-mutable attribute the server rendered on
+		// each <option>, not guessed client-side.
+		document.addEventListener('change', function(e) {
+			const select = e.target.closest('#itop-binding-source')
+			if (!select) return
+			const warning = document.getElementById('itop-binding-mutable-warning')
+			if (!warning) return
+			const option = select.selectedOptions[0]
+			const mutable = option ? option.dataset.mutable === '1' : false
+			warning.classList.toggle('hidden', !mutable)
+		})
+
 		// Custom CI classes: browse button
 		const browseButton = document.getElementById('browse-itop-classes')
 		if (browseButton) {

@@ -116,13 +116,29 @@ class BindingConfig {
 	 * so a stock instance is mutable.
 	 */
 	public function isSourceUserMutable(): bool {
-		$displayNameMutable = $this->config->getSystemValueBool('allow_user_to_change_display_name', true);
+		return $this->getSourceMutability()[$this->getMatchSource()];
+	}
 
-		return match ($this->getMatchSource()) {
+	/**
+	 * Whether an end user can change each allowlisted source attribute
+	 * themselves.
+	 *
+	 * The admin settings UI needs this for every source up front -- not just
+	 * the currently-selected one -- so it can warn as soon as the admin picks
+	 * a mutable source, before they save. isSourceUserMutable() reads from
+	 * this map so the two can never disagree.
+	 *
+	 * @return array<string,bool> source => whether an end user can change it themselves
+	 */
+	public function getSourceMutability(): array {
+		$displayNameMutable = $this->config->getSystemValueBool('allow_user_to_change_display_name', true);
+		$emailMutable = $this->config->getSystemValueBool('allow_user_to_change_email', $displayNameMutable);
+
+		return [
 			self::SOURCE_UID => false,
 			self::SOURCE_DISPLAYNAME => $displayNameMutable,
-			default => $this->config->getSystemValueBool('allow_user_to_change_email', $displayNameMutable),
-		};
+			self::SOURCE_EMAIL => $emailMutable,
+		];
 	}
 
 	/**

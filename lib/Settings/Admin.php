@@ -122,6 +122,7 @@ class Admin implements ISettings {
 			'binding_sources' => $this->bindingConfig->getSources(),
 			'binding_targets' => $this->bindingConfig->getTargets(),
 			'binding_source_user_mutable' => $this->bindingConfig->isSourceUserMutable(),
+			'binding_source_mutability' => $this->bindingConfig->getSourceMutability(),
 		];
 
 		return new TemplateResponse(Application::APP_ID, 'adminSettings', $parameters);

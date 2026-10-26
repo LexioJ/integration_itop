@@ -770,7 +770,7 @@ $ciClassLabels = [
 			<label for="itop-binding-source"><?php p($l->t('Match Nextcloud')); ?></label>
 			<select id="itop-binding-source">
 				<?php foreach ($_['binding_sources'] as $source) { ?>
-					<option value="<?php p($source); ?>" <?php if ($source === $_['binding_match_source']) { p('selected'); } ?>>
+					<option value="<?php p($source); ?>" data-mutable="<?php p(!empty($_['binding_source_mutability'][$source]) ? '1' : '0'); ?>" <?php if ($source === $_['binding_match_source']) { p('selected'); } ?>>
 						<?php p($sourceLabels[$source] ?? $source); ?>
 					</option>
 				<?php } ?>
