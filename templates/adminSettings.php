@@ -106,6 +106,76 @@ $ciClassLabels = [
 			</div>
 		</div>
 
+		<!-- Identity Binding Section -->
+		<div class="settings-section" id="itop-binding-rule">
+			<div class="section-header">
+				<h3><?php p($l->t('🔗 Identity binding')); ?></h3>
+				<p class="section-description"><?php p($l->t('How Nextcloud accounts are matched to people in %s. Used by admin-side binding and by the occ itop:bind command.', [$_['user_facing_name']])); ?></p>
+			</div>
+
+			<?php
+			$sourceLabels = [
+				'email' => $l->t('Email address'),
+				'uid' => $l->t('User ID'),
+				'displayname' => $l->t('Display name'),
+			];
+			$targetLabels = [
+				'person.email' => $l->t('Person: email'),
+				'person.employee_number' => $l->t('Person: employee number'),
+				'user.login' => $l->t('User: login'),
+			];
+			?>
+
+			<div class="itop-binding-rule-row">
+				<label for="itop-binding-source"><?php p($l->t('Match Nextcloud')); ?></label>
+				<select id="itop-binding-source">
+					<?php foreach ($_['binding_sources'] as $source) { ?>
+						<option value="<?php p($source); ?>" data-mutable="<?php p(!empty($_['binding_source_mutability'][$source]) ? '1' : '0'); ?>" <?php if ($source === $_['binding_match_source']) { p('selected'); } ?>>
+							<?php p($sourceLabels[$source] ?? $source); ?>
+						</option>
+					<?php } ?>
+				</select>
+
+				<label for="itop-binding-target"><?php p($l->t('against iTop')); ?></label>
+				<select id="itop-binding-target">
+					<?php foreach ($_['binding_targets'] as $target) { ?>
+						<option value="<?php p($target); ?>" <?php if ($target === $_['binding_match_target']) { p('selected'); } ?>>
+							<?php p($targetLabels[$target] ?? $target); ?>
+						</option>
+					<?php } ?>
+				</select>
+
+				<button id="itop-binding-rule-save"><?php p($l->t('Save')); ?></button>
+			</div>
+
+			<div id="itop-binding-mutable-warning" class="itop-binding-warning<?php if (!$_['binding_source_user_mutable']) { p(' hidden'); } ?>">
+				<strong><?php p($l->t('Users can change this attribute themselves on this instance.')); ?></strong>
+				<?php p($l->t('A user could set their value to a colleague\'s and be linked to that person, gaining read access to their tickets. Set allow_user_to_change_email — or allow_user_to_change_display_name if matching on display name — to false, or match on User ID, which cannot be changed. Admin-side binding and occ itop:bind match on the same attribute, so they are affected too: they refuse a person already linked to another account, but one not yet linked can be claimed this way.')); ?>
+			</div>
+		</div>
+
+		<!-- User Associations Section -->
+		<div class="settings-section" id="itop-binding-associations">
+			<div class="section-header">
+				<h3><?php p($l->t('👥 User associations')); ?></h3>
+				<p class="section-description"><?php p($l->t('Which Nextcloud accounts are linked to a person in %s. Accounts excluded here are skipped by matching and by the occ itop:bind command.', [$_['user_facing_name']])); ?></p>
+			</div>
+
+			<div class="itop-binding-toolbar">
+				<div id="itop-binding-scope-picker" class="itop-binding-scope-picker"></div>
+				<span class="itop-binding-filters" id="itop-binding-filters">
+					<button type="button" class="itop-binding-filter active" data-filter="all"><?php p($l->t('All')); ?></button>
+					<button type="button" class="itop-binding-filter" data-filter="unbound"><?php p($l->t('Unbound')); ?></button>
+					<button type="button" class="itop-binding-filter" data-filter="bound"><?php p($l->t('Bound')); ?></button>
+					<button type="button" class="itop-binding-filter" data-filter="excluded"><?php p($l->t('Excluded')); ?></button>
+				</span>
+			</div>
+
+			<div id="itop-binding-bulk" class="itop-binding-bulk hidden"></div>
+			<div id="itop-binding-table" class="itop-binding-table"></div>
+			<div id="itop-binding-pager" class="itop-binding-pager"></div>
+		</div>
+
 		<!-- Ticket System Type Section -->
 		<div class="settings-section" id="itop-section-tickets">
 			<div class="section-header">
@@ -750,72 +820,4 @@ $ciClassLabels = [
 			</div>
 		</div>
 	</div>
-
-	<div id="itop-binding-rule" class="section">
-		<h2><?php p($l->t('Identity binding')); ?></h2>
-		<p class="settings-hint">
-			<?php p($l->t('How Nextcloud accounts are matched to people in %s. Used by admin-side binding and by the occ itop:bind command.', [$_['user_facing_name']])); ?>
-		</p>
-
-		<?php
-		$sourceLabels = [
-			'email' => $l->t('Email address'),
-			'uid' => $l->t('User ID'),
-			'displayname' => $l->t('Display name'),
-		];
-		$targetLabels = [
-			'person.email' => $l->t('Person: email'),
-			'person.employee_number' => $l->t('Person: employee number'),
-			'user.login' => $l->t('User: login'),
-		];
-		?>
-
-		<div class="itop-binding-rule-row">
-			<label for="itop-binding-source"><?php p($l->t('Match Nextcloud')); ?></label>
-			<select id="itop-binding-source">
-				<?php foreach ($_['binding_sources'] as $source) { ?>
-					<option value="<?php p($source); ?>" data-mutable="<?php p(!empty($_['binding_source_mutability'][$source]) ? '1' : '0'); ?>" <?php if ($source === $_['binding_match_source']) { p('selected'); } ?>>
-						<?php p($sourceLabels[$source] ?? $source); ?>
-					</option>
-				<?php } ?>
-			</select>
-
-			<label for="itop-binding-target"><?php p($l->t('against iTop')); ?></label>
-			<select id="itop-binding-target">
-				<?php foreach ($_['binding_targets'] as $target) { ?>
-					<option value="<?php p($target); ?>" <?php if ($target === $_['binding_match_target']) { p('selected'); } ?>>
-						<?php p($targetLabels[$target] ?? $target); ?>
-					</option>
-				<?php } ?>
-			</select>
-
-			<button id="itop-binding-rule-save"><?php p($l->t('Save')); ?></button>
-		</div>
-
-		<div id="itop-binding-mutable-warning" class="itop-binding-warning<?php if (!$_['binding_source_user_mutable']) { p(' hidden'); } ?>">
-			<strong><?php p($l->t('Users can change this attribute themselves on this instance.')); ?></strong>
-			<?php p($l->t('A user could set their value to a colleague\'s and be linked to that person, gaining read access to their tickets. Set allow_user_to_change_email — or allow_user_to_change_display_name if matching on display name — to false, or match on User ID, which cannot be changed. Admin-side binding and occ itop:bind match on the same attribute, so they are affected too: they refuse a person already linked to another account, but one not yet linked can be claimed this way.')); ?>
-		</div>
-	</div>
-</div>
-
-<div id="itop-binding-associations" class="section">
-	<h2><?php p($l->t('User associations')); ?></h2>
-	<p class="settings-hint">
-		<?php p($l->t('Which Nextcloud accounts are linked to a person in %s. Accounts excluded here are skipped by matching and by the occ itop:bind command.', [$_['user_facing_name']])); ?>
-	</p>
-
-	<div class="itop-binding-toolbar">
-		<div id="itop-binding-scope-picker" class="itop-binding-scope-picker"></div>
-		<span class="itop-binding-filters" id="itop-binding-filters">
-			<button type="button" class="itop-binding-filter active" data-filter="all"><?php p($l->t('All')); ?></button>
-			<button type="button" class="itop-binding-filter" data-filter="unbound"><?php p($l->t('Unbound')); ?></button>
-			<button type="button" class="itop-binding-filter" data-filter="bound"><?php p($l->t('Bound')); ?></button>
-			<button type="button" class="itop-binding-filter" data-filter="excluded"><?php p($l->t('Excluded')); ?></button>
-		</span>
-	</div>
-
-	<div id="itop-binding-bulk" class="itop-binding-bulk hidden"></div>
-	<div id="itop-binding-table" class="itop-binding-table"></div>
-	<div id="itop-binding-pager" class="itop-binding-pager"></div>
 </div>
