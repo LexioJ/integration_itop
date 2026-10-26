@@ -43,6 +43,11 @@ class SuggestionService {
 	}
 
 	/**
+	 * Keys are uids. PHP casts a numeric-string key to an int, so a caller that
+	 * serialises this must force an object (see BindingController::suggest());
+	 * uids of "0" and "1" would otherwise json_encode as a JSON array and the
+	 * browser would read the results off the wrong rows.
+	 *
 	 * @param array $uids accounts to resolve
 	 * @return array uid => result, each with a status and, when resolved, tier fields
 	 */
@@ -108,6 +113,10 @@ class SuggestionService {
 		$results = [];
 
 		foreach ($this->suggest($uids) as $uid => $result) {
+			// A numeric uid arrives here as an int key, and isBound() and bind()
+			// both take a string.
+			$uid = (string)$uid;
+
 			if (($result['status'] ?? '') !== 'resolved') {
 				$results[$uid] = $result;
 				continue;

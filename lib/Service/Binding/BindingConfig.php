@@ -166,7 +166,13 @@ class BindingConfig {
 		if (!is_array($decoded)) {
 			return [];
 		}
-		return array_values(array_filter($decoded, 'is_string'));
+		// Integers are accepted as well as strings, and normalised back to
+		// strings here. A numeric uid such as "1001" is ordinary with an LDAP or
+		// SAML backend, and a list written by an older build could have stored
+		// one as a JSON number; dropping it would silently pull a deliberately
+		// excluded account back into scope for matching.
+		$uids = array_filter($decoded, static fn ($uid) => is_string($uid) || is_int($uid));
+		return array_values(array_map('strval', $uids));
 	}
 
 	/**
@@ -215,7 +221,12 @@ class BindingConfig {
 		}
 
 		if ($changed !== []) {
-			$this->writeExcludedUsers(array_keys($set));
+			// strval, because PHP casts a numeric-string array key to an int:
+			// $set['1001'] comes back out of array_keys() as the integer 1001,
+			// json_encodes as a number, and is then dropped on the next read.
+			// The uid would disappear from the exclusion list the moment any
+			// other account was excluded -- no badge, no error, no log.
+			$this->writeExcludedUsers(array_map('strval', array_keys($set)));
 		}
 
 		return $changed;

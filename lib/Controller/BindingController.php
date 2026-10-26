@@ -83,7 +83,11 @@ class BindingController extends Controller {
 
 	public function suggest(array $uids = []): DataResponse {
 		return new DataResponse([
-			'results' => $this->suggestionService->suggest($uids),
+			// Cast: the service keys results by uid, and PHP turns a
+			// numeric-string key into an int. An all-numeric batch would
+			// json_encode as a JSON array, and the browser -- which looks
+			// results up by uid -- would read them off the wrong rows.
+			'results' => (object)$this->suggestionService->suggest($uids),
 			'maxBatch' => SuggestionService::MAX_BATCH,
 		]);
 	}
@@ -96,7 +100,8 @@ class BindingController extends Controller {
 	 * posting an identity the resolver never agreed to.
 	 */
 	public function apply(array $uids = []): DataResponse {
-		return new DataResponse(['results' => $this->suggestionService->apply($uids)]);
+		// Cast for the same reason as suggest(): uid keys, numeric uids.
+		return new DataResponse(['results' => (object)$this->suggestionService->apply($uids)]);
 	}
 
 	/**
