@@ -213,6 +213,28 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
+	 * Remove the iTop link from one account.
+	 *
+	 * Confirmed first: unlinking is not reversible from this screen, and a
+	 * token-bound user can only re-link by pasting a new personal token.
+	 *
+	 * @param {string} uid Nextcloud user id
+	 */
+	async function unbind(uid) {
+		const ok = window.confirm(t('integration_itop',
+			'Remove the iTop link for {uid}? They will not see their tickets until they are linked again.', { uid }))
+		if (!ok) return
+		try {
+			await apiCall('/binding/' + encodeURIComponent(uid), { method: 'DELETE' })
+			showSuccess(t('integration_itop', 'Link removed for {uid}', { uid }))
+			await load()
+		} catch (e) {
+			showError(t('integration_itop', 'Could not remove the link: {msg}', { msg: e.message }))
+			await load()
+		}
+	}
+
+	/**
 	 * Wire the toolbar and pager.
 	 *
 	 * Delegated from document, matching the pattern used elsewhere in this app:
@@ -258,6 +280,9 @@ import { generateUrl } from '@nextcloud/router'
 
 			const rowRestore = e.target.closest('button[data-restore]')
 			if (rowRestore) { setExcluded([rowRestore.dataset.restore], false); return }
+
+			const rowUnbind = e.target.closest('button[data-unbind]')
+			if (rowUnbind) { unbind(rowUnbind.dataset.unbind); return }
 
 			if (e.target.closest('#itop-binding-bulk-exclude')) {
 				setExcluded([...state.selected], true); return
