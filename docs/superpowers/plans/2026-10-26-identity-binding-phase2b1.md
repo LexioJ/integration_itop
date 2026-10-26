@@ -1291,6 +1291,16 @@ orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ group:list
 
 Expected: `itop-testers` listed with `pablo` and `test1`.
 
+Create a real Team too, so the teams source is verified against data and not only against the circles-disabled path. `circles:manage:create` prints the team's id; `getSingleId()` is what the picker sends back as `scopeId`, so note it:
+
+```bash
+orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ circles:manage:create nextadmin 'iTop Helpdesk'
+orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ circles:manage:list --output=json
+orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ circles:manage:join <TEAM_ID> test1
+```
+
+Expected: a team named `iTop Helpdesk` owned by `nextadmin`, with `test1` joined — so its member set is `nextadmin` and `test1`, which is deliberately different from the group's set. Record the real `<TEAM_ID>`; Task 7 needs it.
+
 Then, in the browser devtools console on the admin settings page (the session is already authenticated, so no token juggling):
 
 ```js
@@ -1300,6 +1310,15 @@ await (await fetch(OC.generateUrl('/apps/integration_itop/binding/users?scopeTyp
 ```
 
 Expected, in order: a `groups` entry for `itop-testers` and `teamsAvailable: true` (the `circles` app is installed on this VM); `total: 2` with rows `pablo` and `test1`; and an HTTP **400** carrying `Unknown scope type`.
+
+Then the teams path, with the id you recorded:
+
+```js
+await (await fetch(OC.generateUrl('/apps/integration_itop/binding/scopes?term=helpdesk'), { headers: { requesttoken: OC.requestToken } })).json()
+await (await fetch(OC.generateUrl('/apps/integration_itop/binding/users?scopeType=team&scopeId=<TEAM_ID>'), { headers: { requesttoken: OC.requestToken } })).json()
+```
+
+Expected: a `teams` entry labelled `iTop Helpdesk`, then `total: 2` with rows `nextadmin` and `test1` — proving `getInheritedMembers()` is filtered to real accounts and that teams resolve to a different set than the group.
 
 Also confirm the graceful-degradation path, which is the one most likely to be wrong:
 
@@ -1382,7 +1401,15 @@ Create `src/views/BindingScopePicker.vue`:
 		@input="onInput">
 		<template #option="option">
 			<span class="itop-scope-option">
-				<span>{{ option.label }}</span>
+				<NcAvatar v-if="option.type === 'account'"
+					:user="option.id"
+					:display-name="option.label"
+					:size="24"
+					:disable-menu="true"
+					:disable-tooltip="true" />
+				<AccountGroupIcon v-else-if="option.type === 'group'" :size="24" />
+				<AccountMultipleIcon v-else :size="24" />
+				<span class="itop-scope-option__label">{{ option.label }}</span>
 				<span class="itop-scope-option__type">{{ option.typeLabel }}</span>
 			</span>
 		</template>
@@ -1390,7 +1417,10 @@ Create `src/views/BindingScopePicker.vue`:
 </template>
 
 <script>
+import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
 import NcSelect from '@nextcloud/vue/dist/Components/NcSelect.js'
+import AccountGroupIcon from 'vue-material-design-icons/AccountGroup.vue'
+import AccountMultipleIcon from 'vue-material-design-icons/AccountMultiple.vue'
 import { generateUrl } from '@nextcloud/router'
 import { getRequestToken } from '@nextcloud/auth'
 import { showError } from '@nextcloud/dialogs'
@@ -1399,7 +1429,7 @@ import { translate as t } from '@nextcloud/l10n'
 export default {
 	name: 'BindingScopePicker',
 
-	components: { NcSelect },
+	components: { NcAvatar, NcSelect, AccountGroupIcon, AccountMultipleIcon },
 
 	data() {
 		return {
@@ -1493,8 +1523,12 @@ export default {
 <style scoped>
 .itop-scope-option {
 	display: flex;
-	justify-content: space-between;
+	align-items: center;
 	gap: 8px;
+}
+
+.itop-scope-option__label {
+	flex: 1 1 auto;
 }
 
 .itop-scope-option__type {
@@ -1615,17 +1649,19 @@ Expected: 0 eslint errors, build succeeds. The `admin-binding` bundle grows subs
 
 Load the admin settings page. **Hard-reload it** (`Cmd+Shift+R`): Nextcloud's JS URL does not change when only contents change, so a normal reload can run the previous bundle and make working controls look dead. Then:
 
-1. Type `itop` in the picker. Confirm the dropdown offers **itop-testers** labelled `Group`, and that `GET /binding/scopes?term=itop` returned 200.
+1. Type `itop` in the picker. Confirm the dropdown offers **itop-testers** labelled `Group` with a group icon, **iTop Helpdesk** labelled `Team` with a multiple-people icon, and that `GET /binding/scopes?term=itop` returned 200.
 2. Pick it. Confirm the table request carries `scopeType=group&scopeId=itop-testers`, the table shows exactly `pablo` and `test1`, and the pager reads `Page 1 of 1 · 2 account(s)`.
 3. With the group still selected, click the **Bound** filter. Confirm the request carries both `filter=bound` and the scope, and that the table is empty — neither member is bound.
 4. Clear the selection with the picker's ✕. Confirm the table returns to 4 accounts.
-5. Type `picasso`. Confirm the dropdown offers **Pablo Picasso** labelled `Account`, and that the table itself filters to one row from the free-text `search=picasso` parameter without selecting anything.
+5. Type `picasso`. Confirm the dropdown offers **Pablo Picasso** labelled `Account` **with their avatar rendered, not a placeholder icon**, and that the table itself filters to one row from the free-text `search=picasso` parameter without selecting anything.
 6. Select that account suggestion. Confirm the request carries `scopeType=account&scopeId=pablo` and `search=` is empty.
+7. Select the **iTop Helpdesk** team. Confirm the request carries `scopeType=team` with the real team id, and that the table shows exactly `nextadmin` and `test1` — a different set than the group, which proves the team path is not quietly falling back to the group or to everyone.
 
-Report the request URLs and row counts you actually observed, and the console state. Then remove the fixture:
+Report the request URLs and row counts you actually observed, and the console state. Then remove both fixtures:
 
 ```bash
 orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ group:delete itop-testers
+orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ circles:manage:destroy <TEAM_ID>
 ```
 
 - [ ] **Step 7: Commit**
@@ -1651,7 +1687,112 @@ without the association table."
 
 ---
 
-## Task 8: Document the scope picker
+## Task 8: Avatars in the association table
+
+**Files:**
+- Modify: `src/admin-binding.js`
+- Modify: `css/admin-binding.css`
+
+**Interfaces:**
+- Consumes: `render()`, `esc()` and `generateUrl` from Task 1.
+- Produces: no new exported names.
+
+**Why not `NcAvatar` here:** the table is vanilla string-built HTML, and rendering 25 Vue avatars into it would mean converting the whole table to Vue — the opposite of what the Global Constraints allow. Nextcloud's avatar endpoint, `/avatar/{uid}/{size}`, serves exactly the same image `NcAvatar` fetches, so a plain `<img>` rounded by CSS is visually identical at a fraction of the change. The picker (Task 7) is Vue already and uses the real `NcAvatar` there.
+
+- [ ] **Step 1: Render an avatar per row**
+
+In `src/admin-binding.js`, inside `render()`, replace this fragment of the row template:
+
+```js
+				+ '<label class="itop-binding-select">'
+				+ '<input type="checkbox" data-select="' + esc(row.uid) + '"'
+				+ (state.selected.has(row.uid) ? ' checked' : '') + '>'
+				+ '</label>'
+```
+
+with:
+
+```js
+				+ '<label class="itop-binding-select">'
+				+ '<input type="checkbox" data-select="' + esc(row.uid) + '"'
+				+ (state.selected.has(row.uid) ? ' checked' : '') + '>'
+				+ '</label>'
+				// Same image NcAvatar fetches. alt is empty on purpose: the
+				// display name sits next to it, so a label here would make
+				// screen readers announce the account twice.
+				+ '<img class="itop-binding-avatar" alt="" loading="lazy"'
+				+ ' src="' + esc(generateUrl('/avatar/' + encodeURIComponent(row.uid) + '/32')) + '"'
+				+ ' srcset="' + esc(generateUrl('/avatar/' + encodeURIComponent(row.uid) + '/64')) + ' 2x">'
+```
+
+- [ ] **Step 2: Make room for it and round it**
+
+In `css/admin-binding.css`, replace the `grid-template-columns` line of `.itop-binding-row`:
+
+```css
+	grid-template-columns: 32px minmax(180px, 2fr) minmax(140px, 1fr) auto;
+```
+
+with:
+
+```css
+	grid-template-columns: 32px 32px minmax(180px, 2fr) minmax(140px, 1fr) auto;
+```
+
+and add after the `.itop-binding-row` rule:
+
+```css
+.itop-binding-avatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	/* An avatar that has not loaded must not collapse the column and shift
+	   every row to its left. */
+	background-color: var(--color-background-dark, #ededed);
+}
+```
+
+- [ ] **Step 3: Build**
+
+```bash
+npm run lint
+npm run build
+```
+
+Expected: 0 eslint errors, build succeeds.
+
+- [ ] **Step 4: Verify against ground truth**
+
+Hard-reload the admin settings page (`Cmd+Shift+R`). Confirm:
+
+1. Each row shows a round avatar left of the display name, and the row contents stay aligned in their columns.
+2. In the network tab, one `GET /avatar/<uid>/32` per visible row, each **200** with an `image/*` content type. `nextadmin` and `pablo` have real avatars on this instance; an account without an uploaded picture gets Nextcloud's generated initials image, which is still a 200 — a **404** would mean the URL is wrong.
+3. No console errors.
+
+Report the request statuses you observed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/admin-binding.js css/admin-binding.css
+find js -name '*.mjs' ! -name '*.map' -print0 | xargs -0 git add -f
+git commit -m "Show avatars in the association table
+
+Makes a long list of accounts scannable by face rather than by reading
+every display name.
+
+A plain img against Nextcloud's /avatar endpoint rather than NcAvatar:
+the table is vanilla string-built HTML, so Vue avatars would mean
+converting the whole table, and the endpoint serves the same image.
+
+alt is empty because the display name sits beside it, and the avatar
+column has a background colour so a slow image cannot collapse the
+column and shift the row."
+```
+
+---
+
+## Task 9: Document the scope picker and avatars
 
 **Files:**
 - Modify: `CHANGELOG.md`, `README.md`
@@ -1662,6 +1803,7 @@ In `CHANGELOG.md`, inside the `## [Unreleased]` section's `### Added` block, add
 
 ```markdown
 - **Scope picker on the user associations screen**: one field searches Nextcloud accounts, groups and Teams, and narrows the table to the accounts the chosen scope covers. Teams require the `circles` app; with it disabled the picker simply omits them. Typing without choosing a suggestion still filters by name, user ID or email
+- The user associations table now shows each account's avatar
 ```
 
 - [ ] **Step 2: Update the README**
@@ -1676,7 +1818,7 @@ A single picker above the table searches accounts, groups and Teams, so the list
 
 ```bash
 git add CHANGELOG.md README.md
-git commit -m "Document the association table scope picker"
+git commit -m "Document the association table scope picker and avatars"
 ```
 
 ---
