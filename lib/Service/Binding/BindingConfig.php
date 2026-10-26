@@ -262,6 +262,49 @@ class BindingConfig {
 	}
 
 	/**
+	 * ServiceSubcategory id for the "I have a problem" (Incident) request
+	 * form, or '' if unset or invalid.
+	 *
+	 * Validated here too, not just on write: this ends up interpolated into a
+	 * URL shown to users, and the stored value could have arrived from an
+	 * older build, from occ config:app:set, or straight from the database --
+	 * none of which pass through setRequestCategoryIds(). An invalid value is
+	 * dropped rather than rendered.
+	 */
+	public function getRequestIncidentId(): string {
+		return $this->readRequestCategoryId('binding_request_incident_id');
+	}
+
+	/**
+	 * ServiceSubcategory id for the "I need assistance" (User Request) form,
+	 * or '' if unset or invalid. See getRequestIncidentId() for why this is
+	 * re-validated on read.
+	 */
+	public function getRequestUserRequestId(): string {
+		return $this->readRequestCategoryId('binding_request_userrequest_id');
+	}
+
+	private function readRequestCategoryId(string $key): string {
+		$value = $this->appConfig->getValueString(Application::APP_ID, $key, '');
+		return preg_match('/^[0-9]+$/', $value) ? $value : '';
+	}
+
+	/**
+	 * @throws \InvalidArgumentException if either id is non-empty and not all digits
+	 */
+	public function setRequestCategoryIds(string $incidentId, string $userRequestId): void {
+		if ($incidentId !== '' && !preg_match('/^[0-9]+$/', $incidentId)) {
+			throw new \InvalidArgumentException('Incident ServiceSubcategory id must be numeric: ' . $incidentId);
+		}
+		if ($userRequestId !== '' && !preg_match('/^[0-9]+$/', $userRequestId)) {
+			throw new \InvalidArgumentException('User Request ServiceSubcategory id must be numeric: ' . $userRequestId);
+		}
+
+		$this->appConfig->setValueString(Application::APP_ID, 'binding_request_incident_id', $incidentId);
+		$this->appConfig->setValueString(Application::APP_ID, 'binding_request_userrequest_id', $userRequestId);
+	}
+
+	/**
 	 * Persists the exclusion list. The only place that writes
 	 * binding_excluded_users, so the lazy flag and JSON encoding exist once.
 	 *

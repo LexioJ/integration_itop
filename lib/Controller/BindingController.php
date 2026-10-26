@@ -198,8 +198,26 @@ class BindingController extends Controller {
 	/**
 	 * Toggle the two self-service binding routes: personal token and
 	 * discovery. Admin-side binding has no toggle -- it is always available.
+	 *
+	 * Also carries the two request-form ServiceSubcategory ids: they live in
+	 * the same "Self-service account linking" subsection of the admin UI and
+	 * are posted by the same save button, so they share this route rather
+	 * than getting one of their own.
 	 */
-	public function setSelfService(bool $tokenEnabled, bool $discoveryEnabled): DataResponse {
+	public function setSelfService(
+		bool $tokenEnabled,
+		bool $discoveryEnabled,
+		string $requestIncidentId = '',
+		string $requestUserRequestId = '',
+	): DataResponse {
+		try {
+			$this->bindingConfig->setRequestCategoryIds($requestIncidentId, $requestUserRequestId);
+		} catch (\InvalidArgumentException $e) {
+			// Naming which field was wrong: an administrator who pastes a
+			// whole URL instead of the id must be told, not silently ignored.
+			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+
 		$this->bindingConfig->setSelfServiceMethods($tokenEnabled, $discoveryEnabled);
 
 		$this->logger->info('iTop self-service binding methods set: token={token} discovery={discovery}', [
@@ -211,6 +229,8 @@ class BindingController extends Controller {
 		return new DataResponse([
 			'token_enabled' => $this->bindingConfig->isTokenBindingEnabled(),
 			'discovery_enabled' => $this->bindingConfig->isDiscoveryEnabled(),
+			'request_incident_id' => $this->bindingConfig->getRequestIncidentId(),
+			'request_userrequest_id' => $this->bindingConfig->getRequestUserRequestId(),
 		]);
 	}
 

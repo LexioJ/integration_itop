@@ -217,6 +217,31 @@ $ciClassLabels = [
 					<?php p($l->t('Let users link themselves by matching their account attribute (off by default — the matched attribute decides which iTop person they receive)')); ?>
 				</label>
 			</div>
+
+			<div class="form-row">
+				<div class="form-field">
+					<label for="itop-binding-request-incident-id"><?php p($l->t("ServiceSubcategory ID for 'I have a problem' (Incident)")); ?></label>
+					<input
+						type="text"
+						id="itop-binding-request-incident-id"
+						value="<?php p($_['binding_request_incident_id']); ?>"
+						placeholder="<?php p($l->t('e.g., 3')); ?>"
+						class="form-input"
+					/>
+				</div>
+				<div class="form-field">
+					<label for="itop-binding-request-userrequest-id"><?php p($l->t("ServiceSubcategory ID for 'I need assistance' (User Request)")); ?></label>
+					<input
+						type="text"
+						id="itop-binding-request-userrequest-id"
+						value="<?php p($_['binding_request_userrequest_id']); ?>"
+						placeholder="<?php p($l->t('e.g., 4')); ?>"
+						class="form-input"
+					/>
+				</div>
+			</div>
+			<p class="form-hint"><?php p($l->t('Both are optional; leaving one empty hides that link. Entering the same ID in both is fine when one form covers both cases — the user then sees a single link.')); ?></p>
+
 			<div class="itop-binding-rule-row">
 				<button id="itop-binding-self-service-save"><?php p($l->t('Save self-service settings')); ?></button>
 			</div>

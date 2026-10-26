@@ -346,6 +346,8 @@ import { generateUrl } from '@nextcloud/router'
 	function saveSelfServiceMethods() {
 		const tokenEnabled = document.getElementById('itop-binding-token-enabled').checked
 		const discoveryEnabled = document.getElementById('itop-binding-discovery-enabled').checked
+		const requestIncidentId = document.getElementById('itop-binding-request-incident-id').value.trim()
+		const requestUserRequestId = document.getElementById('itop-binding-request-userrequest-id').value.trim()
 
 		fetch(generateUrl('/apps/integration_itop/binding/self-service'), {
 			method: 'POST',
@@ -353,7 +355,7 @@ import { generateUrl } from '@nextcloud/router'
 				'Content-Type': 'application/json',
 				requesttoken: getRequestToken(),
 			},
-			body: JSON.stringify({ tokenEnabled, discoveryEnabled }),
+			body: JSON.stringify({ tokenEnabled, discoveryEnabled, requestIncidentId, requestUserRequestId }),
 		})
 			.then(response => response.json().then(data => ({ ok: response.ok, data })))
 			.then(({ ok, data }) => {
