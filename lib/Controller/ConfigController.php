@@ -242,6 +242,20 @@ class ConfigController extends Controller {
 			], Http::STATUS_FORBIDDEN);
 		}
 
+		// An exclusion is absolute: an administrator who excludes an account from
+		// matching means it is never linked, by any route. The canonical rule
+		// lives in IdentityBindingService::bind(), which refuses an excluded
+		// account as its first act and re-checks it below; this copy exists only
+		// to map that refusal onto the status code this endpoint's callers
+		// expect. Checked before the token is validated so an excluded account
+		// does not get a token-validation oracle either.
+		if ($this->bindingConfig->isExcluded($this->userId)) {
+			return new DataResponse([
+				'message' => $this->l10n->t('This account is excluded from %s matching. Please contact an administrator.', [$this->getUserFacingName()]),
+				'person_id_configured' => false,
+			], Http::STATUS_FORBIDDEN);
+		}
+
 		// Phase 2: Validate personal token and extract Person ID using :current_contact_id
 		$validation = $this->validatePersonalTokenAndExtractPersonId($personalToken);
 
@@ -275,29 +289,37 @@ class ConfigController extends Controller {
 			], Http::STATUS_CONFLICT);
 		}
 
-		// Drop derived state first, for the same reason as IdentityBindingService::bind():
-		// a failure part-way through must never leave a user_id belonging to a different
-		// person than person_id. iTop profiles hang off the User, so a mismatched pair can
-		// grant a profile that was never authorised, while an absent user_id is re-derived
-		// from person_id by ProfileService. The cached portal verdict belongs to the
-		// previous identity too, so it is dropped rather than inherited.
-		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'is_portal_only');
-		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'profiles_last_check');
-		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'user_id');
-
-		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'person_id', $personId);
-
-		// A Person with no iTop User is valid; ProfileService derives the User id from
-		// person_id on demand, or treats its absence as portal-only.
-		if ($userId !== null && $userId !== '') {
-			$this->userConfig->setValueString($this->userId, Application::APP_ID, 'user_id', $userId);
+		// The write goes through the one chokepoint rather than being repeated
+		// here. bind() drops the derived state in the order that keeps a user_id
+		// from ever outliving a different person_id -- iTop profiles hang off the
+		// User, so a mismatched pair can grant a profile that was never
+		// authorised -- re-checks both the exclusion and the conflict, and emits
+		// the audit line. The two checks above are not a second copy of those
+		// rules, only the mapping from them to this endpoint's status codes.
+		try {
+			$this->identityBindingService->bind(
+				$this->userId,
+				$personId,
+				$userId,
+				IdentityBindingService::METHOD_TOKEN
+			);
+		} catch (\RuntimeException $e) {
+			// Only reachable by a race against the checks above: the person taken
+			// by another account, or this account excluded, between validating
+			// the token and writing. The message names another account, so it is
+			// logged for the administrator and not returned to the user.
+			$this->logger->warning('iTop: personal-token binding refused at the write chokepoint for ' . $this->userId, [
+				'app' => Application::APP_ID,
+				'exception' => $e,
+			]);
+			return new DataResponse([
+				'message' => $this->l10n->t('This iTop account is already linked to another Nextcloud user. Please contact your administrator.'),
+				'person_id_configured' => false
+			], Http::STATUS_CONFLICT);
 		}
 
-		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'binding_method', IdentityBindingService::METHOD_TOKEN);
-		$this->userConfig->setValueString($this->userId, Application::APP_ID, 'binding_at', (string)time());
 		// Clean up any old token storage (Phase 1 leftover)
 		$this->userConfig->deleteUserConfig($this->userId, Application::APP_ID, 'token');
-		$this->logger->info('iTop: Person ID ' . $personId . ' and User ID ' . $userId . ' configured for user ' . $this->userId, ['app' => Application::APP_ID]);
 
 		// Personal token is now discarded (never stored)
 		$userInfo = $validation['user_info'];
@@ -313,6 +335,16 @@ class ConfigController extends Controller {
 				'person_id' => $personId
 			]
 		]);
+	}
+
+	/**
+	 * The administrator-configured display name, defaulting to the real
+	 * product name -- the same read as DiscoveryController and
+	 * lib/Settings/Personal.php, so the personal page never names the product
+	 * an administrator chose to rename.
+	 */
+	private function getUserFacingName(): string {
+		return $this->appConfig->getValueString(Application::APP_ID, 'user_facing_name', 'iTop');
 	}
 
 	/**
