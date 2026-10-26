@@ -67,6 +67,9 @@ class IdentityResolver {
 		});
 	}
 
+	/**
+	 * @throws \RuntimeException if iTop could not be queried
+	 */
 	public function resolve(IUser $user): MatchResult {
 		$value = $this->sourceValueFor($user);
 		if ($value === '') {
@@ -96,11 +99,29 @@ class IdentityResolver {
 				'uid' => $user->getUID(),
 				'error' => $response['error'],
 			]);
-			return MatchResult::none($value);
+			// "We could not reach iTop" is not "nothing matched". Returning
+			// TIER_NONE here was safe -- it is never bindable, so an outage
+			// could not produce a wrong identity -- but it told the user to ask
+			// an administrator about a directory problem that does not exist,
+			// and made occ itop:bind report every account as unmatched and exit
+			// 0 during an outage.
+			//
+			// ItopAPIService::appRequest() catches every transport and API
+			// failure and always returns an array, so throwing is the only way
+			// to distinguish the two. The callers already handle it: both
+			// DiscoveryService::resolve() and SuggestionService::suggest()
+			// catch Throwable and report their existing 'failed' status, which
+			// DiscoveryController renders as "could not be reached" with a 502.
+			// The message can carry the iTop URL and query detail, so it reaches
+			// the log and the admin-only screens, never an end user's response.
+			throw new \RuntimeException('iTop identity resolution failed: ' . $response['error']);
 		}
 
 		$objects = $response['objects'] ?? [];
 		if (!is_array($objects) || $objects === []) {
+			// A genuine no-match: iTop answered, with nothing. iTop sends
+			// objects as null for an empty result set, which is why an absent
+			// key is not treated as a failure here.
 			return MatchResult::none($value);
 		}
 
