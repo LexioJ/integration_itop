@@ -15,6 +15,7 @@
 - `Application::APP_ID` (`'integration_itop'`) — never hard-code the string in PHP.
 - **No new npm dependencies.** Vue only in `src/views/` components; `src/personal-settings.js` stays vanilla.
 - Every user-facing string through `$l->t()` in PHP or `t('integration_itop', …)` in JS. Counts through `translatePlural` as `n`. **No English-only plural idioms** such as `account(s)` — this app ships `de`, `de_DE` and `fr`, and labels run longer in all of them.
+- **Every new string must be translated, not just wrapped.** Task 5 does that for the whole branch; do not leave it to a later sweep that may not happen.
 - **Tests are local-only and never committed.** `tests/`, `phpunit.xml` and `docs/testing.md` are gitignored. Write and run them; commit only source.
 - The `js/` directory is gitignored, but its built `.mjs` bundles **are tracked**. After `npm run build`: `find js -name '*.mjs' ! -name '*.map' -print0 | xargs -0 git add -f`.
 - `no-unused-vars` is an eslint **error**. Expect 0 errors (14 pre-existing warnings are fine).
@@ -369,4 +370,83 @@ Extend the identity-binding bullet to mention the third binding route and its to
 ```bash
 git add CHANGELOG.md README.md
 git commit -m "Document self-service discovery"
+```
+
+---
+
+## Task 5: Translate every untranslated string on this branch
+
+The app ships `de`, `de_DE`, `fr` and `en`. **128 source strings are missing from `de.json`** — most of them added by this branch: the whole association table, the scope and person pickers, the action bar, and every error toast. Shipping as-is means the newest screen is English-only for German and French users. Phase 4 adds roughly twenty more.
+
+**Files:**
+- Modify: `l10n/de.json`, `l10n/de.js`, `l10n/de_DE.json`, `l10n/de_DE.js`, `l10n/fr.json`, `l10n/fr.js`, `l10n/en.json`, `l10n/en.js`
+
+### The conventions this app already follows — verified, not assumed
+
+- **`de` is informal and `de_DE` is formal.** 46 existing entries differ on exactly this: `"Ein neues Ticket wurde dir zugewiesen"` (de) against `"Ein neues Ticket wurde Ihnen zugewiesen"` (de_DE); `"Klicke auf …"` against `"Klicken Sie auf …"`. Strings with no address form are identical in both files. Follow that: translate once, then produce the `de_DE` variant only where an address form appears.
+- **`fr`** uses the usual formal *vous*.
+- **`en.json` is near-identity** — 498 of its 510 entries map a string to itself. It exists so English is a complete catalogue; add new strings there mapping to themselves unless a different en form is genuinely needed.
+- Each locale has a **`.json` and a `.js`** carrying the same catalogue (`OC.L10N.register(...)`). **Both must be updated and kept in sync** — a string present in one and not the other is a silent gap.
+- `pluralForm` headers already exist (`nplurals=2; plural=(n != 1);` for de). There are currently **no plural entries at all**; this branch introduced `translatePlural`, so its entries must be **arrays** of the right length for each locale, not strings.
+
+- [ ] **Step 1: Produce the authoritative list of missing strings**
+
+Extract every `t('integration_itop', '…')`, `n('integration_itop', '…', '…', …)` and `$l->t('…')` literal from `src/`, `templates/` and `lib/`, and diff against each locale's catalogue. Do not hand-collect — the list is ~150 strings and anything missed ships untranslated.
+
+Report the count per locale before you start translating.
+
+- [ ] **Step 2: Translate**
+
+Terminology to keep consistent, because these recur across the screen and drift is worse than an imperfect single choice:
+
+| English | German | French |
+|---|---|---|
+| binding / to link | Verknüpfung / verknüpfen | liaison / lier |
+| match (noun) | Übereinstimmung | correspondance |
+| to match | zuordnen | faire correspondre |
+| account | Konto | compte |
+| person (iTop) | Person | personne |
+| excluded | ausgeschlossen | exclu |
+| suggestion | Vorschlag | suggestion |
+
+Leave product and protocol nouns untranslated: `iTop`, `Nextcloud`, `Team`, `occ`, `REST`, `Person` as an iTop class name, and the instance's own display name.
+
+Preserve every placeholder exactly — `{count}`, `{uid}`, `{name}`, `{msg}`, `%s`. A dropped or renamed placeholder is a runtime defect, not a typo.
+
+**Flag rather than guess.** If a string's meaning is ambiguous out of context, or a term has no good equivalent, translate it as best you can and list it in your report under "please check" — the user is a native German speaker and will review the German.
+
+- [ ] **Step 3: Keep `.js` and `.json` in sync**
+
+Regenerate or edit both per locale so the catalogues match exactly. Verify programmatically that every locale's `.js` and `.json` contain the same key set — do not eyeball it.
+
+- [ ] **Step 4: Verify**
+
+```bash
+php -l l10n/de.js 2>/dev/null || true
+node -e "require('./l10n/de.js')" 2>/dev/null || true
+./vendor/bin/phpunit
+npm run lint && npm run build
+```
+
+Then check programmatically that:
+- every source string now resolves in all four locales,
+- every plural entry is an array of the locale's `nplurals` length,
+- every placeholder present in the English string is present in each translation,
+- `de` and `de_DE` differ **only** where an address form occurs.
+
+Report the before/after missing counts per locale.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add l10n/
+git commit -m "Translate the identity binding UI into de, de_DE and fr
+
+128 strings were missing from the German catalogue alone -- the whole
+association table, both pickers, the action bar and every error toast --
+so the newest screen rendered in English for every non-English user.
+
+de is informal and de_DE formal, matching the 46 entries that already
+differ on exactly that. Plural entries are arrays per locale rather than
+the English (s) idiom, which no other language forms that way."
 ```
