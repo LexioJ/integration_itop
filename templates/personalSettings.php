@@ -48,6 +48,13 @@ $renderRequestLinks = function () use ($requestLinks, $l) {
 ?>
 
 <div id="itop_prefs" class="section">
+	<?php if (!empty($requestLinks)): ?>
+	<!-- Page-level, not nested in a field: src/personal-settings.js clones this
+	     onto the discovery outcomes that end at "ask an administrator", and it
+	     has to be reachable independently of which self-service toggles are on.
+	     Inert markup -- a <template> is never rendered as-is. -->
+	<template id="itop-request-access-template"><?php $renderRequestLinks(); ?></template>
+	<?php endif; ?>
 	<div class="itop-personal-header">
 		<div class="icon-container">
 			<div class="app-icon"></div>
@@ -139,6 +146,15 @@ $renderRequestLinks = function () use ($requestLinks, $l) {
 					<?php p($l->t('Personal tokens are only issued to back-end users. If you cannot get one, please ask an administrator to link your account. An administrator can also enable self-service discovery, or install the "iTop Portal Personal Tokens" extension to issue tokens to portal users.')); ?>
 				<?php endif; ?>
 			</p>
+			<?php /* Token binding on, discovery off, and no token obtainable: a
+			         portal user is told to ask an administrator with no way to do
+			         it. The likeliest configuration to reach that message, so the
+			         links belong here too -- not only in the both-toggles-off
+			         case below. Suppressed once the account is linked: there is
+			         then nothing left to request. */ ?>
+			<?php if (!$_['binding_discovery_enabled'] && !$_['person_id_configured']): ?>
+				<?php $renderRequestLinks(); ?>
+			<?php endif; ?>
 		</div>
 		<?php endif; ?>
 
@@ -153,15 +169,16 @@ $renderRequestLinks = function () use ($requestLinks, $l) {
 				<?php p($l->t('Discover me in %s', [$_['display_name']])); ?>
 			</button>
 			<div id="itop-discover-result" class="itop-discover-result hidden"></div>
-			<?php if (!empty($requestLinks)): ?>
-			<!-- Cloned by src/personal-settings.js onto the outcomes that end at
-			     "ask an administrator". Inert until then; never rendered as-is. -->
-			<template id="itop-request-access-template"><?php $renderRequestLinks(); ?></template>
-			<?php endif; ?>
 		</div>
 		<?php endif; ?>
 
-		<?php if (!$_['binding_token_enabled'] && !$_['binding_discovery_enabled']): ?>
+		<?php /* person_id_configured is part of the condition, not just the two
+		         toggles: an already-linked user needs neither the notice (their
+		         account is linked, so asking an administrator to link it is
+		         nonsense) nor the links (they have nothing to request). The
+		         notice predates this change and was shown to linked users too;
+		         the links must not inherit that. */ ?>
+		<?php if (!$_['person_id_configured'] && !$_['binding_token_enabled'] && !$_['binding_discovery_enabled']): ?>
 		<div class="field">
 			<p class="hint"><?php p($l->t('Self-service account linking is disabled. Please ask an administrator to link your account to %s.', [$_['display_name']])); ?></p>
 			<?php $renderRequestLinks(); ?>
@@ -425,10 +442,19 @@ $renderRequestLinks = function () use ($requestLinks, $l) {
 
 		<?php endif; /* person_id_configured */ ?>
 
+		<?php /* Unlinked with token binding off leaves no persistable field on
+		         the page at all: Save would post {} and the server would still
+		         answer "Settings saved successfully", confirming a save that
+		         saved nothing. Kept when token binding is on but unlinked -- the
+		         token field is there and is submitted through this same button.
+		         #itop-result stays unconditional; src/personal-settings.js gates
+		         the save path on both, and no longer returns early without them. */ ?>
+		<?php if ($_['person_id_configured'] || $_['binding_token_enabled']): ?>
 		<button id="itop-save" class="button" <?php echo !$_['has_application_token'] ? 'disabled' : ''; ?>>
 			<span class="icon icon-checkmark"></span>
 			<?php p($l->t('Save')); ?>
 		</button>
+		<?php endif; ?>
 
 		<div id="itop-result" class="result hidden">
 			<span class="icon"></span>
@@ -466,6 +492,12 @@ $renderRequestLinks = function () use ($requestLinks, $l) {
 		</ol>
 		<?php endif; ?>
 
+		<?php /* Same condition as the "ask an administrator" notice above. A user
+		         who is not linked and has no self-service route cannot reach any
+		         of these, so listing them only advertises what they cannot have.
+		         Kept wherever a self-service route exists -- there the list is
+		         the reason to bother linking. */ ?>
+		<?php if ($_['person_id_configured'] || $_['binding_token_enabled'] || $_['binding_discovery_enabled']): ?>
 		<h3><?php p($l->t('Available features')); ?></h3>
 		<ul>
 			<li><?php p($l->t('Dashboard widget with your assigned tickets')); ?></li>
@@ -473,5 +505,6 @@ $renderRequestLinks = function () use ($requestLinks, $l) {
 			<li><?php p($l->t('Rich previews when sharing %s links', [$_['display_name']])); ?></li>
 			<li><?php p($l->t('Notifications for newly assigned tickets')); ?></li>
 		</ul>
+		<?php endif; ?>
 	</div>
 </div>

@@ -1268,6 +1268,9 @@ body[data-theme-dark] .itop-discover-result.error {
     text-decoration: underline;
 }
 
-.itop-discover-result .itop-request-access-links a {
+/* Only on the error background, where the primary link colour is unreadable
+   against the red. The 200 outcomes (not_self_serviceable) render with the
+   plain style and keep the normal link colour. */
+.itop-discover-result.error .itop-request-access-links a {
     color: inherit;
 }

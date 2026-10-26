@@ -34,9 +34,12 @@ import { generateUrl } from '@nextcloud/router'
 		const notificationEnabledField = document.getElementById('itop-notification-enabled')
 		const resultDiv = document.getElementById('itop-result')
 
-		if (!saveButton || !resultDiv) {
-			return
-		}
+		// No early return on a missing Save button. It is absent when an
+		// unlinked user has no persistable field at all (see
+		// templates/personalSettings.php), and returning here would abandon the
+		// rest of this module -- including the discovery listener below, leaving
+		// a Discover button that renders perfectly and does nothing. That exact
+		// bug has already shipped on this page once. Gate the save path only.
 
 		// Handle notification master toggle
 		if (notificationEnabledField) {
@@ -200,6 +203,8 @@ import { generateUrl } from '@nextcloud/router'
 		}
 
 		/**
+		 * Only ever reached from the save handler, which is attached behind a
+		 * `saveButton && resultDiv` check, so `resultDiv` is non-null here.
 		 *
 		 * @param message
 		 * @param isError
@@ -256,7 +261,14 @@ import { generateUrl } from '@nextcloud/router'
 			}
 		}
 
-		saveButton.addEventListener('click', function() {
+		if (saveButton && resultDiv) {
+			saveButton.addEventListener('click', onSave)
+		}
+
+		/**
+		 * Collects whatever controls are on the page and PUTs them to /config.
+		 */
+		function onSave() {
 			resultDiv.classList.add('hidden')
 
 			const personalToken = personalTokenField ? personalTokenField.value.trim() : ''
@@ -380,17 +392,27 @@ import { generateUrl } from '@nextcloud/router'
 							const response = JSON.parse(req.responseText)
 
 							if (response.person_id_configured && response.user_info) {
-								showResult(
-									response.message || 'Configuration successful!',
-									false,
-									response.user_info,
-								)
-							} else {
-								showResult(
-									response.message || 'Settings saved',
-									false,
-								)
+								// A token was just validated and the account is
+								// now linked. Reload rather than only repainting
+								// the status cards: whether Search, Notification
+								// and CI-class settings are rendered at all was
+								// decided server-side, so without this the user
+								// is told they are connected while every toggle
+								// is still missing from the page. Same ending as
+								// confirmDiscovery() -- the two linking paths
+								// must leave the user in the same state.
+								// Fallback reuses confirmDiscovery()'s string rather
+								// than adding a near-duplicate: the two paths end
+								// in the same place and already say the same thing.
+								showSuccess(response.message || t('integration_itop', 'Your account is now linked.'))
+								window.location.reload()
+								return
 							}
+
+							showResult(
+								response.message || 'Settings saved',
+								false,
+							)
 						} catch (e) {
 							showResult('Failed to parse server response', true)
 						}
@@ -407,7 +429,7 @@ import { generateUrl } from '@nextcloud/router'
 			}
 
 			req.send(JSON.stringify(params))
-		})
+		}
 
 		// Self-service discovery: "Discover me in <instance>" button.
 		const discoverButton = document.getElementById('itop-discover-button')
