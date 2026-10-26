@@ -221,7 +221,8 @@ import { generateUrl } from '@nextcloud/router'
 	 *
 	 * conflict and none get no action deliberately: bind() refuses a
 	 * conflict on every path, so an Apply button would promise something the
-	 * server rejects.
+	 * server rejects. ambiguous gets no action here either -- its manual-link
+	 * route lives in the actions cell now, see describeLinkAction.
 	 *
 	 * An already-bound row gets no action either, even for an exact or
 	 * review tier: apply-one trusts the administrator and does not carry
@@ -248,11 +249,39 @@ import { generateUrl } from '@nextcloud/router'
 			return '<button type="button" data-confirm="' + esc(uid) + '">'
 				+ esc(t('integration_itop', 'Confirm…')) + '</button>'
 		}
-		if (s.tier === 'ambiguous') {
-			return '<button type="button" data-choose="' + esc(uid) + '">'
-				+ esc(t('integration_itop', 'Choose…')) + '</button>'
-		}
 		return ''
+	}
+
+	/**
+	 * Manual-link action for one row, if any.
+	 *
+	 * Offered on every row that is not bound and not excluded -- regardless
+	 * of tier, and regardless of whether Suggest has even been run. That is
+	 * the point of the feature: an account the matcher cannot resolve (e.g.
+	 * no email to match on) would otherwise have no route to a link at all.
+	 * Lives in the actions cell beside Exclude rather than the tier cell:
+	 * the tier cell renders "—" when there is no suggestion, and an action
+	 * that works without one should not sit somewhere that looks empty.
+	 *
+	 * The label is tier-dependent because the wording carries real meaning:
+	 * an ambiguous row already has known candidates to choose between, so it
+	 * reads "Choose…"; every other row -- including no suggestion at all --
+	 * opens an empty picker to search, so it reads "Link manually…". This is
+	 * the one and only manual-link button a row can show; it replaces the
+	 * old ambiguous-only "Choose…" that used to live in the tier cell.
+	 *
+	 * @param {object} row a row from /binding/users
+	 * @return {string} HTML for the action, or an empty string
+	 */
+	function describeLinkAction(row) {
+		if (row.bound || row.excluded) return ''
+
+		const uid = row.uid
+		const s = state.suggestions[uid]
+		const label = (s && s.status === 'resolved' && s.tier === 'ambiguous')
+			? t('integration_itop', 'Choose…')
+			: t('integration_itop', 'Link manually…')
+		return '<button type="button" data-choose="' + esc(uid) + '">' + esc(label) + '</button>'
 	}
 
 	/**
@@ -285,6 +314,7 @@ import { generateUrl } from '@nextcloud/router'
 				+ '<span class="itop-binding-tier">' + describeTier(row) + '</span>'
 				+ '<span class="itop-binding-actions">'
 				+ describeTierAction(row)
+				+ describeLinkAction(row)
 				+ (row.bound
 					? '<button type="button" data-unbind="' + esc(row.uid) + '">'
 					+ esc(t('integration_itop', 'Unlink')) + '</button>'
@@ -646,8 +676,11 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
-	 * Open the ambiguous-row picker for one account, seeded with that row's
-	 * own candidates so the obvious choices need no search.
+	 * Open the person picker for one account, for either a known-ambiguous
+	 * row (seeded with that row's own candidates so the obvious choices need
+	 * no search) or any other unbound, non-excluded row (opened empty, so
+	 * the administrator searches) -- see describeLinkAction for which label
+	 * leads here.
 	 *
 	 * Mounted on demand, like the scope picker, so the Vue runtime is not
 	 * parsed on a page where the association table is absent -- which here
@@ -656,15 +689,15 @@ import { generateUrl } from '@nextcloud/router'
 	 * @param {string} uid Nextcloud user id
 	 */
 	async function openPersonPicker(uid) {
-		// Same stale-DOM reasoning as confirmReview: describeTierAction never
-		// renders this button on a bound row, but a click queued before a
-		// reload finished must not open a picker whose only outcome would be a
-		// refusal from apply-one.
+		// Same stale-DOM reasoning as confirmReview: describeLinkAction never
+		// renders this button on a bound or excluded row, but a click queued
+		// before a reload finished must not open a picker whose only outcome
+		// would be a refusal from apply-one.
 		const row = state.rows.find(r => r.uid === uid)
-		if (row && row.bound) return
+		if (row && (row.bound || row.excluded)) return
 
 		const s = state.suggestions[uid]
-		if (!s || s.status !== 'resolved' || s.tier !== 'ambiguous') return
+		const candidates = (s && s.status === 'resolved' && s.tier === 'ambiguous') ? s.candidates : []
 
 		const { default: Vue } = await import('vue')
 		const { default: PersonPicker } = await import('./views/PersonPicker.vue')
@@ -674,7 +707,7 @@ import { generateUrl } from '@nextcloud/router'
 
 		const Picker = Vue.extend(PersonPicker)
 		const picker = new Picker({
-			propsData: { candidates: s.candidates },
+			propsData: { candidates },
 		}).$mount(mountPoint)
 
 		const destroy = () => {

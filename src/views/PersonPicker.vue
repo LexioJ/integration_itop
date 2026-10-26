@@ -1,13 +1,17 @@
 <!--
   - Nextcloud - iTop Integration
   -
-  - Admin: the picker opened from an ambiguous row's "Choose…" action.
+  - Admin: the picker opened from a row's "Choose…" or "Link manually…"
+  - action.
   -
-  - "Ambiguous" means the resolver found more than one iTop Person with
-  - equal claim to the account and deliberately refused to guess; this
-  - picker is where the administrator makes that call instead. It is seeded
-  - with the suggestion's own candidates so the obvious choices need no
-  - search, and falls back to a live search for anyone else.
+  - "Choose…" appears on an ambiguous row -- the resolver found more than
+  - one iTop Person with equal claim to the account and deliberately
+  - refused to guess, so this picker is where the administrator makes that
+  - call instead, seeded with the suggestion's own candidates so the
+  - obvious choices need no search. "Link manually…" appears on every
+  - other unbound, non-excluded row, with or without a suggestion, and
+  - opens the same picker empty so the administrator searches from
+  - scratch. Either way it falls back to a live search for anyone else.
   -->
 <template>
 	<NcModal size="small" @close="onCancel">
