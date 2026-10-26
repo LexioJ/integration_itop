@@ -174,9 +174,15 @@ import { generateUrl } from '@nextcloud/router'
 					} else if (typeof data.incidents !== 'undefined' && typeof data.requests !== 'undefined') {
 						const incidents = data.incidents || 0
 						const requests = data.requests || 0
-						const total = incidents + requests
+						const total = data.simple ? requests : incidents + requests
 
-						ticketsValue.innerHTML = `
+						ticketsValue.innerHTML = data.simple
+							? `
+                        <div class="itop-ticket-counts">
+                            <div>${t('integration_itop', 'Tickets:')} <span class="itop-count-large">${total}</span></div>
+                        </div>
+                    `
+							: `
                         <div class="itop-ticket-counts">
                             <div>${t('integration_itop', 'Incidents:')} <span class="itop-count-large">${incidents}</span></div>
                             <div>${t('integration_itop', 'Requests:')} <span class="itop-count-large">${requests}</span></div>

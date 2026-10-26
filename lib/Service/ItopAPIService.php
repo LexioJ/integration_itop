@@ -393,10 +393,11 @@ class ItopAPIService {
 		if (empty($fullName)) {
 			return ['incidents' => 0, 'requests' => 0, 'status' => 'no_user'];
 		}
-		
+
 		$incidentCount = 0;
 		$requestCount = 0;
-		
+		$isSimple = $this->getEffectiveTicketSystemType($userId) === Application::TICKET_SYSTEM_TYPE_SIMPLE;
+
 		// Query UserRequest tickets
 		$escapedFullName = $this->escapeOQLString($fullName);
 		$userRequestQuery = "SELECT UserRequest WHERE caller_id_friendlyname = '$escapedFullName' AND status != 'closed'";
@@ -412,25 +413,29 @@ class ItopAPIService {
 			$requestCount = count($userRequestResult['objects']);
 		}
 
-		// Query Incident tickets
-		$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$escapedFullName' AND status != 'closed'";
-		$incidentParams = [
-			'operation' => 'core/get',
-			'class' => 'Incident',
-			'key' => $incidentQuery,
-			'output_fields' => 'id'
-		];
+		// In simple ticketing mode the Incident class does not exist; querying it
+		// would just burn a round trip and come back as an iTop-level error.
+		if (!$isSimple) {
+			$incidentQuery = "SELECT Incident WHERE caller_id_friendlyname = '$escapedFullName' AND status != 'closed'";
+			$incidentParams = [
+				'operation' => 'core/get',
+				'class' => 'Incident',
+				'key' => $incidentQuery,
+				'output_fields' => 'id'
+			];
 
-		$incidentResult = $this->request($userId, $incidentParams);
-		if (isset($incidentResult['objects'])) {
-			$incidentCount = count($incidentResult['objects']);
+			$incidentResult = $this->request($userId, $incidentParams);
+			if (isset($incidentResult['objects'])) {
+				$incidentCount = count($incidentResult['objects']);
+			}
 		}
-		
+
 		// Return separate counts
 		return [
 			'incidents' => $incidentCount,
 			'requests' => $requestCount,
 			'total' => $incidentCount + $requestCount,
+			'simple' => $isSimple,
 			'status' => 'success'
 		];
 	}

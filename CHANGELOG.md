@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **What discovery will and will not do**: it binds only on an **exact match** — where the matched attribute and the name agree. Review (names differ), ambiguous (several candidates) and conflict (person already linked to another account) each get their own explanation and point the user to an administrator; none of these ever names the matched person, so a result that cannot be linked automatically gives no clue who it almost matched. It never re-binds an already-linked account — an administrator must unlink first. The discovery and confirmation endpoints take no parameters and are rate-limited to 5 calls per minute per user, and a successful bind is recorded in the audit log with the account, the person, the method (`discovery`) and the matched attribute. Personal settings shows only the binding methods an administrator has enabled, and offers discovery as the alternative for portal-only users who cannot obtain a personal token, pointing them to an administrator only when discovery is also disabled
 - **An independent toggle for the existing personal-token route**: on by default, to preserve current behaviour; the personal-token endpoint returns 403 when it is switched off
 
+### Fixed
+- **Personal settings respects simple ticketing mode**: in simple mode the ticket count endpoint no longer queries the `Incident` class (which does not exist there) or shows an `Incidents: 0` row that could never be anything else; it shows a single ticket count instead
+
 ---
 
 ## [1.5.0] - 2026-10-26
