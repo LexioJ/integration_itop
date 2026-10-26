@@ -118,6 +118,7 @@ The target field name is interpolated into OQL as an *identifier*, not a literal
 | `exact` | Attribute matched **and** names agree after normalisation | Yes | Yes |
 | `review` | Attribute matched, **names differ** | No | No |
 | `ambiguous` | More than one candidate | No | No |
+| `conflict` | Matched, but that person is already linked to a different account | No | No |
 | `none` | No match | No | No |
 
 **Name normalisation:** lowercase, strip diacritics, collapse whitespace, split into tokens, sort, compare. Nextcloud `displayName` against iTop `first_name` + `name`.
@@ -154,7 +155,7 @@ Admin (admin-only):
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/binding/users` | Paginated list; `filter=unbound\|bound\|review\|excluded\|all`, `search`, `page` |
+| GET | `/binding/users` | Paginated list; `filter=unbound\|bound\|excluded\|all`, `search`, `page`, `scopeType`, `scopeId` |
 | POST | `/binding/suggest` | `{userIds:[]}` → match result per user |
 | POST | `/binding/apply` | `{userIds:[]}` → re-resolves and binds `exact` rows |
 | POST | `/binding/apply-one` | `{userId, personId}` → explicit confirm for `review` / `ambiguous` |
@@ -175,9 +176,19 @@ User (`#[NoAdminRequired]`):
 
 A new "User associations" section in admin settings: a paginated, searchable table with multi-select and a contextual bulk action bar.
 
-- Filters: Unbound / Bound / Needs review / Excluded / All
+- Filters: Unbound / Bound / Excluded / All
 - Bulk actions: Suggest matches · Apply exact only · Exclude from matching · Unlink
-- Per-row actions by tier: `exact` → Apply · `review` → Confirm… · `ambiguous` → Choose… · `none` → Exclude
+- Per-row actions by tier: `exact` → Apply · `review` → Confirm… · `ambiguous` → Choose… · `conflict` → none · `none` → Exclude
+
+### When matching runs, and why there is no "Needs review" filter
+
+Resolving one account costs one iTop API call, so **matching only ever runs when the administrator asks for it**: they select rows, or filter to Unbound, and press *Suggest matches*. Nothing resolves on page load, and paging stays free. Suggestions are not cached — a cached tier is a claim about iTop that silently goes stale the moment the matching rule or an iTop record changes.
+
+That rules out a server-side **Needs review** filter: a tier is computed, not stored, so the server cannot select on it without resolving every account on the instance — one click meaning thousands of API calls. Instead the client groups the rows returned by a *Suggest matches* run by tier, so review rows appear together without any query pretending to know a tier it has not computed.
+
+### The `conflict` tier in the UI
+
+`conflict` — the resolved person is already linked to a different Nextcloud account — is shown with the holding account named, and carries **no Apply or Confirm action**. `IdentityBindingService::bind()` refuses such a write on every path, so offering the button would promise something the server will reject. Moving a person to another account is done by unlinking the current holder first, which is an explicit, logged act.
 - Bound rows show an origin badge: `admin` / `token` / `discovery`
 - Excluded rows stay visible under their own filter with a **Restore** action, so nothing silently disappears
 
