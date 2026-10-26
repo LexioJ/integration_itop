@@ -7,25 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.5.0] - 2026-10-26
 
-### Added
-- **Identity binding settings and API**: the matching rule (which Nextcloud attribute is matched against which iTop attribute) is now configurable from Admin settings → iTop instead of only through `occ config:app:set`, and shows a warning when a risky attribute is selected, before the rule is saved. Adds admin endpoints for listing accounts with their binding state, managing exclusions, and unbinding, which the association table builds on
-- **User associations screen**: Admin settings → iTop now lists every Nextcloud account with its iTop binding state, filterable by all / unbound / bound / excluded and searchable by name, user ID or email. Accounts can be excluded from matching (individually or in bulk) and links can be removed. Bindings made before this app recorded provenance show their origin as "unknown" rather than blank. Computing matches is not part of this screen
-- **Scope picker on the user associations screen**: one field searches Nextcloud accounts, groups and Teams, and narrows the table to the accounts the chosen scope covers. Teams require the `circles` app; with it disabled the picker simply omits them. Typing without choosing a suggestion still filters by name, user ID or email
-- The user associations table now shows each account's avatar
-
----
-
-## [1.5.0] - 2026-10-24
-
-### 🧹 Deprecated API Cleanup
+### 🔗 Identity Binding & Deprecated API Cleanup
 
 ### ⚠️ Breaking
 - **Minimum Nextcloud version is now 32**: `OCP\Config\IUserConfig` is only available from Nextcloud 32 onwards, so the user preference migration below raises `min-version` from 30 to 32. Nextcloud 30 and 31 are no longer supported
 
 ### Added
-- **Admin-side identity binding (`occ itop:bind`)**: administrators can link Nextcloud accounts to their iTop person without those users touching iTop. This is the only route available to portal-only users, because iTop issues personal tokens to back-end users only. Matching is controlled by an admin-configured source attribute (Nextcloud email, user ID or display name) and target (`Person.email`, `Person.employee_number` or `User.login`), and results are graded: `exact` (attribute and name agree) is bindable, `review` (names differ) needs explicit confirmation, `ambiguous` (several candidates) is never guessed, `none` is reported. The command is dry-run by default and requires `--apply` to write; accounts can be excluded from matching entirely. A failing account is reported and skipped rather than aborting the batch, and the command warns when `--limit` leaves accounts unexamined.
+- **Admin-side identity binding (`occ itop:bind`)**: administrators can link Nextcloud accounts to their iTop person without those users touching iTop. This is the only route available to portal-only users, because iTop issues personal tokens to back-end users only. Matching is controlled by an admin-configured source attribute (Nextcloud email, user ID or display name) and target (`Person.email`, `Person.employee_number` or `User.login`), and results are graded: `exact` (attribute and name agree) is bindable, `review` (names differ) needs explicit confirmation, `ambiguous` (several candidates) is never guessed, `none` is reported. The command is dry-run by default and requires `--apply` to write; accounts can be excluded from matching entirely. A failing account is reported and skipped rather than aborting the batch, and the command warns when `--limit` leaves accounts unexamined. A person already linked to another Nextcloud account is graded `conflict` and never bound automatically, on any path — `person_id` is the authorisation boundary for ticket and CI access, so two accounts holding one person would mean each seeing the other's tickets
+- **Identity binding settings and API**: the matching rule (which Nextcloud attribute is matched against which iTop attribute) is now configurable from Admin settings → iTop instead of only through `occ config:app:set`, and shows a warning when a risky attribute is selected, before the rule is saved. Adds admin endpoints for listing accounts with their binding state, managing exclusions, and unbinding, which the association table builds on
+- **User associations screen**: Admin settings → iTop now lists every Nextcloud account with its iTop binding state and avatar, filterable by all / unbound / bound / excluded and searchable by name, user ID or email. Accounts can be excluded from matching (individually or in bulk) and links can be removed. Bindings made before this app recorded provenance show their origin as "unknown" rather than blank. Computing matches is not part of this screen
+- **Scope picker on the user associations screen**: one field searches Nextcloud accounts, groups and Teams, and narrows the table to the accounts the chosen scope covers. Teams require the `circles` app; with it disabled the picker simply omits them. Typing without choosing a suggestion still filters by name, user ID or email
 
 ### Changed
 - **Migrated off deprecated `IConfig` value APIs**: `IConfig::get/set/deleteAppValue` has been deprecated since Nextcloud 29 in favour of `IAppConfig`, and the matching user preference methods since Nextcloud 33 in favour of `IUserConfig`. All ~200 call sites now use `IAppConfig::getValueString`/`setValueString`/`deleteKey` and `IUserConfig::getValueString`/`setValueString`/`deleteUserConfig`. `IConfig` is still used for `getSystemValue`, which is not deprecated
