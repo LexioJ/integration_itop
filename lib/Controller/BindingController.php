@@ -14,6 +14,7 @@ use OCA\Itop\Service\Binding\BindingConfig;
 use OCA\Itop\Service\Binding\BindingListService;
 use OCA\Itop\Service\Binding\BindingScopeService;
 use OCA\Itop\Service\Binding\IdentityBindingService;
+use OCA\Itop\Service\Binding\SuggestionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -39,6 +40,7 @@ class BindingController extends Controller {
 		private BindingScopeService $scopeService,
 		private BindingConfig $bindingConfig,
 		private IdentityBindingService $bindingService,
+		private SuggestionService $suggestionService,
 		private IUserManager $userManager,
 		private LoggerInterface $logger,
 	) {
@@ -75,6 +77,13 @@ class BindingController extends Controller {
 
 	public function searchScopes(string $term = ''): DataResponse {
 		return new DataResponse($this->scopeService->search($term));
+	}
+
+	public function suggest(array $uids = []): DataResponse {
+		return new DataResponse([
+			'results' => $this->suggestionService->suggest($uids),
+			'maxBatch' => SuggestionService::MAX_BATCH,
+		]);
 	}
 
 	public function getRule(): DataResponse {

@@ -28,6 +28,7 @@ return [
 		// Identity binding (admin)
 		['name' => 'binding#getUsers', 'url' => '/binding/users', 'verb' => 'GET'],
 		['name' => 'binding#searchScopes', 'url' => '/binding/scopes', 'verb' => 'GET'],
+		['name' => 'binding#suggest', 'url' => '/binding/suggest', 'verb' => 'POST'],
 		['name' => 'binding#getRule', 'url' => '/binding/rule', 'verb' => 'GET'],
 		['name' => 'binding#setRule', 'url' => '/binding/rule', 'verb' => 'POST'],
 		['name' => 'binding#exclude', 'url' => '/binding/exclude', 'verb' => 'POST'],
