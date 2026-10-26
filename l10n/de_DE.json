@@ -284,6 +284,7 @@
     "Link {ncName} to {itopName} in iTop?": "{ncName} in iTop mit {itopName} verknüpfen?",
     "Linked before this app recorded how bindings were made": "Verknüpft, bevor diese App aufgezeichnet hat, wie Verknüpfungen erstellt wurden",
     "Linked on {date} · method {method}": "Verknüpft am {date} · Methode {method}",
+    "Linked on {date} · method {method} · #{userId}": "Verknüpft am {date} · Methode {method} · #{userId}",
     "Linked {uid} to person {id}": "{uid} mit Person {id} verknüpft",
     "Linking your account with a personal token is disabled by your administrator.": "Das Verknüpfen Ihres Kontos mit einem persönlichen Token ist von Ihrem Administrator deaktiviert.",
     "Linking your own account is not enabled on this server. Please ask an administrator to link it for you.": "Das Verknüpfen des eigenen Kontos ist auf diesem Server nicht aktiviert. Bitten Sie einen Administrator, die Verknüpfung für Sie einzurichten.",

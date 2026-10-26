@@ -287,11 +287,20 @@ import { generateUrl } from '@nextcloud/router'
 	 *
 	 * Additional to the method badge, not a replacement for it: a hover is
 	 * invisible on a touch screen, so the badge stays on the page and this
-	 * carries the one thing it has no room for -- the date.
+	 * carries the two things it has no room for -- the date, and (when one is
+	 * stored) the iTop User id behind the profile icon.
 	 *
-	 * Either half can be missing on a binding made before this app recorded
-	 * provenance, and both fall back to the same 'unknown' the badge already
-	 * uses.
+	 * Date and method can be missing on a binding made before this app
+	 * recorded provenance, and both fall back to the same 'unknown' the badge
+	 * already uses. The User id is different: a row with none stored --
+	 * because the bind predates this app resolving one, because the person
+	 * had several Users and the ambiguity was left unresolved, or because the
+	 * person simply has no iTop login -- gets no segment at all, the same
+	 * "absence says nothing" rule the icon slot itself follows. There are
+	 * therefore two full translated sentences below rather than one with the
+	 * id segment spliced onto the end: a translator needs to be free to place
+	 * "#{userId}" anywhere in the sentence, which concatenation would not
+	 * allow.
 	 *
 	 * @param {object} row a row from /binding/users
 	 * @return {string} a title attribute to splice into the cell's tag, or ''
@@ -304,11 +313,16 @@ import { generateUrl } from '@nextcloud/router'
 		const date = row.boundAt
 			? new Date(row.boundAt * 1000).toLocaleString(getCanonicalLocale())
 			: unknown
+		const params = { date, method: row.method || unknown }
 		// escape: false, then esc() once over the result: t() escapes its own
 		// placeholders by default, which would double-escape everything esc()
 		// then saw. esc() is what keeps this safe inside an attribute.
-		return ' title="' + esc(t('integration_itop', 'Linked on {date} · method {method}',
-			{ date, method: row.method || unknown }, undefined, { escape: false })) + '"'
+		const text = row.userId
+			? t('integration_itop', 'Linked on {date} · method {method} · #{userId}',
+				{ ...params, userId: row.userId }, undefined, { escape: false })
+			: t('integration_itop', 'Linked on {date} · method {method}',
+				params, undefined, { escape: false })
+		return ' title="' + esc(text) + '"'
 	}
 
 	/**

@@ -284,6 +284,7 @@
     "Link {ncName} to {itopName} in iTop?": "Link {ncName} to {itopName} in iTop?",
     "Linked before this app recorded how bindings were made": "Linked before this app recorded how bindings were made",
     "Linked on {date} · method {method}": "Linked on {date} · method {method}",
+    "Linked on {date} · method {method} · #{userId}": "Linked on {date} · method {method} · #{userId}",
     "Linked {uid} to person {id}": "Linked {uid} to person {id}",
     "Linking your account with a personal token is disabled by your administrator.": "Linking your account with a personal token is disabled by your administrator.",
     "Linking your own account is not enabled on this server. Please ask an administrator to link it for you.": "Linking your own account is not enabled on this server. Please ask an administrator to link it for you.",
