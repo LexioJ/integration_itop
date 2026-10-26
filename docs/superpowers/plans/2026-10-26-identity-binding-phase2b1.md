@@ -11,7 +11,8 @@
 ## Global Constraints
 
 - Minimum Nextcloud version is **32**; `max-version` is **35**. Do not use APIs newer than 32.
-- **No Vue, and no new npm dependencies.** Admin settings are server-rendered PHP plus vanilla JS; introducing Vue here would enlarge the surface the deferred Vue 3 migration must cross.
+- **No new npm dependencies.**
+- **Vue is allowed for the scope picker only (Task 7), and nowhere else on this screen.** Admin settings are server-rendered PHP plus vanilla JS, and keeping them that way keeps the deferred Vue 3 / `@nextcloud/vue` 9 migration small. The one exception is the account/team/group picker: the Nextcloud component docs define pickers as Vue components (`NcSelect`, `NcChip`) with no plain-HTML equivalent, and hand-rolling a combobox means hand-rolling its keyboard and ARIA behaviour. `vue@^2.7.12` and `@nextcloud/vue@^8.26.1` are **already dependencies** of this app (used by `src/views/ReferenceItopWidget.vue`), so this adds no package. Tasks 1-5 stay vanilla; Task 7 mounts exactly one Vue component into one container. Note in the migration ticket that the admin page now has a Vue mount point.
 - `declare(strict_types=1)` is **not** used anywhere in `lib/`. Do not introduce it.
 - `Application::APP_ID` (`'integration_itop'`) — never hard-code the string in PHP.
 - **Tests are local-only and never committed.** `tests/`, `phpunit.xml` and `docs/testing.md` are gitignored. Write and run them, but commit only source files.
@@ -67,16 +68,36 @@ Each row:
 
 `DELETE /binding/{uid}` returns `200 {"uid":…,"bound":false}`, or **404** `{"message":"No such user"}` for a uid that does not exist.
 
+## API this screen adds (Task 6, admin-only)
+
+`GET /apps/integration_itop/binding/scopes?term=itop` returns:
+
+```json
+{ "accounts": [{ "type": "account", "id": "pablo", "label": "Pablo Picasso" }],
+  "groups":   [{ "type": "group",   "id": "itop-testers", "label": "itop-testers" }],
+  "teams":    [{ "type": "team",    "id": "abc123…", "label": "Helpdesk" }],
+  "teamsAvailable": true }
+```
+
+An empty or whitespace-only `term` returns three empty lists (and the real `teamsAvailable`). `teamsAvailable` is `false` when the optional `circles` app is disabled, so the picker can omit the Teams section rather than show a silently empty one.
+
+`GET /binding/users` gains two optional parameters, `scopeType` and `scopeId`. `scopeType` is one of `account` | `group` | `team`; an unrecognised value is a **400** `{"message":"Unknown scope type"}` rather than a silent fallback, because silently widening a scope an admin narrowed is the dangerous direction. A `scopeId` that resolves to no members returns `total: 0` with the empty-state message — not an error.
+
 ---
 
 ## File Structure
 
 | File | Responsibility |
 |---|---|
-| `src/admin-binding.js` *(create)* | The whole table controller: fetch, render, filters, search, paging, selection, actions |
-| `css/admin-binding.css` *(create)* | Table styling |
+| `src/admin-binding.js` *(create)* | The whole table controller: fetch, render, filters, search, paging, selection, actions; mounts the scope picker |
+| `src/views/BindingScopePicker.vue` *(create, Task 7)* | The one Vue component on this screen: an `NcSelect` searching accounts / groups / teams |
+| `css/admin-binding.css` *(create)* | Table styling, scope picker styling |
 | `vite.config.ts` *(modify)* | Add the `admin-binding` entry |
 | `templates/adminSettings.php` *(modify)* | Container element plus `script()` / `style()` calls |
+| `lib/Service/Binding/BindingScopeService.php` *(create, Task 6)* | Search accounts / groups / teams; resolve a scope to its member uids |
+| `lib/Service/Binding/BindingListService.php` *(modify, Task 6)* | `list()` accepts an optional uid restriction |
+| `lib/Controller/BindingController.php` *(modify, Task 6)* | `getUsers()` accepts `scopeType`/`scopeId`; new `searchScopes()` endpoint |
+| `appinfo/routes.php` *(modify, Task 6)* | Add `GET /binding/scopes` |
 | `CHANGELOG.md`, `README.md` *(modify)* | Document the screen |
 
 ---
@@ -798,6 +819,864 @@ Leave the `occ` code block that follows it in place.
 ```bash
 git add CHANGELOG.md README.md
 git commit -m "Document the user associations screen"
+```
+
+---
+
+## Task 6: Scope search backend — accounts, groups and teams
+
+**Files:**
+- Create: `lib/Service/Binding/BindingScopeService.php`
+- Modify: `lib/Service/Binding/BindingListService.php:49-79`
+- Modify: `lib/Controller/BindingController.php:45-52`
+- Modify: `appinfo/routes.php:29`
+- Test: `tests/Unit/Service/Binding/BindingScopeServiceTest.php` *(local only, never committed)*
+
+**Interfaces:**
+- Consumes: `IUserManager`, `IGroupManager`, `IAppManager` from core; `\OCA\Circles\CirclesManager` from the optional `circles` app.
+- Produces, for Task 7:
+  - `BindingScopeService::SCOPE_ACCOUNT` = `'account'`, `SCOPE_GROUP` = `'group'`, `SCOPE_TEAM` = `'team'`, and `SCOPES` listing all three
+  - `BindingScopeService::search(string $term): array` — `{accounts, groups, teams, teamsAvailable}`
+  - `BindingScopeService::resolveUids(string $type, string $id): array` — list of uids
+  - `BindingListService::list(string $filter, string $search, int $page, int $pageSize, ?array $restrictUids = null)`
+  - `GET /binding/scopes?term=` and the `scopeType` / `scopeId` parameters on `GET /binding/users`
+
+**Why a service and not a controller method:** the circles integration needs guarding, session handling and exception trapping. That does not belong in a controller, and `BindingController` is the one place a thrown `Throwable` would take the whole screen down.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tests/Unit/Service/Binding/BindingScopeServiceTest.php`:
+
+```php
+<?php
+
+namespace OCA\Itop\Tests\Unit\Service\Binding;
+
+use OCA\Itop\Service\Binding\BindingScopeService;
+use OCP\App\IAppManager;
+use OCP\IGroup;
+use OCP\IGroupManager;
+use OCP\IUser;
+use OCP\IUserManager;
+use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
+
+class BindingScopeServiceTest extends TestCase {
+
+	private function service(
+		?IUserManager $userManager = null,
+		?IGroupManager $groupManager = null,
+		bool $circlesEnabled = false,
+	): BindingScopeService {
+		$appManager = $this->createMock(IAppManager::class);
+		$appManager->method('isEnabledForAnyone')->willReturn($circlesEnabled);
+
+		return new BindingScopeService(
+			$userManager ?? $this->createMock(IUserManager::class),
+			$groupManager ?? $this->createMock(IGroupManager::class),
+			$appManager,
+			new NullLogger(),
+		);
+	}
+
+	public function testBlankTermReturnsNoSuggestions(): void {
+		$result = $this->service()->search('   ');
+
+		$this->assertSame([], $result['accounts']);
+		$this->assertSame([], $result['groups']);
+		$this->assertSame([], $result['teams']);
+	}
+
+	public function testTeamsUnavailableWhenCirclesDisabled(): void {
+		$this->assertFalse($this->service()->search('any')['teamsAvailable']);
+	}
+
+	public function testGroupSuggestionsCarryGidAndDisplayName(): void {
+		$group = $this->createMock(IGroup::class);
+		$group->method('getGID')->willReturn('itop-testers');
+		$group->method('getDisplayName')->willReturn('iTop testers');
+
+		$groupManager = $this->createMock(IGroupManager::class);
+		$groupManager->method('search')->willReturn([$group]);
+
+		$groups = $this->service(null, $groupManager)->search('itop')['groups'];
+
+		$this->assertSame(
+			[['type' => 'group', 'id' => 'itop-testers', 'label' => 'iTop testers']],
+			$groups,
+		);
+	}
+
+	public function testResolveUidsForGroupListsItsMembers(): void {
+		$pablo = $this->createMock(IUser::class);
+		$pablo->method('getUID')->willReturn('pablo');
+		$test1 = $this->createMock(IUser::class);
+		$test1->method('getUID')->willReturn('test1');
+
+		$group = $this->createMock(IGroup::class);
+		$group->method('getUsers')->willReturn([$pablo, $test1]);
+
+		$groupManager = $this->createMock(IGroupManager::class);
+		$groupManager->method('get')->with('itop-testers')->willReturn($group);
+
+		$this->assertSame(
+			['pablo', 'test1'],
+			$this->service(null, $groupManager)->resolveUids('group', 'itop-testers'),
+		);
+	}
+
+	public function testResolveUidsForMissingGroupIsEmptyNotEveryone(): void {
+		$groupManager = $this->createMock(IGroupManager::class);
+		$groupManager->method('get')->willReturn(null);
+
+		$this->assertSame([], $this->service(null, $groupManager)->resolveUids('group', 'gone'));
+	}
+
+	public function testResolveUidsForUnknownAccountIsEmpty(): void {
+		$userManager = $this->createMock(IUserManager::class);
+		$userManager->method('userExists')->willReturn(false);
+
+		$this->assertSame([], $this->service($userManager)->resolveUids('account', 'nobody'));
+	}
+
+	public function testResolveUidsForKnownAccountIsJustThatAccount(): void {
+		$userManager = $this->createMock(IUserManager::class);
+		$userManager->method('userExists')->willReturn(true);
+
+		$this->assertSame(['pablo'], $this->service($userManager)->resolveUids('account', 'pablo'));
+	}
+
+	public function testTeamScopeResolvesEmptyWhenCirclesDisabled(): void {
+		$this->assertSame([], $this->service()->resolveUids('team', 'whatever'));
+	}
+}
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `./vendor/bin/phpunit tests/Unit/Service/Binding/BindingScopeServiceTest.php`
+Expected: FAIL with `Class "OCA\Itop\Service\Binding\BindingScopeService" does not exist`.
+
+- [ ] **Step 3: Write the service**
+
+Create `lib/Service/Binding/BindingScopeService.php`:
+
+```php
+<?php
+
+/**
+ * Nextcloud - iTop
+ *
+ * @author Integration Bot
+ * @copyright Integration Bot 2025
+ */
+
+namespace OCA\Itop\Service\Binding;
+
+use OCP\App\IAppManager;
+use OCP\IGroupManager;
+use OCP\IUser;
+use OCP\IUserManager;
+use OCP\Server;
+use Psr\Log\LoggerInterface;
+use Throwable;
+
+/**
+ * Searches the things an administrator can narrow the association table to —
+ * one account, a Nextcloud group, or a Nextcloud Team — and resolves a chosen
+ * scope to the account ids it covers.
+ *
+ * Teams come from the optional circles app. Every call into it is guarded by
+ * isEnabledForAnyone() and wrapped in a try/catch: with circles absent the
+ * teams source returns nothing and the picker omits that section, rather than
+ * the whole association screen failing.
+ */
+class BindingScopeService {
+
+	public const SCOPE_ACCOUNT = 'account';
+	public const SCOPE_GROUP = 'group';
+	public const SCOPE_TEAM = 'team';
+
+	public const SCOPES = [
+		self::SCOPE_ACCOUNT,
+		self::SCOPE_GROUP,
+		self::SCOPE_TEAM,
+	];
+
+	private const SUGGESTION_LIMIT = 10;
+	private const CIRCLES_APP_ID = 'circles';
+
+	public function __construct(
+		private IUserManager $userManager,
+		private IGroupManager $groupManager,
+		private IAppManager $appManager,
+		private LoggerInterface $logger,
+	) {
+	}
+
+	/**
+	 * @return array{accounts: array, groups: array, teams: array, teamsAvailable: bool}
+	 */
+	public function search(string $term): array {
+		$term = trim($term);
+		$teamsAvailable = $this->teamsAvailable();
+
+		if ($term === '') {
+			return [
+				'accounts' => [],
+				'groups' => [],
+				'teams' => [],
+				'teamsAvailable' => $teamsAvailable,
+			];
+		}
+
+		return [
+			'accounts' => $this->searchAccounts($term),
+			'groups' => $this->searchGroups($term),
+			'teams' => $teamsAvailable ? $this->searchTeams($term) : [],
+			'teamsAvailable' => $teamsAvailable,
+		];
+	}
+
+	/**
+	 * Account ids covered by a scope.
+	 *
+	 * An unknown id yields an empty list, never every account: silently
+	 * widening a scope the administrator narrowed is the dangerous direction,
+	 * because the next action on this screen may be a bulk exclude.
+	 *
+	 * @return array list of uids
+	 */
+	public function resolveUids(string $type, string $id): array {
+		if ($id === '') {
+			return [];
+		}
+
+		return match ($type) {
+			self::SCOPE_ACCOUNT => $this->userManager->userExists($id) ? [$id] : [],
+			self::SCOPE_GROUP => $this->groupUids($id),
+			self::SCOPE_TEAM => $this->teamUids($id),
+			default => [],
+		};
+	}
+
+	public function isKnownScope(string $type): bool {
+		return in_array($type, self::SCOPES, true);
+	}
+
+	public function teamsAvailable(): bool {
+		return $this->appManager->isEnabledForAnyone(self::CIRCLES_APP_ID);
+	}
+
+	private function searchAccounts(string $term): array {
+		// Search both uid and display name: an admin looking for "test1" is
+		// typing the uid, one looking for "Picasso" is typing the name.
+		$found = array_merge(
+			$this->userManager->search($term, self::SUGGESTION_LIMIT),
+			$this->userManager->searchDisplayName($term, self::SUGGESTION_LIMIT),
+		);
+
+		$suggestions = [];
+		foreach ($found as $user) {
+			$uid = $user->getUID();
+			$suggestions[$uid] = [
+				'type' => self::SCOPE_ACCOUNT,
+				'id' => $uid,
+				'label' => $user->getDisplayName(),
+			];
+		}
+
+		return array_values(array_slice($suggestions, 0, self::SUGGESTION_LIMIT));
+	}
+
+	private function searchGroups(string $term): array {
+		$suggestions = [];
+		foreach ($this->groupManager->search($term, self::SUGGESTION_LIMIT) as $group) {
+			$suggestions[] = [
+				'type' => self::SCOPE_GROUP,
+				'id' => $group->getGID(),
+				'label' => $group->getDisplayName(),
+			];
+		}
+
+		return $suggestions;
+	}
+
+	private function groupUids(string $gid): array {
+		$group = $this->groupManager->get($gid);
+		if ($group === null) {
+			return [];
+		}
+
+		return array_values(array_map(
+			static fn (IUser $user) => $user->getUID(),
+			$group->getUsers(),
+		));
+	}
+
+	private function searchTeams(string $term): array {
+		$needle = mb_strtolower($term);
+		$suggestions = [];
+
+		try {
+			$manager = Server::get(\OCA\Circles\CirclesManager::class);
+			$manager->startSuperSession();
+
+			$probe = new \OCA\Circles\Model\Probes\CircleProbe();
+			$probe->filterSingleCircles();
+			$probe->filterPersonalCircles();
+			$probe->filterHiddenCircles();
+
+			foreach ($manager->getCircles($probe) as $circle) {
+				$label = $circle->getDisplayName();
+				if (!str_contains(mb_strtolower($label), $needle)) {
+					continue;
+				}
+				$suggestions[] = [
+					'type' => self::SCOPE_TEAM,
+					'id' => $circle->getSingleId(),
+					'label' => $label,
+				];
+				if (count($suggestions) >= self::SUGGESTION_LIMIT) {
+					break;
+				}
+			}
+		} catch (Throwable $e) {
+			$this->logger->warning('iTop: could not search teams', ['exception' => $e]);
+			return [];
+		}
+
+		return $suggestions;
+	}
+
+	private function teamUids(string $singleId): array {
+		if (!$this->teamsAvailable()) {
+			return [];
+		}
+
+		try {
+			$manager = Server::get(\OCA\Circles\CirclesManager::class);
+			$manager->startSuperSession();
+
+			$uids = [];
+			foreach ($manager->getCircle($singleId)->getInheritedMembers() as $member) {
+				// Teams can contain groups and other teams; only real accounts
+				// belong in a table of Nextcloud accounts.
+				if ($member->getUserType() !== \OCA\Circles\Model\Member::TYPE_USER) {
+					continue;
+				}
+				$uids[$member->getUserId()] = true;
+			}
+
+			return array_keys($uids);
+		} catch (Throwable $e) {
+			$this->logger->warning('iTop: could not resolve team members', ['exception' => $e]);
+			return [];
+		}
+	}
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `./vendor/bin/phpunit tests/Unit/Service/Binding/BindingScopeServiceTest.php`
+Expected: 8 tests, 8 assertions-or-more, PASS, no warnings.
+
+- [ ] **Step 5: Restrict the list to a scope**
+
+In `lib/Service/Binding/BindingListService.php`, change the `list()` signature and the enumeration. Replace lines 49-68 — the `public function list(...)` header through the closing `});` of `callForAllUsers` — with:
+
+```php
+	/**
+	 * @param ?array $restrictUids when given, only these uids are considered
+	 * @return array{total: int, page: int, pageSize: int, rows: array}
+	 */
+	public function list(string $filter, string $search, int $page, int $pageSize, ?array $restrictUids = null): array {
+		if (!in_array($filter, self::FILTERS, true)) {
+			$filter = self::FILTER_ALL;
+		}
+		$page = max(1, $page);
+		$pageSize = max(1, min(500, $pageSize));
+
+		// Hash set, not in_array: a group can have thousands of members and
+		// this runs once per account on the instance.
+		$restrict = $restrictUids === null ? null : array_fill_keys($restrictUids, true);
+
+		$rows = [];
+		$this->userManager->callForAllUsers(function (IUser $user) use (&$rows, $filter, $search, $restrict) {
+			// Checked before describe(), which costs four config reads.
+			if ($restrict !== null && !isset($restrict[$user->getUID()])) {
+				return;
+			}
+
+			$row = $this->describe($user);
+
+			if (!$this->matchesSearch($row, $search)) {
+				return;
+			}
+			if (!$this->matchesFilter($row, $filter)) {
+				return;
+			}
+
+			$rows[] = $row;
+		});
+```
+
+- [ ] **Step 6: Wire the controller and the route**
+
+In `lib/Controller/BindingController.php`, add `BindingScopeService $scopeService` to the constructor's promoted properties, immediately after `private BindingListService $listService,`:
+
+```php
+		private BindingScopeService $scopeService,
+```
+
+Add the import beside the existing ones:
+
+```php
+use OCA\Itop\Service\Binding\BindingScopeService;
+```
+
+Replace the whole `getUsers()` method with:
+
+```php
+	public function getUsers(
+		string $filter = BindingListService::FILTER_ALL,
+		string $search = '',
+		int $page = 1,
+		int $pageSize = 25,
+		string $scopeType = '',
+		string $scopeId = '',
+	): DataResponse {
+		$restrictUids = null;
+
+		if ($scopeType !== '') {
+			if (!$this->scopeService->isKnownScope($scopeType)) {
+				return new DataResponse(
+					['message' => 'Unknown scope type'],
+					Http::STATUS_BAD_REQUEST,
+				);
+			}
+			// A scope that resolves to nobody yields an empty table, not every
+			// account: an admin who narrowed the view must never be silently
+			// widened back out, because the next action may be a bulk exclude.
+			$restrictUids = $this->scopeService->resolveUids($scopeType, $scopeId);
+		}
+
+		return new DataResponse(
+			$this->listService->list($filter, $search, $page, $pageSize, $restrictUids),
+		);
+	}
+
+	public function searchScopes(string $term = ''): DataResponse {
+		return new DataResponse($this->scopeService->search($term));
+	}
+```
+
+In `appinfo/routes.php`, add immediately after the `binding#getUsers` line:
+
+```php
+		['name' => 'binding#searchScopes', 'url' => '/binding/scopes', 'verb' => 'GET'],
+```
+
+- [ ] **Step 7: Verify against ground truth**
+
+Create a real group with two known members, then query the endpoints as the admin:
+
+```bash
+orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ group:add itop-testers
+orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ group:adduser itop-testers pablo
+orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ group:adduser itop-testers test1
+orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ group:list
+```
+
+Expected: `itop-testers` listed with `pablo` and `test1`.
+
+Then, in the browser devtools console on the admin settings page (the session is already authenticated, so no token juggling):
+
+```js
+await (await fetch(OC.generateUrl('/apps/integration_itop/binding/scopes?term=itop'), { headers: { requesttoken: OC.requestToken } })).json()
+await (await fetch(OC.generateUrl('/apps/integration_itop/binding/users?scopeType=group&scopeId=itop-testers'), { headers: { requesttoken: OC.requestToken } })).json()
+await (await fetch(OC.generateUrl('/apps/integration_itop/binding/users?scopeType=nonsense&scopeId=x'), { headers: { requesttoken: OC.requestToken } })).json()
+```
+
+Expected, in order: a `groups` entry for `itop-testers` and `teamsAvailable: true` (the `circles` app is installed on this VM); `total: 2` with rows `pablo` and `test1`; and an HTTP **400** carrying `Unknown scope type`.
+
+Also confirm the graceful-degradation path, which is the one most likely to be wrong:
+
+```bash
+orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ app:disable circles
+```
+
+Re-run the `scopes?term=itop` call: expected `teamsAvailable: false`, `teams: []`, and **no** error in `nextcloud.log`. Then put the instance back:
+
+```bash
+orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ app:enable circles
+```
+
+Report the actual JSON you got for each call. Leave `itop-testers` in place — Task 7 verifies the picker against it and deletes it at the end.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add lib/Service/Binding/BindingScopeService.php lib/Service/Binding/BindingListService.php lib/Controller/BindingController.php appinfo/routes.php
+git commit -m "Add scope search for the association table
+
+An administrator can narrow the table to one account, a Nextcloud group
+or a Nextcloud Team. Teams come from the optional circles app, so every
+call into it is guarded and wrapped: with circles disabled the teams
+source returns nothing and the picker omits that section rather than the
+screen failing.
+
+A scope that resolves to nobody yields an empty table and an unknown
+scope type is a 400, because silently widening a scope the admin
+narrowed is the dangerous direction — the next action on this screen may
+be a bulk exclude.
+
+The uid restriction is checked before describe(), which costs four
+config reads per account."
+```
+
+---
+
+## Task 7: The scope picker
+
+**Files:**
+- Create: `src/views/BindingScopePicker.vue`
+- Modify: `src/admin-binding.js`
+- Modify: `templates/adminSettings.php`
+- Modify: `css/admin-binding.css`
+
+**Interfaces:**
+- Consumes: `GET /binding/scopes` and the `scopeType` / `scopeId` parameters from Task 6; `state`, `load()`, `apiCall()` from Task 1.
+- Produces: no new exported names. The component emits two events, `search` (a debounced raw term, string) and `select` (`{type, id, label}` or `null`).
+
+**This is the one Vue component on this screen** (see Global Constraints). It replaces the plain `<input type="search">` added in Task 1 and the search-input debounce added in Task 2 — `NcSelect` owns the text field now.
+
+**Both behaviours must survive:** typing free text still filters the table by name / uid / email through the existing `search` parameter, *and* the same keystrokes offer account / group / team suggestions. Picking a suggestion switches to scope mode and clears the free-text search; clearing the selection returns to free text.
+
+- [ ] **Step 1: Write the component**
+
+Create `src/views/BindingScopePicker.vue`:
+
+```vue
+<!--
+  - Nextcloud - iTop Integration
+  -
+  - Admin: the account / group / team picker above the association table.
+  -
+  - The only Vue component on the admin settings page. Pickers are Vue
+  - components in the Nextcloud component library with no plain-HTML
+  - equivalent, and NcSelect brings the keyboard and ARIA behaviour a
+  - hand-rolled combobox would have to reimplement.
+  -->
+<template>
+	<NcSelect
+		id="itop-binding-scope-select"
+		:options="options"
+		:loading="loading"
+		:filterable="false"
+		:clearable="true"
+		:placeholder="t('integration_itop', 'Search accounts, groups or teams…')"
+		label="label"
+		@search="onSearch"
+		@input="onInput">
+		<template #option="option">
+			<span class="itop-scope-option">
+				<span>{{ option.label }}</span>
+				<span class="itop-scope-option__type">{{ option.typeLabel }}</span>
+			</span>
+		</template>
+	</NcSelect>
+</template>
+
+<script>
+import NcSelect from '@nextcloud/vue/dist/Components/NcSelect.js'
+import { generateUrl } from '@nextcloud/router'
+import { getRequestToken } from '@nextcloud/auth'
+import { showError } from '@nextcloud/dialogs'
+import { translate as t } from '@nextcloud/l10n'
+
+export default {
+	name: 'BindingScopePicker',
+
+	components: { NcSelect },
+
+	data() {
+		return {
+			options: [],
+			loading: false,
+			debounce: null,
+		}
+	},
+
+	beforeDestroy() {
+		clearTimeout(this.debounce)
+	},
+
+	methods: {
+		t,
+
+		/**
+		 * Debounce every keystroke once, then do both jobs: filter the table
+		 * by free text, and fetch suggestions. Two debounces would fire the
+		 * table reload and the suggestion fetch at different moments for the
+		 * same keystroke.
+		 *
+		 * @param {string} term what the admin has typed
+		 */
+		onSearch(term) {
+			clearTimeout(this.debounce)
+			this.debounce = setTimeout(() => {
+				this.$emit('search', term.trim())
+				this.fetchSuggestions(term.trim())
+			}, 300)
+		},
+
+		/**
+		 * @param {?object} option the chosen suggestion, or null when cleared
+		 */
+		onInput(option) {
+			this.$emit('select', option
+				? { type: option.type, id: option.id, label: option.label }
+				: null)
+		},
+
+		/**
+		 * @param {string} term search term, already trimmed
+		 */
+		async fetchSuggestions(term) {
+			if (term === '') {
+				this.options = []
+				return
+			}
+
+			this.loading = true
+			try {
+				const response = await fetch(
+					generateUrl('/apps/integration_itop/binding/scopes?term=' + encodeURIComponent(term)),
+					{ headers: { requesttoken: getRequestToken() } },
+				)
+				if (!response.ok) {
+					throw new Error('HTTP ' + response.status)
+				}
+				const body = await response.json()
+				this.options = [
+					...this.decorate(body.accounts, t('integration_itop', 'Account')),
+					...this.decorate(body.groups, t('integration_itop', 'Group')),
+					// Omitted entirely when the circles app is disabled, rather
+					// than shown as a section that can never match.
+					...(body.teamsAvailable ? this.decorate(body.teams, t('integration_itop', 'Team')) : []),
+				]
+			} catch (e) {
+				this.options = []
+				showError(t('integration_itop', 'Could not search accounts, groups or teams: {msg}', { msg: e.message }))
+			} finally {
+				this.loading = false
+			}
+		},
+
+		/**
+		 * NcSelect has no option groups, so each row carries its own type
+		 * label instead of sitting under a heading.
+		 *
+		 * @param {Array} entries suggestions of one type
+		 * @param {string} typeLabel translated name of that type
+		 * @return {Array} entries with a typeLabel
+		 */
+		decorate(entries, typeLabel) {
+			return (entries || []).map(entry => ({ ...entry, typeLabel }))
+		},
+	},
+}
+</script>
+
+<style scoped>
+.itop-scope-option {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.itop-scope-option__type {
+	color: var(--color-text-maxcontrast);
+	font-size: 90%;
+}
+</style>
+```
+
+- [ ] **Step 2: Swap the template's input for a mount point**
+
+In `templates/adminSettings.php`, inside `.itop-binding-toolbar`, replace this line:
+
+```php
+		<input type="search" id="itop-binding-search" placeholder="<?php p($l->t('Search accounts…')); ?>">
+```
+
+with:
+
+```php
+		<div id="itop-binding-scope-picker" class="itop-binding-scope-picker"></div>
+```
+
+- [ ] **Step 3: Mount it and send the scope to the server**
+
+In `src/admin-binding.js`, add `scope: null` to `state`, immediately after the `search: ''` line:
+
+```js
+		scope: null,
+```
+
+In `load()`, replace the `const query = new URLSearchParams({…})` statement with:
+
+```js
+		const query = new URLSearchParams({
+			filter: state.filter,
+			search: state.search,
+			page: String(state.page),
+			pageSize: String(state.pageSize),
+		})
+		if (state.scope) {
+			query.set('scopeType', state.scope.type)
+			query.set('scopeId', state.scope.id)
+		}
+```
+
+Delete the search-input block from `attachHandlers()` — the whole `const search = document.getElementById('itop-binding-search')` statement through the closing brace of its `if (search) { … }` — and add this function above `attachHandlers()`:
+
+```js
+	/**
+	 * Mount the scope picker and react to it.
+	 *
+	 * Loaded on demand so the Vue runtime is not parsed on a page where the
+	 * association table is absent.
+	 */
+	async function mountScopePicker() {
+		const el = document.getElementById('itop-binding-scope-picker')
+		if (!el) return
+
+		const { default: Vue } = await import('vue')
+		const { default: BindingScopePicker } = await import('./views/BindingScopePicker.vue')
+
+		const Picker = Vue.extend(BindingScopePicker)
+		const picker = new Picker().$mount(el)
+
+		picker.$on('search', function(term) {
+			state.search = term
+			state.page = 1
+			load()
+		})
+
+		picker.$on('select', function(scope) {
+			// Scope and free text are alternatives, not filters that stack:
+			// a chosen group must not stay narrowed by a leftover term.
+			state.scope = scope
+			state.search = ''
+			state.page = 1
+			load()
+		})
+	}
+```
+
+Then change the `DOMContentLoaded` listener to mount it:
+
+```js
+	document.addEventListener('DOMContentLoaded', function() {
+		if (!document.getElementById('itop-binding-table')) return
+		attachHandlers()
+		mountScopePicker()
+		load()
+	})
+```
+
+- [ ] **Step 4: Style the mount point**
+
+In `css/admin-binding.css`, add after the `.itop-binding-toolbar` rule:
+
+```css
+.itop-binding-scope-picker {
+	min-width: 320px;
+}
+```
+
+- [ ] **Step 5: Build**
+
+```bash
+npm run lint
+npm run build
+```
+
+Expected: 0 eslint errors, build succeeds. The `admin-binding` bundle grows substantially — it now pulls in Vue and `NcSelect`. Report its size.
+
+**If `npm run lint` rejects `src/views/BindingScopePicker.vue`**, check how `src/views/ReferenceItopWidget.vue` satisfies the same rules and follow it; do not add an eslint disable comment.
+
+- [ ] **Step 6: Verify against ground truth**
+
+`itop-testers` (containing `pablo` and `test1`) was created in Task 6, Step 7.
+
+Load the admin settings page. **Hard-reload it** (`Cmd+Shift+R`): Nextcloud's JS URL does not change when only contents change, so a normal reload can run the previous bundle and make working controls look dead. Then:
+
+1. Type `itop` in the picker. Confirm the dropdown offers **itop-testers** labelled `Group`, and that `GET /binding/scopes?term=itop` returned 200.
+2. Pick it. Confirm the table request carries `scopeType=group&scopeId=itop-testers`, the table shows exactly `pablo` and `test1`, and the pager reads `Page 1 of 1 · 2 account(s)`.
+3. With the group still selected, click the **Bound** filter. Confirm the request carries both `filter=bound` and the scope, and that the table is empty — neither member is bound.
+4. Clear the selection with the picker's ✕. Confirm the table returns to 4 accounts.
+5. Type `picasso`. Confirm the dropdown offers **Pablo Picasso** labelled `Account`, and that the table itself filters to one row from the free-text `search=picasso` parameter without selecting anything.
+6. Select that account suggestion. Confirm the request carries `scopeType=account&scopeId=pablo` and `search=` is empty.
+
+Report the request URLs and row counts you actually observed, and the console state. Then remove the fixture:
+
+```bash
+orb -m nextcloud-dev sudo -u www-data php /var/www/nextcloud/occ group:delete itop-testers
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/views/BindingScopePicker.vue src/admin-binding.js templates/adminSettings.php css/admin-binding.css
+find js -name '*.mjs' ! -name '*.map' -print0 | xargs -0 git add -f
+git commit -m "Add an account, group and team picker to the association table
+
+One field searches all three and narrows the table to the accounts a
+scope covers. Built with NcSelect, the component the Nextcloud design
+docs prescribe for pickers and the only Vue on this page: it brings the
+keyboard and ARIA behaviour a hand-rolled combobox would have to
+reimplement, and vue and @nextcloud/vue were already dependencies.
+
+Scope and free text are alternatives rather than filters that stack, so
+choosing a group drops a leftover search term instead of silently
+narrowing the group.
+
+Vue is imported dynamically so its runtime is not parsed on pages
+without the association table."
+```
+
+---
+
+## Task 8: Document the scope picker
+
+**Files:**
+- Modify: `CHANGELOG.md`, `README.md`
+
+- [ ] **Step 1: Extend the changelog entry**
+
+In `CHANGELOG.md`, inside the `## [Unreleased]` section's `### Added` block, add a bullet beneath the user-associations one:
+
+```markdown
+- **Scope picker on the user associations screen**: one field searches Nextcloud accounts, groups and Teams, and narrows the table to the accounts the chosen scope covers. Teams require the `circles` app; with it disabled the picker simply omits them. Typing without choosing a suggestion still filters by name, user ID or email
+```
+
+- [ ] **Step 2: Update the README**
+
+In `README.md`, in the **Admin settings → iTop → User associations** sentence added in Task 5, append this sentence directly after it:
+
+```
+A single picker above the table searches accounts, groups and Teams, so the list can be narrowed to one group's members before excluding or unlinking them.
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add CHANGELOG.md README.md
+git commit -m "Document the association table scope picker"
 ```
 
 ---
