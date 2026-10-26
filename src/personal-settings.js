@@ -428,7 +428,7 @@ import { generateUrl } from '@nextcloud/router'
 			postBinding(generateUrl('/apps/integration_itop/binding/discover'))
 				.then(function(result) {
 					discoverButton.disabled = false
-					handleDiscoveryResponse(result, runDiscovery)
+					handleDiscoveryResponse(result)
 				})
 				.catch(function() {
 					discoverButton.disabled = false
@@ -471,10 +471,9 @@ import { generateUrl } from '@nextcloud/router'
 		 * a tier -- is shown as a plain message that ends at "ask an
 		 * administrator".
 		 *
-		 * @param {{status: number, body: object}} result
-		 * @param {Function} [retry] called if the user hits the rate limit and wants to try again
+		 * @param {{status: number, body: object}} result the HTTP status and parsed JSON body returned by postBinding()
 		 */
-		function handleDiscoveryResponse(result, retry) {
+		function handleDiscoveryResponse(result) {
 			const status = result.status
 			const body = result.body || {}
 
@@ -490,8 +489,9 @@ import { generateUrl } from '@nextcloud/router'
 
 			// Every other outcome (not_self_serviceable, already_bound, excluded,
 			// disabled, failed, or an unexpected error) carries a ready-to-show
-			// message from the server; not_self_serviceable's is already worded
-			// by tier server-side, and intentionally names no one.
+			// message from the server; not_self_serviceable's is worded by tier
+			// server-side (DiscoveryController::notSelfServiceableMessage()), and
+			// intentionally names no one regardless of tier.
 			const message = body.message || t('integration_itop', 'Your account could not be linked automatically. Please ask an administrator to link it for you.')
 			showDiscoveryMessage(message, status !== 200)
 		}
@@ -542,8 +542,8 @@ import { generateUrl } from '@nextcloud/router'
 		/**
 		 * Shows a plain message below the discover button.
 		 *
-		 * @param {string} message
-		 * @param {boolean} isError
+		 * @param {string} message the text to display
+		 * @param {boolean} isError whether to style it as an error
 		 */
 		function showDiscoveryMessage(message, isError) {
 			discoverResult.innerHTML = ''

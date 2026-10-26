@@ -121,6 +121,9 @@ class DiscoveryController extends Controller {
 	 */
 	private function notSelfServiceableMessage(string $tier): string {
 		return match ($tier) {
+			MatchResult::TIER_REVIEW => $this->l10n->t('A matching person was found, but the name on that person does not match your account. Please ask an administrator to link it for you.'),
+			MatchResult::TIER_AMBIGUOUS => $this->l10n->t('More than one person matches your account, so it cannot be linked automatically. Please ask an administrator to link it for you.'),
+			MatchResult::TIER_CONFLICT => $this->l10n->t('The matching person is already linked to a different Nextcloud account. Please ask an administrator to link it for you.'),
 			MatchResult::TIER_NONE => $this->l10n->t('No iTop person matches your account. Please ask an administrator to link it for you.'),
 			default => $this->l10n->t('Your account cannot be linked automatically. Please ask an administrator to link it for you.'),
 		};
