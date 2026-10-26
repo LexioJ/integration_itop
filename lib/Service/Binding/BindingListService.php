@@ -44,17 +44,27 @@ class BindingListService {
 	}
 
 	/**
+	 * @param ?array $restrictUids when given, only these uids are considered
 	 * @return array{total: int, page: int, pageSize: int, rows: array}
 	 */
-	public function list(string $filter, string $search, int $page, int $pageSize): array {
+	public function list(string $filter, string $search, int $page, int $pageSize, ?array $restrictUids = null): array {
 		if (!in_array($filter, self::FILTERS, true)) {
 			$filter = self::FILTER_ALL;
 		}
 		$page = max(1, $page);
 		$pageSize = max(1, min(500, $pageSize));
 
+		// Hash set, not in_array: a group can have thousands of members and
+		// this runs once per account on the instance.
+		$restrict = $restrictUids === null ? null : array_fill_keys($restrictUids, true);
+
 		$rows = [];
-		$this->userManager->callForAllUsers(function (IUser $user) use (&$rows, $filter, $search) {
+		$this->userManager->callForAllUsers(function (IUser $user) use (&$rows, $filter, $search, $restrict) {
+			// Checked before describe(), which costs four config reads.
+			if ($restrict !== null && !isset($restrict[$user->getUID()])) {
+				return;
+			}
+
 			$row = $this->describe($user);
 
 			if (!$this->matchesSearch($row, $search)) {

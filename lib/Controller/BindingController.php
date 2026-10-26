@@ -12,6 +12,7 @@ namespace OCA\Itop\Controller;
 use OCA\Itop\AppInfo\Application;
 use OCA\Itop\Service\Binding\BindingConfig;
 use OCA\Itop\Service\Binding\BindingListService;
+use OCA\Itop\Service\Binding\BindingScopeService;
 use OCA\Itop\Service\Binding\IdentityBindingService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -35,6 +36,7 @@ class BindingController extends Controller {
 		string $appName,
 		IRequest $request,
 		private BindingListService $listService,
+		private BindingScopeService $scopeService,
 		private BindingConfig $bindingConfig,
 		private IdentityBindingService $bindingService,
 		private IUserManager $userManager,
@@ -48,8 +50,31 @@ class BindingController extends Controller {
 		string $search = '',
 		int $page = 1,
 		int $pageSize = 25,
+		string $scopeType = '',
+		string $scopeId = '',
 	): DataResponse {
-		return new DataResponse($this->listService->list($filter, $search, $page, $pageSize));
+		$restrictUids = null;
+
+		if ($scopeType !== '') {
+			if (!$this->scopeService->isKnownScope($scopeType)) {
+				return new DataResponse(
+					['message' => 'Unknown scope type'],
+					Http::STATUS_BAD_REQUEST,
+				);
+			}
+			// A scope that resolves to nobody yields an empty table, not every
+			// account: an admin who narrowed the view must never be silently
+			// widened back out, because the next action may be a bulk exclude.
+			$restrictUids = $this->scopeService->resolveUids($scopeType, $scopeId);
+		}
+
+		return new DataResponse(
+			$this->listService->list($filter, $search, $page, $pageSize, $restrictUids),
+		);
+	}
+
+	public function searchScopes(string $term = ''): DataResponse {
+		return new DataResponse($this->scopeService->search($term));
 	}
 
 	public function getRule(): DataResponse {
