@@ -38,6 +38,17 @@ $ciClassLabels = [
 		</div>
 
 		<?php if ($_['is_configured']) { ?>
+		<nav class="itop-nav-chips" aria-label="<?php p($l->t('Jump to a settings section')); ?>">
+			<a class="itop-chip" href="#itop-section-status"><?php p($l->t('📊 Status')); ?></a>
+			<a class="itop-chip" href="#itop-binding-rule"><?php p($l->t('🔗 Identity binding')); ?></a>
+			<a class="itop-chip" href="#itop-binding-associations"><?php p($l->t('👥 User associations')); ?></a>
+			<a class="itop-chip" href="#itop-section-tickets"><?php p($l->t('🎫 Tickets')); ?></a>
+			<a class="itop-chip" href="#itop-section-notifications"><?php p($l->t('🔔 Notifications')); ?></a>
+			<a class="itop-chip" href="#itop-section-cache"><?php p($l->t('⚡ Cache')); ?></a>
+			<a class="itop-chip" href="#itop-section-ci-classes"><?php p($l->t('🎯 CI classes')); ?></a>
+			<a class="itop-chip" href="#itop-section-custom-ci"><?php p($l->t('🔧 Custom CI')); ?></a>
+			<a class="itop-chip" href="#itop-section-connection"><?php p($l->t('📡 Connection')); ?></a>
+		</nav>
 		<!-- Current Status Section -->
 		<div class="settings-section" id="itop-section-status">
 			<div class="section-header">
@@ -104,6 +115,10 @@ $ciClassLabels = [
 					<div class="status-value"><?php p($_['last_updated']); ?></div>
 				</div>
 			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
+			</div>
 		</div>
 
 		<!-- Identity Binding Section -->
@@ -152,6 +167,10 @@ $ciClassLabels = [
 				<strong><?php p($l->t('Users can change this attribute themselves on this instance.')); ?></strong>
 				<?php p($l->t('A user could set their value to a colleague\'s and be linked to that person, gaining read access to their tickets. Set allow_user_to_change_email — or allow_user_to_change_display_name if matching on display name — to false, or match on User ID, which cannot be changed. Admin-side binding and occ itop:bind match on the same attribute, so they are affected too: they refuse a person already linked to another account, but one not yet linked can be claimed this way.')); ?>
 			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
+			</div>
 		</div>
 
 		<!-- User Associations Section -->
@@ -174,6 +193,10 @@ $ciClassLabels = [
 			<div id="itop-binding-bulk" class="itop-binding-bulk hidden"></div>
 			<div id="itop-binding-table" class="itop-binding-table"></div>
 			<div id="itop-binding-pager" class="itop-binding-pager"></div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
+			</div>
 		</div>
 
 		<!-- Ticket System Type Section -->
@@ -262,6 +285,10 @@ $ciClassLabels = [
 						<?php p($l->t('Save Ticket System Type')); ?>
 					</button>
 				</div>
+			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
 			</div>
 		</div>
 
@@ -417,6 +444,10 @@ $ciClassLabels = [
 					</button>
 				</div>
 			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
+			</div>
 		</div>
 
 		<!-- Cache & Performance Settings Section -->
@@ -520,6 +551,10 @@ $ciClassLabels = [
 					</button>
 				</div>
 			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
+			</div>
 		</div>
 
 		<!-- CI Class Configuration Section -->
@@ -579,6 +614,10 @@ $ciClassLabels = [
 						<?php p($l->t('Toggle All')); ?>
 					</button>
 				</div>
+			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
 			</div>
 		</div>
 
@@ -674,6 +713,10 @@ $ciClassLabels = [
 					<?php p($l->t('Save Custom CI Classes')); ?>
 				</button>
 			</div>
+		</div>
+
+		<div class="itop-section-foot">
+			<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
 		</div>
 	</div>
 		<?php } ?>
@@ -817,6 +860,10 @@ $ciClassLabels = [
 						</div>
 					</div>
 				</details>
+			</div>
+
+			<div class="itop-section-foot">
+				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
 			</div>
 		</div>
 	</div>

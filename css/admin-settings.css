@@ -1154,3 +1154,45 @@ input.password-style {
 .itop-binding-warning.hidden {
 	display: none;
 }
+
+/* Section navigation chips */
+.itop-nav-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0 0 16px 0;
+}
+
+.itop-chip {
+	display: inline-block;
+	padding: 4px 12px;
+	border-radius: var(--border-radius-pill, 100px);
+	border: 1px solid var(--color-border, #ededed);
+	background-color: var(--color-background-hover, #f5f5f5);
+	color: var(--color-main-text, #222);
+	font-size: 90%;
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+.itop-chip:hover,
+.itop-chip:focus {
+	background-color: var(--color-primary-element-light, #e8f0fe);
+	text-decoration: none;
+}
+
+/* Keeps the target heading clear of Nextcloud's sticky header when a chip
+   jumps to it. */
+.settings-section {
+	scroll-margin-top: 60px;
+}
+
+.itop-section-foot {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 12px;
+}
+
+.itop-to-top {
+	color: var(--color-text-maxcontrast, #767676);
+}

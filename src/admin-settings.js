@@ -33,6 +33,21 @@ import { generateUrl } from '@nextcloud/router'
 
 		// Load connected users count via AJAX
 		loadConnectedUsersCount()
+
+		// Smooth scroll for the section chips. prefers-reduced-motion is
+		// honoured because a full-page jump-scroll is exactly the kind of
+		// motion that triggers vestibular symptoms.
+		const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+		if (!reduceMotion) {
+			document.querySelectorAll('.itop-chip').forEach(function(chip) {
+				chip.addEventListener('click', function(e) {
+					const target = document.querySelector(chip.getAttribute('href'))
+					if (!target) return
+					e.preventDefault()
+					target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+				})
+			})
+		}
 	})
 
 	/**
