@@ -19,6 +19,7 @@ import { generateUrl } from '@nextcloud/router'
 	const state = {
 		filter: 'all',
 		search: '',
+		scope: null,
 		page: 1,
 		pageSize: 25,
 		total: 0,
@@ -59,6 +60,10 @@ import { generateUrl } from '@nextcloud/router'
 			page: String(state.page),
 			pageSize: String(state.pageSize),
 		})
+		if (state.scope) {
+			query.set('scopeType', state.scope.type)
+			query.set('scopeId', state.scope.id)
+		}
 		try {
 			const data = await apiCall('/binding/users?' + query.toString())
 			state.rows = data.rows || []
@@ -235,6 +240,38 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
+	 * Mount the scope picker and react to it.
+	 *
+	 * Loaded on demand so the Vue runtime is not parsed on a page where the
+	 * association table is absent.
+	 */
+	async function mountScopePicker() {
+		const el = document.getElementById('itop-binding-scope-picker')
+		if (!el) return
+
+		const { default: Vue } = await import('vue')
+		const { default: BindingScopePicker } = await import('./views/BindingScopePicker.vue')
+
+		const Picker = Vue.extend(BindingScopePicker)
+		const picker = new Picker().$mount(el)
+
+		picker.$on('search', function(term) {
+			state.search = term
+			state.page = 1
+			load()
+		})
+
+		picker.$on('select', function(scope) {
+			// Scope and free text are alternatives, not filters that stack:
+			// a chosen group must not stay narrowed by a leftover term.
+			state.scope = scope
+			state.search = ''
+			state.page = 1
+			load()
+		})
+	}
+
+	/**
 	 * Wire the toolbar and pager.
 	 *
 	 * Delegated from document, matching the pattern used elsewhere in this app:
@@ -242,19 +279,6 @@ import { generateUrl } from '@nextcloud/router'
 	 * are replaced and a direct listener would be lost.
 	 */
 	function attachHandlers() {
-		const search = document.getElementById('itop-binding-search')
-		if (search) {
-			let debounce = null
-			search.addEventListener('input', function() {
-				clearTimeout(debounce)
-				debounce = setTimeout(() => {
-					state.search = search.value.trim()
-					state.page = 1
-					load()
-				}, 300)
-			})
-		}
-
 		document.addEventListener('click', function(e) {
 			const filterBtn = e.target.closest('.itop-binding-filter')
 			if (filterBtn) {
@@ -309,6 +333,7 @@ import { generateUrl } from '@nextcloud/router'
 	document.addEventListener('DOMContentLoaded', function() {
 		if (!document.getElementById('itop-binding-table')) return
 		attachHandlers()
+		mountScopePicker()
 		load()
 	})
 })()

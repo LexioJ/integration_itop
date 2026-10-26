@@ -804,7 +804,7 @@ $ciClassLabels = [
 	</p>
 
 	<div class="itop-binding-toolbar">
-		<input type="search" id="itop-binding-search" placeholder="<?php p($l->t('Search accounts…')); ?>">
+		<div id="itop-binding-scope-picker" class="itop-binding-scope-picker"></div>
 		<span class="itop-binding-filters" id="itop-binding-filters">
 			<button type="button" class="itop-binding-filter active" data-filter="all"><?php p($l->t('All')); ?></button>
 			<button type="button" class="itop-binding-filter" data-filter="unbound"><?php p($l->t('Unbound')); ?></button>

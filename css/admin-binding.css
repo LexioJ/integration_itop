@@ -7,6 +7,10 @@
 	margin-bottom: 10px;
 }
 
+.itop-binding-scope-picker {
+	min-width: 320px;
+}
+
 .itop-binding-filter.active {
 	font-weight: bold;
 	text-decoration: underline;
