@@ -39,26 +39,33 @@
 /*
  * The actions cell can hold up to three buttons (a tier action such as
  * "Apply…" or "Confirm…", the manual-link action, and Exclude/Restore), and
- * every label is translated -- some languages run longer than English. The
- * last track stays `max-content` so the row never shrinks it below what its
- * buttons actually need and the buttons never wrap, in any language --
- * `white-space: nowrap` on the buttons (below) keeps each label on one line,
- * and capping this track to a fixed width would make it wrap in English too,
- * on a row that has plenty of room to spare.
+ * every label is translated -- some languages run longer than English.
  *
- * What used to overflow under a long label set (German "Verknüpfung
- * entfernen" / "Manuell verknüpfen…" / "Ausschließen" squeezing the account
- * column to its 150px floor) was never this track's fault: a grid item's
- * default `min-width: auto` means the account column could not actually
- * shrink to that floor, it just kept demanding its content's full intrinsic
- * width instead. That is fixed on `.itop-binding-account` itself (`min-width:
- * 0` plus an ellipsis) -- not here -- so account is what gives at the floor,
- * while actions keeps every button on one line regardless of how much wider
- * than German a translation turns out to be.
+ * Neither a bare `max-content` nor a bare `minmax(140px, 1fr)` works here on
+ * its own: `max-content` grows unbounded -- a label set roughly twice the
+ * length of German's pushed the last button off the card and off the
+ * viewport -- and a fixed `1fr` cap forces buttons to wrap even in English,
+ * on a row that already has room to spare.
+ *
+ * `minmax(min-content, max-content)` is both at once. For this flex-wrap
+ * container, `min-content` is the width of its single widest button, so the
+ * track takes `max-content` (every button on one line) whenever the row has
+ * room, and only shrinks toward one-button-wide -- triggering the
+ * `flex-wrap: wrap` safety net below -- when it genuinely does not fit.
+ * Overflow is never acceptable; a wrap is, so that is the floor this track
+ * is allowed to be squeezed to, not the account column's floor.
+ *
+ * The account column's own overflow under a long but still-realistic label
+ * set (German "Verknüpfung entfernen" / "Manuell verknüpfen…" /
+ * "Ausschließen" squeezing it to its 150px floor) was never this track's
+ * fault either: a grid item's default `min-width: auto` meant the account
+ * column could not actually shrink to that floor, it just kept demanding
+ * its content's full intrinsic width instead. That is fixed on
+ * `.itop-binding-account` itself (`min-width: 0` plus an ellipsis).
  */
 .itop-binding-row {
 	display: grid;
-	grid-template-columns: 32px 32px minmax(150px, 2fr) minmax(110px, 1fr) minmax(140px, 1fr) max-content;
+	grid-template-columns: 32px 32px minmax(150px, 2fr) minmax(110px, 1fr) minmax(140px, 1fr) minmax(min-content, max-content);
 	gap: 8px;
 	align-items: center;
 	padding: 6px 4px;
@@ -140,11 +147,14 @@
  * A real flex row, not the default inline span, so the three possible
  * buttons (tier action, manual-link, Exclude/Restore) lay out side by side.
  * `white-space: nowrap` on the buttons keeps each individual label on one
- * line. `flex-wrap: wrap` here is a last-resort safety net only -- the
- * column is `max-content` (see .itop-binding-row), so in the normal case
- * there is always exactly enough room and this never triggers; it only
- * matters below the 600px breakpoint, where the column's own width is
- * capped to `1fr` and wrapping is preferable to a second overflow.
+ * line. `flex-wrap: wrap` is the actual mechanism, not just a fallback: the
+ * column's track is `minmax(min-content, max-content)` (see
+ * .itop-binding-row), so it sits at `max-content` -- every button on one
+ * line -- whenever the row has room, and only shrinks toward one button
+ * wide when a translated label set genuinely does not fit, at which point
+ * this wrap is what keeps the surplus buttons inside the card instead of
+ * spilling past its edge. Below the 600px breakpoint, the column's own
+ * width is capped to `1fr` and the same wrap applies there too.
  */
 .itop-binding-actions {
 	display: flex;
