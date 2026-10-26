@@ -1134,7 +1134,20 @@ input.password-style {
     margin-bottom: 4px;
 }
 
-/* Identity binding: match rule */
+/* Identity binding: matching rule as a subsection of the associations card */
+.itop-binding-rule-block {
+	margin-top: 24px;
+	padding-top: 16px;
+	border-top: 1px solid var(--color-border);
+}
+
+.itop-subsection-title {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 0 0 8px 0;
+	color: var(--color-main-text);
+}
+
 .itop-binding-rule-row {
 	display: flex;
 	align-items: center;

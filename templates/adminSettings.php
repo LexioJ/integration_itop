@@ -39,8 +39,6 @@ $ciClassLabels = [
 
 		<?php if ($_['is_configured']) { ?>
 		<nav class="itop-nav-chips" aria-label="<?php p($l->t('Jump to a settings section')); ?>">
-			<a class="itop-chip" href="#itop-section-status"><?php p($l->t('📊 Status')); ?></a>
-			<a class="itop-chip" href="#itop-binding-rule"><?php p($l->t('🔗 Identity binding')); ?></a>
 			<a class="itop-chip" href="#itop-binding-associations"><?php p($l->t('👥 User associations')); ?></a>
 			<a class="itop-chip" href="#itop-section-tickets"><?php p($l->t('🎫 Tickets')); ?></a>
 			<a class="itop-chip" href="#itop-section-notifications"><?php p($l->t('🔔 Notifications')); ?></a>
@@ -115,18 +113,32 @@ $ciClassLabels = [
 					<div class="status-value"><?php p($_['last_updated']); ?></div>
 				</div>
 			</div>
-
-			<div class="itop-section-foot">
-				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
-			</div>
 		</div>
 
-		<!-- Identity Binding Section -->
-		<div class="settings-section" id="itop-binding-rule">
+		<!-- User Associations Section -->
+		<div class="settings-section" id="itop-binding-associations">
 			<div class="section-header">
-				<h3><?php p($l->t('🔗 Identity binding')); ?></h3>
-				<p class="section-description"><?php p($l->t('How Nextcloud accounts are matched to people in %s. Used by admin-side binding and by the occ itop:bind command.', [$_['user_facing_name']])); ?></p>
+				<h3><?php p($l->t('👥 User associations')); ?></h3>
+				<p class="section-description"><?php p($l->t('Which Nextcloud accounts are linked to a person in %s. Accounts excluded here are skipped by matching and by the occ itop:bind command.', [$_['user_facing_name']])); ?></p>
 			</div>
+
+			<div class="itop-binding-toolbar">
+				<div id="itop-binding-scope-picker" class="itop-binding-scope-picker"></div>
+				<span class="itop-binding-filters" id="itop-binding-filters">
+					<button type="button" class="itop-binding-filter active" data-filter="all"><?php p($l->t('All')); ?></button>
+					<button type="button" class="itop-binding-filter" data-filter="unbound"><?php p($l->t('Unbound')); ?></button>
+					<button type="button" class="itop-binding-filter" data-filter="bound"><?php p($l->t('Bound')); ?></button>
+					<button type="button" class="itop-binding-filter" data-filter="excluded"><?php p($l->t('Excluded')); ?></button>
+				</span>
+			</div>
+
+			<div id="itop-binding-bulk" class="itop-binding-bulk hidden"></div>
+			<div id="itop-binding-table" class="itop-binding-table"></div>
+			<div id="itop-binding-pager" class="itop-binding-pager"></div>
+
+			<div class="itop-binding-rule-block">
+				<h4 class="itop-subsection-title"><?php p($l->t('🔗 Matching rule')); ?></h4>
+				<p class="section-description"><?php p($l->t('How Nextcloud accounts are matched to people in %s. Used by admin-side binding and by the occ itop:bind command.', [$_['user_facing_name']])); ?></p>
 
 			<?php
 			$sourceLabels = [
@@ -167,32 +179,7 @@ $ciClassLabels = [
 				<strong><?php p($l->t('Users can change this attribute themselves on this instance.')); ?></strong>
 				<?php p($l->t('A user could set their value to a colleague\'s and be linked to that person, gaining read access to their tickets. Set allow_user_to_change_email — or allow_user_to_change_display_name if matching on display name — to false, or match on User ID, which cannot be changed. Admin-side binding and occ itop:bind match on the same attribute, so they are affected too: they refuse a person already linked to another account, but one not yet linked can be claimed this way.')); ?>
 			</div>
-
-			<div class="itop-section-foot">
-				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
 			</div>
-		</div>
-
-		<!-- User Associations Section -->
-		<div class="settings-section" id="itop-binding-associations">
-			<div class="section-header">
-				<h3><?php p($l->t('👥 User associations')); ?></h3>
-				<p class="section-description"><?php p($l->t('Which Nextcloud accounts are linked to a person in %s. Accounts excluded here are skipped by matching and by the occ itop:bind command.', [$_['user_facing_name']])); ?></p>
-			</div>
-
-			<div class="itop-binding-toolbar">
-				<div id="itop-binding-scope-picker" class="itop-binding-scope-picker"></div>
-				<span class="itop-binding-filters" id="itop-binding-filters">
-					<button type="button" class="itop-binding-filter active" data-filter="all"><?php p($l->t('All')); ?></button>
-					<button type="button" class="itop-binding-filter" data-filter="unbound"><?php p($l->t('Unbound')); ?></button>
-					<button type="button" class="itop-binding-filter" data-filter="bound"><?php p($l->t('Bound')); ?></button>
-					<button type="button" class="itop-binding-filter" data-filter="excluded"><?php p($l->t('Excluded')); ?></button>
-				</span>
-			</div>
-
-			<div id="itop-binding-bulk" class="itop-binding-bulk hidden"></div>
-			<div id="itop-binding-table" class="itop-binding-table"></div>
-			<div id="itop-binding-pager" class="itop-binding-pager"></div>
 
 			<div class="itop-section-foot">
 				<a class="itop-chip itop-to-top" href="#itop_prefs"><?php p($l->t('↑ Back to top')); ?></a>
