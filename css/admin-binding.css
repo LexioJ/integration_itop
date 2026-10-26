@@ -29,14 +29,18 @@
  * mount-point div, so only the component's own root class reaches the DOM
  * (the same gotcha as the scope picker above).
  *
- * `flex-wrap` is deliberately absent. The bar holds at most a short count
- * chip, one labelled button and an icon-only overflow toggle, so it has no
- * business needing a second line in any locale -- and if a translation ever
- * made it overflow, that should show up as an overflow to be fixed rather
- * than quietly reflow into the two-line layout this replaced.
+ * It wraps, on purpose, which is the opposite of the rule the table rows
+ * follow. A row cannot afford a second line -- it would stand taller than
+ * its neighbours or push the card -- so RowActions keeps one label and hides
+ * the rest behind "⋯". This bar owns a full-width line that nothing is laid
+ * out against, so a long locale costs it a few pixels of height and that is
+ * all. Hiding its actions to avoid that would cost discoverability in every
+ * locale instead, including the short ones. Hence four labelled buttons and
+ * `flex-wrap`, not one button and an overflow menu.
  */
 .itop-binding-action-bar {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 8px;
 	align-items: center;
 	margin-bottom: 8px;

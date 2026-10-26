@@ -7,8 +7,7 @@
   - pair ("Suggest matches", "Apply exact only") that acted on the whole page,
   - and a pale panel that appeared under it when rows were selected, carrying
   - the same two labels plus three more. The same label appeared twice on
-  - screen with two different scopes, and six plain buttons abreast wrapped
-  - onto a second line.
+  - screen with two different scopes.
   -
   - This is one bar instead, in the Files-app sense: it always acts on "the
   - current scope", which is the selection when there is one and the current
@@ -16,15 +15,27 @@
   - dismissing the chip is what clears the selection -- so no label is
   - duplicated and there is no second panel to appear and disappear.
   -
-  - Width is a hard constraint here, not a preference: every label is
-  - translated and German runs far longer than English. So exactly one
-  - labelled button is ever on screen -- the primary -- and everything else
-  - lives in one NcActions overflow, where a long label costs nothing because
-  - the menu sizes itself. That is why the irreversible action (applying exact
-  - matches) is a menu entry rather than a second button: it is the second step
-  - of a two-step flow, its label has to carry a count to be honest about
-  - scope, and a count-bearing translated label is exactly what cannot be
-  - fitted abreast.
+  - Every action is a labelled button, and the bar is allowed to wrap.
+  -
+  - That is the opposite of the rule the row actions follow, deliberately. In
+  - a table row, width really is a hard constraint: a long translated label
+  - there either wraps and makes one row taller than its neighbours or pushes
+  - the row past the card, so RowActions collapses everything but one action
+  - behind "⋯". This bar is its own full-width line and nothing is laid out
+  - against it. A toolbar that needs two lines in German costs a few pixels of
+  - vertical space in one locale; a toolbar that hides three of its four
+  - actions behind "⋯" costs discoverability on every screen, in every
+  - language, forever. The trade is not the same one, so it does not get the
+  - same answer.
+  -
+  - There is also no NcActions here at all, which removes a real defect rather
+  - than just a bad trade: NcActions renders a *single* available action inline
+  - instead of as a menu, and an inline action is icon-only unless `force-name`
+  - is set. With nothing selected only one entry remained, so "Apply exact
+  - only" rendered as a bare double-checkmark -- an unexplainable control that
+  - was still in the tab order. Nothing in this bar can render without a
+  - label now: every control is an NcButton with text, and the chip's close
+  - button carries `aria-label-close`.
   -
   - The primary deliberately does not change identity with the selection.
   - Making it become "Apply N exact matches" once suggestions land would put an
@@ -63,74 +74,56 @@
 			{{ busy ? t('integration_itop', 'Suggesting…') : t('integration_itop', 'Suggest matches') }}
 		</NcButton>
 
-		<NcActions :aria-label="menuLabel">
-			<!--
-				Names its own count because binding is the one act on this
-				screen that is not trivially reversible -- a token-bound user
-				who gets unlinked needs a new personal token -- so "how many
-				accounts will this change" must not be left to the scope being
-				inferred from the chip. Disabled rather than hidden when there
-				is nothing to apply: a menu entry that comes and goes as
-				suggestions land would move the entries below it.
-			-->
-			<NcActionButton :disabled="busy || exactCount === 0"
-				@click="$emit('apply-exact')">
-				<template #icon>
-					<CheckAllIcon :size="20" />
-				</template>
-				{{ applyLabel }}
-			</NcActionButton>
+		<!--
+			Secondary, never primary: binding is the one act on this screen that
+			is not trivially reversible -- a token-bound user who gets unlinked
+			needs a new personal token -- so it does not get the visual weight
+			that invites a reflex click.
 
-			<!--
-				Selection-only, both of them. Excluding a whole page from
-				matching on one menu click is not something to offer without
-				the administrator having picked the rows first, and "Restore"
-				is its counterpart rather than an independent action.
-			-->
-			<NcActionButton v-if="selectedCount > 0"
-				:disabled="busy"
-				@click="$emit('exclude')">
-				<template #icon>
-					<CancelIcon :size="20" />
-				</template>
-				{{ t('integration_itop', 'Exclude from matching') }}
-			</NcActionButton>
+			It names its own count for the same reason, so "how many accounts
+			will this change" is never left to be inferred from the scope.
+			Disabled rather than hidden when there is nothing to apply: an
+			action that vanishes as suggestions land teaches nobody that it
+			exists, and a disabled button with a zero count is self-explaining.
+		-->
+		<NcButton :disabled="busy || exactCount === 0"
+			@click="$emit('apply-exact')">
+			{{ applyLabel }}
+		</NcButton>
 
-			<NcActionButton v-if="selectedCount > 0"
-				:disabled="busy"
-				@click="$emit('restore')">
-				<template #icon>
-					<RestoreIcon :size="20" />
-				</template>
-				{{ t('integration_itop', 'Restore to matching') }}
-			</NcActionButton>
-		</NcActions>
+		<!--
+			Selection-only, both of them. Excluding a whole page from matching
+			on one click is not something to offer without the administrator
+			having picked the rows first, and "Restore to matching" is its
+			counterpart rather than an independent action.
+		-->
+		<NcButton v-if="selectedCount > 0"
+			:disabled="busy"
+			@click="$emit('exclude')">
+			{{ t('integration_itop', 'Exclude from matching') }}
+		</NcButton>
+
+		<NcButton v-if="selectedCount > 0"
+			:disabled="busy"
+			@click="$emit('restore')">
+			{{ t('integration_itop', 'Restore to matching') }}
+		</NcButton>
 	</div>
 </template>
 
 <script>
-import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js'
-import NcActions from '@nextcloud/vue/dist/Components/NcActions.js'
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
 import NcChip from '@nextcloud/vue/dist/Components/NcChip.js'
 import NcLoadingIcon from '@nextcloud/vue/dist/Components/NcLoadingIcon.js'
-import CancelIcon from 'vue-material-design-icons/Cancel.vue'
-import CheckAllIcon from 'vue-material-design-icons/CheckAll.vue'
-import RestoreIcon from 'vue-material-design-icons/Restore.vue'
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 
 export default {
 	name: 'BindingActionBar',
 
 	components: {
-		NcActionButton,
-		NcActions,
 		NcButton,
 		NcChip,
 		NcLoadingIcon,
-		CancelIcon,
-		CheckAllIcon,
-		RestoreIcon,
 	},
 
 	/**
@@ -171,20 +164,7 @@ export default {
 		},
 
 		/**
-		 * Scope-aware because the menu's contents differ between the two
-		 * modes, and an overflow toggle called "More actions" would not say
-		 * which accounts they are more actions for.
-		 *
-		 * @return {string} accessible name for the overflow menu
-		 */
-		menuLabel() {
-			return this.selectedCount > 0
-				? t('integration_itop', 'More actions for the selected accounts')
-				: t('integration_itop', 'More actions for this page')
-		},
-
-		/**
-		 * @return {string} label for the apply-exact menu entry
+		 * @return {string} label for the apply-exact button
 		 */
 		applyLabel() {
 			if (this.exactCount === 0) {
