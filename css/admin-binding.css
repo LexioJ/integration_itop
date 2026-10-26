@@ -1,0 +1,70 @@
+/* Admin: user association table */
+.itop-binding-toolbar {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+	margin-bottom: 10px;
+}
+
+.itop-binding-filter.active {
+	font-weight: bold;
+	text-decoration: underline;
+}
+
+.itop-binding-bulk {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+	padding: 8px;
+	margin-bottom: 8px;
+	border-radius: var(--border-radius, 3px);
+	background-color: var(--color-primary-element-light, #e8f0fe);
+}
+
+.itop-binding-bulk.hidden {
+	display: none;
+}
+
+.itop-binding-row {
+	display: grid;
+	grid-template-columns: 32px minmax(180px, 2fr) minmax(140px, 1fr) auto;
+	gap: 8px;
+	align-items: center;
+	padding: 6px 4px;
+	border-bottom: 1px solid var(--color-border, #ededed);
+}
+
+.itop-binding-account {
+	display: flex;
+	flex-direction: column;
+}
+
+.itop-binding-muted {
+	color: var(--color-text-maxcontrast, #767676);
+	font-size: 90%;
+}
+
+.itop-binding-badge {
+	display: inline-block;
+	padding: 1px 6px;
+	border-radius: var(--border-radius, 3px);
+	font-size: 85%;
+	background-color: var(--color-background-dark, #ededed);
+}
+
+.itop-binding-badge.excluded {
+	opacity: 0.7;
+}
+
+.itop-binding-badge.origin.unknown {
+	font-style: italic;
+}
+
+.itop-binding-pager {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	margin-top: 10px;
+}

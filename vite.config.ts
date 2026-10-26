@@ -13,6 +13,7 @@ export default createAppConfig({
 	dashboard: 'src/dashboard.js',
 	agentDashboard: 'src/agentDashboard.js',
 	'admin-settings': 'src/admin-settings.js',
+	'admin-binding': 'src/admin-binding.js',
 	'personal-settings': 'src/personal-settings.js',
 }, {
 	config: {

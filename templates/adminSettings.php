@@ -5,6 +5,8 @@
 $appId = OCA\Itop\AppInfo\Application::APP_ID;
 script($appId, $appId . '-admin-settings');
 style($appId, 'admin-settings');
+script($appId, $appId . '-admin-binding');
+style($appId, 'admin-binding');
 
 // CI class label mapping
 $ciClassLabels = [
@@ -793,4 +795,25 @@ $ciClassLabels = [
 			<?php p($l->t('If self-service discovery is enabled later, a user could set their value to a colleague\'s and bind to that person, gaining read access to their tickets. Set allow_user_to_change_email — or allow_user_to_change_display_name if matching on display name — to false, or match on User ID, which cannot be changed. Admin-side binding and occ itop:bind are unaffected.')); ?>
 		</div>
 	</div>
+</div>
+
+<div id="itop-binding-associations" class="section">
+	<h2><?php p($l->t('User associations')); ?></h2>
+	<p class="settings-hint">
+		<?php p($l->t('Which Nextcloud accounts are linked to a person in %s. Accounts excluded here are skipped by matching and by the occ itop:bind command.', [$_['user_facing_name']])); ?>
+	</p>
+
+	<div class="itop-binding-toolbar">
+		<input type="search" id="itop-binding-search" placeholder="<?php p($l->t('Search accounts…')); ?>">
+		<span class="itop-binding-filters" id="itop-binding-filters">
+			<button type="button" class="itop-binding-filter active" data-filter="all"><?php p($l->t('All')); ?></button>
+			<button type="button" class="itop-binding-filter" data-filter="unbound"><?php p($l->t('Unbound')); ?></button>
+			<button type="button" class="itop-binding-filter" data-filter="bound"><?php p($l->t('Bound')); ?></button>
+			<button type="button" class="itop-binding-filter" data-filter="excluded"><?php p($l->t('Excluded')); ?></button>
+		</span>
+	</div>
+
+	<div id="itop-binding-bulk" class="itop-binding-bulk hidden"></div>
+	<div id="itop-binding-table" class="itop-binding-table"></div>
+	<div id="itop-binding-pager" class="itop-binding-pager"></div>
 </div>
