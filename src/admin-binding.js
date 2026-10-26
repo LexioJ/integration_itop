@@ -459,6 +459,17 @@ import { generateUrl } from '@nextcloud/router'
 			for (const uid of uids) {
 				if (uid in results) state.suggestions[uid] = results[uid]
 			}
+			// The server caps a batch (maxBatch) and truncates silently, so
+			// without this the surplus rows would simply stay blank with
+			// nothing said about why. Unreachable at the current page size,
+			// which is the point: a guard rail should report when it fires
+			// rather than only exist.
+			const missing = uids.filter(uid => !(uid in results))
+			if (missing.length > 0) {
+				showError(t('integration_itop',
+					'Only {max} account(s) can be matched at once. {count} were left without a suggestion — select fewer accounts and run it again.',
+					{ max: data.maxBatch || uids.length - missing.length, count: missing.length }))
+			}
 		} catch (e) {
 			showError(t('integration_itop', 'Could not suggest matches: {msg}', { msg: e.message }))
 		} finally {

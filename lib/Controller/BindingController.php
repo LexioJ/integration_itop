@@ -90,6 +90,9 @@ class BindingController extends Controller {
 			// json_encode as a JSON array, and the browser -- which looks
 			// results up by uid -- would read them off the wrong rows.
 			'results' => (object)$this->suggestionService->suggest($uids),
+			// Read by the client to explain a short result set: the service
+			// truncates at MAX_BATCH, and rows beyond it would otherwise just
+			// stay blank with nothing said about why.
 			'maxBatch' => SuggestionService::MAX_BATCH,
 		]);
 	}
