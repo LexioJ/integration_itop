@@ -727,12 +727,38 @@ import { generateUrl } from '@nextcloud/router'
 		const pager = document.getElementById('itop-binding-pager')
 		if (!pager) return
 		const pages = Math.max(1, Math.ceil(state.total / state.pageSize))
+		// The whole content of each button is a ‹ or › glyph, which a screen
+		// reader either skips or reads as "single left-pointing angle
+		// quotation mark". The glyph is hidden from assistive technology and
+		// the button named instead, so the two are also told apart.
 		pager.innerHTML
-			= '<button type="button" id="itop-binding-prev"' + (state.page <= 1 ? ' disabled' : '') + '>‹</button>'
+			= '<button type="button" id="itop-binding-prev"'
+			+ ' aria-label="' + esc(t('integration_itop', 'Previous page')) + '"'
+			+ (state.page <= 1 ? ' disabled' : '') + '><span aria-hidden="true">‹</span></button>'
 			+ '<span>' + esc(n('integration_itop', 'Page {page} of {pages} · {total} account',
 				'Page {page} of {pages} · {total} accounts', state.total,
 				{ page: state.page, pages, total: state.total })) + '</span>'
-			+ '<button type="button" id="itop-binding-next"' + (state.page >= pages ? ' disabled' : '') + '>›</button>'
+			+ '<button type="button" id="itop-binding-next"'
+			+ ' aria-label="' + esc(t('integration_itop', 'Next page')) + '"'
+			+ (state.page >= pages ? ' disabled' : '') + '><span aria-hidden="true">›</span></button>'
+	}
+
+	/**
+	 * Mark the active filter for assistive technology.
+	 *
+	 * The active filter is otherwise bold and underlined and nothing else, so
+	 * an administrator using a screen reader has no way to tell that a filter
+	 * is applied at all -- "Page 1 of 1 · 3 accounts" reads exactly like an
+	 * unfiltered instance with three accounts in it.
+	 *
+	 * Derived from state.filter rather than from the class, and called on load
+	 * as well as on every click, so the server-rendered initial state is
+	 * announced too.
+	 */
+	function syncFilterButtons() {
+		document.querySelectorAll('.itop-binding-filter').forEach(function(b) {
+			b.setAttribute('aria-pressed', b.dataset.filter === state.filter ? 'true' : 'false')
+		})
 	}
 
 	/**
@@ -1157,6 +1183,7 @@ import { generateUrl } from '@nextcloud/router'
 				state.page = 1
 				document.querySelectorAll('.itop-binding-filter').forEach(b => b.classList.remove('active'))
 				filterBtn.classList.add('active')
+				syncFilterButtons()
 				load()
 				return
 			}
@@ -1206,6 +1233,7 @@ import { generateUrl } from '@nextcloud/router'
 	document.addEventListener('DOMContentLoaded', function() {
 		if (!document.getElementById('itop-binding-table')) return
 		attachHandlers()
+		syncFilterButtons()
 		mountActionBar()
 		mountScopePicker()
 		load()
