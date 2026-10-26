@@ -130,16 +130,16 @@ $ciClassLabels = [
 					<button type="button" class="itop-binding-filter" data-filter="bound"><?php p($l->t('Bound')); ?></button>
 					<button type="button" class="itop-binding-filter" data-filter="excluded"><?php p($l->t('Excluded')); ?></button>
 				</span>
-				<!--
-					Duplicates the bulk-bar actions of the same name so suggesting
-					and applying exact matches are reachable with nothing selected
-					-- a full-page pass is the common case, not the exception.
-				-->
-				<button type="button" id="itop-binding-toolbar-suggest"><?php p($l->t('Suggest matches')); ?></button>
-				<button type="button" id="itop-binding-toolbar-apply-exact" disabled><?php p($l->t('Apply exact only')); ?></button>
 			</div>
 
-			<div id="itop-binding-bulk" class="itop-binding-bulk hidden"></div>
+			<!--
+				Mount point for BindingActionBar: one scope-aware bar that replaces
+				both the old static "Suggest matches"/"Apply exact only" pair and the
+				panel that used to appear below it with the same labels again. It acts
+				on the selection when there is one and on the current page otherwise,
+				so neither label exists twice on screen.
+			-->
+			<div id="itop-binding-actions-bar"></div>
 			<div id="itop-binding-table" class="itop-binding-table"></div>
 			<div id="itop-binding-pager" class="itop-binding-pager"></div>
 

@@ -330,15 +330,81 @@ import { generateUrl } from '@nextcloud/router'
 			instance.$on('restore', target => setExcluded([target], false))
 			instance.$on('unbind', unbind)
 			// Vue 2's $mount(el) replaces el, so the mount point is a child of
-			// the actions cell rather than the cell itself -- the cell has to
-			// survive as the row's grid track.
+			// the actions cell rather than the cell itself -- the <td> has to
+			// survive as the row's cell in its column.
 			instance.$mount(el)
 			rowActions.push(instance)
 		}
 	}
 
 	/**
-	 * Repaint the table, bulk bar and pager from state.
+	 * The markup for one row.
+	 *
+	 * A real <tr> in a real table, which is what fixed the column alignment
+	 * this screen used to have: every row was its own CSS grid, so each one
+	 * resolved `grid-template-columns` against its own content and the actions
+	 * track came out a different width depending on whether that row's button
+	 * said "Unlink" or "Link". Columns in a table share a width by
+	 * construction, and <th>/<td> is also what tells a screen reader this is
+	 * tabular data.
+	 *
+	 * @param {object} row a row from /binding/users
+	 * @return {string} HTML for one table row
+	 */
+	function renderRow(row) {
+		const account = row.displayName || row.uid
+		return '<tr class="itop-binding-row" data-uid="' + esc(row.uid) + '">'
+			// Named after the account rather than left bare: twenty-five
+			// unlabelled checkboxes in a column tell a screen reader user
+			// nothing about which account each one selects.
+			// The <label> carries no text -- aria-label on the input is what
+			// names it, and takes precedence over an empty label anyway. It is
+			// there to widen a 14px checkbox into a cell-sized click target.
+			+ '<td class="itop-binding-col-select">'
+			+ '<label class="itop-binding-select">'
+			+ '<input type="checkbox" data-select="' + esc(row.uid) + '"'
+			+ ' aria-label="' + esc(t('integration_itop', 'Select {account}', { account })) + '"'
+			+ (state.selected.has(row.uid) ? ' checked' : '') + '>'
+			+ '</label>'
+			+ '</td>'
+			// Avatar and account text share one cell, so the names line up
+			// against a single column edge. The flex container is the inner
+			// div, not the <td>: `display: flex` on a table cell drops its
+			// `table-cell` role, the browser wraps it in an anonymous cell,
+			// and the column widths stop being the table's to decide -- which
+			// is the one thing this rework exists to fix.
+			+ '<td class="itop-binding-col-account">'
+			+ '<div class="itop-binding-account-line">'
+			// Same image NcAvatar fetches. alt is empty on purpose: the
+			// display name sits next to it, so a label here would make
+			// screen readers announce the account twice.
+			+ '<img class="itop-binding-avatar" alt="" loading="lazy"'
+			+ ' src="' + esc(generateUrl('/avatar/' + encodeURIComponent(row.uid) + '/32')) + '"'
+			+ ' srcset="' + esc(generateUrl('/avatar/' + encodeURIComponent(row.uid) + '/64')) + ' 2x">'
+			// Both lines are truncated with an ellipsis past the account
+			// column's cap (see .itop-binding-account), so each carries its
+			// own title to keep the full value reachable on hover/focus.
+			+ '<span class="itop-binding-account"><strong title="' + esc(row.displayName) + '">' + esc(row.displayName) + '</strong>'
+			+ '<span class="itop-binding-muted" title="' + esc(row.uid + (row.email ? ' · ' + row.email : '')) + '">' + esc(row.uid)
+			+ (row.email ? ' · ' + esc(row.email) : '') + '</span></span>'
+			+ '</div>'
+			+ '</td>'
+			+ '<td class="itop-binding-status">' + describeStatus(row) + '</td>'
+			// Empty mount point for this row's RowActions, filled by
+			// mountRowActions() once the dynamic import lands. Vue 2 replaces
+			// it rather than rendering inside it, so it needs a parent that
+			// survives -- and that parent is the inner div rather than the
+			// <td> for the same table-cell reason as the account cell above.
+			+ '<td class="itop-binding-col-actions">'
+			+ '<div class="itop-binding-actions">'
+			+ '<span data-actions="' + esc(row.uid) + '"></span>'
+			+ '</div>'
+			+ '</td>'
+			+ '</tr>'
+	}
+
+	/**
+	 * Repaint the table, action bar and pager from state.
 	 */
 	function render() {
 		const table = document.getElementById('itop-binding-table')
@@ -349,43 +415,33 @@ import { generateUrl } from '@nextcloud/router'
 		renderSeq += 1
 
 		if (state.rows.length === 0) {
+			// No header either: a toggle-all checkbox over nothing is worse
+			// than its absence.
 			table.innerHTML = '<p class="itop-binding-muted">'
 				+ esc(t('integration_itop', 'No accounts match this filter.')) + '</p>'
 		} else {
-			table.innerHTML = state.rows.map(row =>
-				'<div class="itop-binding-row" data-uid="' + esc(row.uid) + '">'
+			table.innerHTML = '<table class="itop-binding-grid">'
+				+ '<thead><tr>'
+				// The toggle-all input is the column header's whole content,
+				// so its aria-label is what names the column; adding header
+				// text beside it would only make the checkbox announce twice.
+				+ '<th scope="col" class="itop-binding-col-select">'
 				+ '<label class="itop-binding-select">'
-				+ '<input type="checkbox" data-select="' + esc(row.uid) + '"'
-				+ (state.selected.has(row.uid) ? ' checked' : '') + '>'
+				+ '<input type="checkbox" id="itop-binding-select-all"'
+				+ ' aria-label="' + esc(t('integration_itop', 'Select all accounts on this page')) + '">'
 				+ '</label>'
-				// Same image NcAvatar fetches. alt is empty on purpose: the
-				// display name sits next to it, so a label here would make
-				// screen readers announce the account twice.
-				+ '<img class="itop-binding-avatar" alt="" loading="lazy"'
-				+ ' src="' + esc(generateUrl('/avatar/' + encodeURIComponent(row.uid) + '/32')) + '"'
-				+ ' srcset="' + esc(generateUrl('/avatar/' + encodeURIComponent(row.uid) + '/64')) + ' 2x">'
-				// Both lines can be truncated with an ellipsis under a long
-				// enough translated label set (see .itop-binding-account),
-				// so each carries its own title so the full value stays
-				// reachable on hover/focus regardless.
-				+ '<span class="itop-binding-account"><strong title="' + esc(row.displayName) + '">' + esc(row.displayName) + '</strong>'
-				+ '<span class="itop-binding-muted" title="' + esc(row.uid + (row.email ? ' · ' + row.email : '')) + '">' + esc(row.uid)
-				+ (row.email ? ' · ' + esc(row.email) : '') + '</span></span>'
-				+ '<span class="itop-binding-status">' + describeStatus(row) + '</span>'
-				// Empty mount point for this row's RowActions, filled by
-				// mountRowActions() once the dynamic import lands. Vue 2
-				// replaces it rather than rendering inside it, hence the
-				// wrapping cell.
-				+ '<span class="itop-binding-actions">'
-				+ '<span data-actions="' + esc(row.uid) + '"></span>'
-				+ '</span>'
-				+ '</div>',
-			).join('')
+				+ '</th>'
+				+ '<th scope="col">' + esc(t('integration_itop', 'Account')) + '</th>'
+				+ '<th scope="col">' + esc(t('integration_itop', 'Status')) + '</th>'
+				+ '<th scope="col" class="itop-binding-col-actions">' + esc(t('integration_itop', 'Actions')) + '</th>'
+				+ '</tr></thead>'
+				+ '<tbody>' + state.rows.map(renderRow).join('') + '</tbody>'
+				+ '</table>'
 		}
 
-		renderBulkBar()
+		syncSelectAll()
+		renderActionBar()
 		renderPager()
-		renderToolbarApplyExact()
 		// Deliberately not awaited: render() is synchronous for every caller,
 		// and the actions cells fill in on the microtask after the first
 		// import resolves.
@@ -393,64 +449,73 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
-	 * How many rows on the current page are unbound and currently hold an
-	 * exact suggestion -- i.e. how many "Apply exact only" would actually
-	 * apply. An already-bound row is excluded even if its suggestion is
-	 * exact: moving a person is the explicit two-step act (unlink, then
-	 * apply), never a side effect of a bulk button.
+	 * Bring the toggle-all checkbox in line with what is actually selected.
 	 *
+	 * Called after every repaint as well as on every row checkbox click,
+	 * because the selection can change without anyone touching a checkbox: a
+	 * filter change or a page turn drops the selections for rows that left
+	 * view (see load()), and the header must follow them.
+	 *
+	 * `indeterminate` is a DOM property, not an attribute, so it cannot be
+	 * written into the markup above and has to be set here.
+	 */
+	function syncSelectAll() {
+		const box = document.getElementById('itop-binding-select-all')
+		if (!box) return
+		const selectedOnPage = state.rows.filter(r => state.selected.has(r.uid)).length
+		box.checked = selectedOnPage > 0 && selectedOnPage === state.rows.length
+		box.indeterminate = selectedOnPage > 0 && selectedOnPage < state.rows.length
+	}
+
+	/**
+	 * Select or deselect every row on the current page.
+	 *
+	 * Scoped to the page on purpose: the server never hears about this, it
+	 * only drives state.selected, and "all" meaning every account in the
+	 * instance would let one click aim a bulk action at accounts the
+	 * administrator has not even seen.
+	 *
+	 * @param {boolean} selected true to select the page, false to deselect it
+	 */
+	function setPageSelected(selected) {
+		for (const row of state.rows) {
+			if (selected) state.selected.add(row.uid)
+			else state.selected.delete(row.uid)
+		}
+	}
+
+	/**
+	 * How many of the given accounts are unbound and currently hold an exact
+	 * suggestion -- i.e. how many "Apply exact" would actually bind. An
+	 * already-bound row is excluded even if its suggestion is exact: moving a
+	 * person is the explicit two-step act (unlink, then apply), never a side
+	 * effect of a bulk action.
+	 *
+	 * @param {string[]} uids accounts to count over
 	 * @return {number} count
 	 */
-	function exactCountOnPage() {
-		return state.rows.filter(row => {
-			if (row.bound) return false
-			const s = state.suggestions[row.uid]
+	function exactCountFor(uids) {
+		const bound = new Set(state.rows.filter(r => r.bound).map(r => r.uid))
+		return uids.filter(uid => {
+			if (bound.has(uid)) return false
+			const s = state.suggestions[uid]
 			return s && s.status === 'resolved' && s.tier === 'exact'
 		}).length
 	}
 
 	/**
-	 * Keep the standalone toolbar "Apply exact only" button honest about its
-	 * own scope.
+	 * Push the current scope into the action bar.
 	 *
-	 * Unlike the bulk-bar copy -- where the bar's own "{count} selected" line
-	 * already states what a click affects -- this button's scope (the whole
-	 * page) is otherwise invisible. Binding is the one action on this screen
-	 * that is not trivially reversible (a token-bound user who gets unlinked
-	 * needs a new personal token), so the label names the count rather than
-	 * leaving "the whole page" implicit. Disabled rather than hidden when
-	 * there is nothing to apply, so it can't issue an empty request.
+	 * The bar has no access to state: it is told how many rows are selected,
+	 * how many accounts its scope covers and how many of those hold an exact
+	 * match, and it decides what to show from that alone.
 	 */
-	function renderToolbarApplyExact() {
-		const btn = document.getElementById('itop-binding-toolbar-apply-exact')
-		if (!btn) return
-		const count = exactCountOnPage()
-		btn.disabled = count === 0
-		btn.textContent = count > 0
-			? n('integration_itop', 'Apply {count} exact match', 'Apply {count} exact matches', count, { count })
-			: t('integration_itop', 'Apply exact only')
-	}
-
-	/**
-	 * Show the bulk action bar only when something is selected.
-	 */
-	function renderBulkBar() {
-		const bar = document.getElementById('itop-binding-bulk')
-		if (!bar) return
-		if (state.selected.size === 0) {
-			bar.classList.add('hidden')
-			bar.innerHTML = ''
-			return
-		}
-		bar.classList.remove('hidden')
-		bar.innerHTML = '<strong>'
-			+ esc(t('integration_itop', '{count} selected', { count: state.selected.size }))
-			+ '</strong>'
-			+ '<button type="button" id="itop-binding-suggest">' + esc(t('integration_itop', 'Suggest matches')) + '</button>'
-			+ '<button type="button" id="itop-binding-apply-exact">' + esc(t('integration_itop', 'Apply exact only')) + '</button>'
-			+ '<button type="button" id="itop-binding-bulk-exclude">' + esc(t('integration_itop', 'Exclude from matching')) + '</button>'
-			+ '<button type="button" id="itop-binding-bulk-restore">' + esc(t('integration_itop', 'Restore')) + '</button>'
-			+ '<button type="button" id="itop-binding-bulk-clear">' + esc(t('integration_itop', 'Clear selection')) + '</button>'
+	function renderActionBar() {
+		if (!actionBar) return
+		const scope = selectionOrPage()
+		actionBar.selectedCount = state.selected.size
+		actionBar.scopeSize = scope.length
+		actionBar.exactCount = exactCountFor(scope)
 	}
 
 	/**
@@ -522,8 +587,9 @@ import { generateUrl } from '@nextcloud/router'
 	 * state.suggestions, then repaint.
 	 *
 	 * One iTop call per account, so this is not instant for a full page --
-	 * the triggering buttons are disabled and relabelled for the duration,
-	 * the same loading affordance used for every other async action here.
+	 * the action bar's primary button carries a spinner and is disabled for
+	 * the duration, the same loading affordance used for every other async
+	 * action here.
 	 *
 	 * @param {string[]} uids accounts to suggest matches for
 	 */
@@ -532,15 +598,7 @@ import { generateUrl } from '@nextcloud/router'
 			showError(t('integration_itop', 'No accounts to suggest matches for'))
 			return
 		}
-		const buttons = [
-			document.getElementById('itop-binding-suggest'),
-			document.getElementById('itop-binding-toolbar-suggest'),
-		].filter(Boolean)
-		const originalLabels = buttons.map(b => b.textContent)
-		buttons.forEach(b => {
-			b.disabled = true
-			b.textContent = t('integration_itop', 'Suggesting…')
-		})
+		if (actionBar) actionBar.busy = true
 		try {
 			const data = await apiCall('/binding/suggest', {
 				method: 'POST',
@@ -567,14 +625,7 @@ import { generateUrl } from '@nextcloud/router'
 		} catch (e) {
 			showError(t('integration_itop', 'Could not suggest matches: {msg}', { msg: e.message }))
 		} finally {
-			// render() repaints the bulk bar from scratch, so only the static
-			// toolbar button needs its own label restored here.
-			buttons.forEach((b, i) => {
-				if (document.body.contains(b)) {
-					b.disabled = false
-					b.textContent = originalLabels[i]
-				}
-			})
+			if (actionBar) actionBar.busy = false
 			render()
 		}
 	}
@@ -787,6 +838,54 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
+	 * The one mounted BindingActionBar, or null until its import lands.
+	 *
+	 * Mounted once for the lifetime of the page rather than rebuilt per
+	 * repaint -- unlike the per-row menus, there is exactly one of it, so
+	 * renderActionBar() assigns to its data instead and there is nothing to
+	 * destroy.
+	 *
+	 * @type {?object}
+	 */
+	let actionBar = null
+
+	/**
+	 * Mount the scope-aware action bar and wire its events.
+	 *
+	 * Loaded on demand for the same reason as the scope picker: the Vue
+	 * runtime is not parsed on a page without the association table.
+	 */
+	async function mountActionBar() {
+		const el = document.getElementById('itop-binding-actions-bar')
+		if (!el) return
+
+		const { default: Vue } = await import('vue')
+		const { default: BindingActionBar } = await import('./views/BindingActionBar.vue')
+
+		const Bar = Vue.extend(BindingActionBar)
+		actionBar = new Bar().$mount(el)
+
+		// The bar only emits; every scope decision, guard and API call stays
+		// here. "Suggest" and "Apply exact" take the selection when there is
+		// one and the whole page otherwise -- that is the scope the bar's own
+		// chip and counts describe.
+		actionBar.$on('suggest', () => suggest(selectionOrPage()))
+		actionBar.$on('apply-exact', () => applyExact(selectionOrPage()))
+		// Selection-only, which is why the bar hides both with nothing
+		// selected: excluding a whole page from matching is not something to
+		// do without having picked the rows.
+		actionBar.$on('exclude', () => setExcluded([...state.selected], true))
+		actionBar.$on('restore', () => setExcluded([...state.selected], false))
+		actionBar.$on('clear-selection', () => {
+			state.selected.clear()
+			render()
+		})
+
+		// The first load() may well have finished before this import did.
+		renderActionBar()
+	}
+
+	/**
 	 * Mount the scope picker and react to it.
 	 *
 	 * Loaded on demand so the Vue runtime is not parsed on a page where the
@@ -830,7 +929,7 @@ import { generateUrl } from '@nextcloud/router'
 	 * Wire the toolbar and pager.
 	 *
 	 * Delegated from document, matching the pattern used elsewhere in this app:
-	 * the pager and bulk bar are re-rendered on every repaint, so their buttons
+	 * the table and pager are re-rendered on every repaint, so their controls
 	 * are replaced and a direct listener would be lost.
 	 */
 	function attachHandlers() {
@@ -851,47 +950,33 @@ import { generateUrl } from '@nextcloud/router'
 				return
 			}
 
+			// Reading .checked after the click gives the state the click just
+			// produced, for the toggle-all as much as for a single row.
+			const selectAll = e.target.closest('#itop-binding-select-all')
+			if (selectAll) {
+				setPageSelected(selectAll.checked)
+				// The click already set .checked; this clears the
+				// indeterminate flag that was on it a moment ago.
+				syncSelectAll()
+				renderActionBar()
+				return
+			}
+
 			const selectBox = e.target.closest('input[data-select]')
 			if (selectBox) {
 				const uid = selectBox.dataset.select
 				if (selectBox.checked) state.selected.add(uid)
 				else state.selected.delete(uid)
-				renderBulkBar()
+				syncSelectAll()
+				renderActionBar()
 				return
 			}
 
 			// Per-row actions are not delegated: they are NcActionButtons
 			// inside each row's RowActions component, which emits to the
-			// handlers wired in mountRowActions().
-
-			if (e.target.closest('#itop-binding-bulk-exclude')) {
-				setExcluded([...state.selected], true); return
-			}
-			if (e.target.closest('#itop-binding-bulk-restore')) {
-				setExcluded([...state.selected], false); return
-			}
-			if (e.target.closest('#itop-binding-bulk-clear')) {
-				state.selected.clear(); render(); return
-			}
-
-			// Both the bulk-bar and standalone toolbar "Suggest matches" act
-			// over the current selection, falling back to the whole page when
-			// nothing is selected -- the toolbar copy exists so a full-page
-			// pass never requires selecting every row first.
-			if (e.target.closest('#itop-binding-suggest') || e.target.closest('#itop-binding-toolbar-suggest')) {
-				suggest(selectionOrPage()); return
-			}
-			// The bulk-bar "Apply exact only" scopes to the selection the bar
-			// itself already states ("{count} selected"). The toolbar copy
-			// always scopes to the whole current page -- its own label names
-			// that count (see renderToolbarApplyExact) so the two never
-			// silently disagree about what a click affects.
-			if (e.target.closest('#itop-binding-apply-exact')) {
-				applyExact([...state.selected]); return
-			}
-			if (e.target.closest('#itop-binding-toolbar-apply-exact')) {
-				applyExact(state.rows.map(r => r.uid)); return
-			}
+			// handlers wired in mountRowActions(). The bulk actions are not
+			// delegated either, for the same reason -- BindingActionBar emits
+			// to the handlers wired in mountActionBar().
 
 			if (e.target.closest('#itop-binding-prev')) {
 				if (state.page > 1) { state.page -= 1; load() }
@@ -908,6 +993,7 @@ import { generateUrl } from '@nextcloud/router'
 	document.addEventListener('DOMContentLoaded', function() {
 		if (!document.getElementById('itop-binding-table')) return
 		attachHandlers()
+		mountActionBar()
 		mountScopePicker()
 		load()
 

@@ -81,8 +81,7 @@
 			Unbound, ambiguous: the resolver found several people with equal
 			claim and refused to guess, so this opens the picker seeded with
 			those candidates. It is the manual-link route for this tier, which
-			is why "Link manually…" is suppressed below rather than shown
-			beside it.
+			is why "Link" is suppressed below rather than shown beside it.
 		-->
 		<NcActionButton v-else-if="tier === 'ambiguous'"
 			@click="$emit('choose', row.uid)">
@@ -106,7 +105,7 @@
 			<template #icon>
 				<LinkVariantPlusIcon :size="20" />
 			</template>
-			{{ t('integration_itop', 'Link manually…') }}
+			{{ t('integration_itop', 'Link') }}
 		</NcActionButton>
 
 		<NcActionButton v-if="!row.excluded"

@@ -21,89 +21,108 @@
 	text-decoration: underline;
 }
 
-.itop-binding-bulk {
+/*
+ * The one scope-aware action bar, in place of the old static toolbar pair
+ * plus the panel that appeared below it with the same labels again.
+ *
+ * Not `#itop-binding-actions-bar`: Vue 2's $mount(el) replaces that
+ * mount-point div, so only the component's own root class reaches the DOM
+ * (the same gotcha as the scope picker above).
+ *
+ * `flex-wrap` is deliberately absent. The bar holds at most a short count
+ * chip, one labelled button and an icon-only overflow toggle, so it has no
+ * business needing a second line in any locale -- and if a translation ever
+ * made it overflow, that should show up as an overflow to be fixed rather
+ * than quietly reflow into the two-line layout this replaced.
+ */
+.itop-binding-action-bar {
 	display: flex;
 	gap: 8px;
 	align-items: center;
-	flex-wrap: wrap;
-	padding: 8px;
 	margin-bottom: 8px;
-	border-radius: var(--border-radius, 3px);
-	background-color: var(--color-primary-element-light, #e8f0fe);
-}
-
-.itop-binding-bulk.hidden {
-	display: none;
 }
 
 /*
- * Five tracks: selection, avatar, account, status, actions.
+ * A real table, so a column has one width for every row by construction.
+ * This replaced a per-row CSS grid, under which each row resolved its own
+ * `grid-template-columns` against its own content: the actions track came
+ * out a different width depending on whether that row's button said
+ * "Unlink" or "Link", and the status and account columns could not line up
+ * between two rows at all.
  *
- * The actions cell holds a single NcActions -- one labelled button, plus a
- * fixed-width "⋯" toggle on a row that has more than one action. Only one
- * translated label is ever on screen per row, which is what dissolves the
- * old problem here: three labelled buttons abreast could not be sized so
- * that they neither wrapped in English nor overflowed the card in a longer
- * locale.
- *
- * `minmax(min-content, max-content)` is kept, now for a simpler reason. The
- * track sits at the content's natural width whenever the row has room, and
- * `min-content` -- one label plus the toggle, the label being `nowrap` --
- * is the floor it can be squeezed to, so a long German or French label
- * shortens the account column rather than pushing the row past the card.
- *
- * The status track carries what used to be two columns (binding state or
- * match tier, never both at once), so it takes the wider of their two old
- * floors.
- *
- * The account column's floor only bites because `.itop-binding-account`
- * sets `min-width: 0`; a grid item's default `min-width: auto` would keep
- * demanding its content's full intrinsic width instead of truncating.
+ * The wrapper scrolls rather than the table reflowing. Below roughly 600px
+ * four columns do not fit, and the previous answer -- restacking each row
+ * into three lines -- is not available to a table without throwing away the
+ * row/cell semantics that are half the reason for being one. A scroll keeps
+ * the columns aligned and the header attached to them.
  */
-.itop-binding-row {
-	display: grid;
-	grid-template-columns: 32px 32px minmax(150px, 2fr) minmax(160px, 1fr) minmax(min-content, max-content);
-	gap: 8px;
-	align-items: center;
+#itop-binding-table {
+	overflow-x: auto;
+}
+
+.itop-binding-grid {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.itop-binding-grid th {
+	padding: 4px;
+	text-align: left;
+	font-size: 90%;
+	color: var(--color-text-maxcontrast, #767676);
+	border-bottom: 1px solid var(--color-border, #ededed);
+	white-space: nowrap;
+}
+
+.itop-binding-grid td {
 	padding: 6px 4px;
+	vertical-align: middle;
 	border-bottom: 1px solid var(--color-border, #ededed);
 }
 
+.itop-binding-col-select {
+	width: 44px;
+}
+
 /*
- * Narrower than the row can comfortably fit five tracks (mobile, or a
- * resized admin-settings window): stack instead of letting individual cells
- * overflow. Selection, avatar and account stay on the first line; status and
- * actions each take a full-width line below.
+ * The textless <label> around each checkbox, header one included. It exists
+ * only to turn a 14px native checkbox into a target the width of its column
+ * and the height of its row -- a bare checkbox is well under the 44px
+ * minimum, and this is a column an administrator clicks repeatedly.
  */
-@media (max-width: 600px) {
-	.itop-binding-row {
-		grid-template-columns: 32px 32px 1fr;
-		grid-template-areas:
-			"select avatar account"
-			"status status status"
-			"actions actions actions";
-		row-gap: 4px;
-	}
+.itop-binding-select {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 34px;
+	cursor: pointer;
+}
 
-	.itop-binding-select {
-		grid-area: select;
-	}
+/*
+ * `width: 1%` with the table's automatic layout means "no wider than your
+ * content": the column ends up at the widest row's NcActions and stays
+ * there. Combined with `nowrap` that is what makes a long translated label
+ * widen one column for every row instead of wrapping inside one cell.
+ */
+.itop-binding-col-actions {
+	width: 1%;
+	text-align: right;
+	white-space: nowrap;
+}
 
-	.itop-binding-avatar {
-		grid-area: avatar;
-	}
-
-	.itop-binding-account {
-		grid-area: account;
-	}
-
-	.itop-binding-status {
-		grid-area: status;
-	}
-
-	.itop-binding-actions {
-		grid-area: actions;
-	}
+/*
+ * Avatar and account text share one cell so the names align on one edge.
+ *
+ * The flex container is this div inside the <td>, never the <td> itself:
+ * `display: flex` on a table cell drops its `table-cell` role, so the
+ * browser wraps it in an anonymous cell and the table stops owning that
+ * column's width -- which is precisely the bug a table was adopted to fix.
+ * The same goes for .itop-binding-actions below.
+ */
+.itop-binding-account-line {
+	display: flex;
+	gap: 8px;
+	align-items: center;
 }
 
 .itop-binding-avatar {
@@ -115,15 +134,19 @@
 	background-color: var(--color-background-dark, #ededed);
 }
 
+/*
+ * `max-width` is what keeps a long display name or email from widening the
+ * account column -- and with it the table -- until the wrapper has to
+ * scroll. The cap is in `em` rather than a percentage because what it
+ * bounds is user data, not a translated label: it has to hold roughly the
+ * same number of characters whatever the locale. `min-width: 0` is what
+ * lets the ellipsis rules below bite inside a flex item at all.
+ */
 .itop-binding-account {
 	display: flex;
 	flex-direction: column;
-	/* A grid item's default min-width is auto (its content's intrinsic
-	   width), which ignores the column's minmax() floor and would push the
-	   row wider instead of truncating. Zero it so the ellipsis rules below
-	   can actually bite at the floor width, at any label or display-name
-	   length. */
 	min-width: 0;
+	max-width: 24em;
 }
 
 .itop-binding-account strong,
@@ -134,28 +157,27 @@
 }
 
 /*
- * Wrapper for the row's RowActions. Vue 2's $mount(el) replaces the mount
+ * The wrapper inside the actions cell. Vue 2's $mount(el) replaces the mount
  * point, so NcActions' own root element ends up here as the single child --
- * the cell itself has to survive as the row's grid track, and the mount
- * point cannot be the cell.
+ * something inside the <td> has to survive as the mount point's parent, and
+ * it cannot be the <td>, which has to stay a table cell.
  *
- * `justify-content: flex-end` keeps every row's action aligned to the card's
- * right edge even though the buttons have different widths; without it the
- * "⋯" toggles form a ragged column.
+ * `justify-content: flex-end` keeps every row's action against the column's
+ * right edge even though a row offering "Unlink" and one offering "Link"
+ * have different button widths; without it the "⋯" toggles form a ragged
+ * column.
  */
 .itop-binding-actions {
 	display: flex;
 	justify-content: flex-end;
 	align-items: center;
-	min-width: 0;
 }
 
-/* One label per row now, so `nowrap` is no longer the sizing constraint it
- * was when three of them had to share this track -- it just stops a two-word
- * label such as "Link manually…" breaking mid-phrase and making one row
- * taller than its neighbours. The track's `min-content` floor is this label
- * plus the fixed-width toggle (see .itop-binding-row), which leaves far more
- * headroom for a long locale than the three-button layout ever had. */
+/* One labelled button per row, so this is not a sizing constraint -- it just
+ * stops a two-word label breaking mid-phrase and making one row taller than
+ * its neighbours. A long translated label widens the whole column instead,
+ * which is the behaviour a table gives for free and the per-row grid this
+ * replaced could not. */
 .itop-binding-actions button {
 	white-space: nowrap;
 }
@@ -211,9 +233,16 @@
  * names differ, what matched?") and a none row ("why no match, what did it even
  * look for?") -- so it stays on its own muted line, and is clipped rather than
  * allowed to widen the status column and push the names around.
+ *
+ * The `max-width` is what makes that clipping possible: the status column is
+ * sized by its content, so without a cap this line would simply widen the
+ * column to fit and the ellipsis would never appear. Capped in `em` for the
+ * same reason as the account column -- it bounds an iTop-supplied value, not
+ * a translated label.
  */
 .itop-binding-source-value {
 	display: block;
+	max-width: 22em;
 	color: var(--color-text-maxcontrast, #767676);
 	font-size: 85%;
 	overflow: hidden;
