@@ -38,11 +38,20 @@
 
 .itop-binding-row {
 	display: grid;
-	grid-template-columns: 32px minmax(180px, 2fr) minmax(140px, 1fr) auto;
+	grid-template-columns: 32px 32px minmax(180px, 2fr) minmax(140px, 1fr) auto;
 	gap: 8px;
 	align-items: center;
 	padding: 6px 4px;
 	border-bottom: 1px solid var(--color-border, #ededed);
+}
+
+.itop-binding-avatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	/* An avatar that has not loaded must not collapse the column and shift
+	   every row to its left. */
+	background-color: var(--color-background-dark, #ededed);
 }
 
 .itop-binding-account {

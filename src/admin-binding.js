@@ -135,6 +135,12 @@ import { generateUrl } from '@nextcloud/router'
 				+ '<input type="checkbox" data-select="' + esc(row.uid) + '"'
 				+ (state.selected.has(row.uid) ? ' checked' : '') + '>'
 				+ '</label>'
+				// Same image NcAvatar fetches. alt is empty on purpose: the
+				// display name sits next to it, so a label here would make
+				// screen readers announce the account twice.
+				+ '<img class="itop-binding-avatar" alt="" loading="lazy"'
+				+ ' src="' + esc(generateUrl('/avatar/' + encodeURIComponent(row.uid) + '/32')) + '"'
+				+ ' srcset="' + esc(generateUrl('/avatar/' + encodeURIComponent(row.uid) + '/64')) + ' 2x">'
 				+ '<span class="itop-binding-account"><strong>' + esc(row.displayName) + '</strong>'
 				+ '<span class="itop-binding-muted">' + esc(row.uid)
 				+ (row.email ? ' · ' + esc(row.email) : '') + '</span></span>'
