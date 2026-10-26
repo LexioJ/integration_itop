@@ -118,30 +118,40 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
-	 * Human-readable binding state for one row.
+	 * The single status cell for one row.
+	 *
+	 * Binding state and match tier used to be two columns, which was
+	 * redundant in both directions: an unbound row showed "not linked" next
+	 * to a suggestion that already said so, and a bound row showed a tier it
+	 * is not allowed to act on. One cell shows exactly one thing instead --
+	 * what the row is, or failing that, what the matcher thinks it could be.
 	 *
 	 * @param {object} row a row from /binding/users
-	 * @return {string} HTML for the state cell
+	 * @return {string} HTML for the status cell
 	 */
-	function describeBinding(row) {
+	function describeStatus(row) {
 		if (row.excluded) {
 			return '<span class="itop-binding-badge excluded">' + esc(t('integration_itop', 'excluded')) + '</span>'
 		}
-		if (!row.bound) {
+		if (row.bound) {
+			// A pre-existing binding made before provenance was recorded has no method.
+			const origin = row.method
+				? '<span class="itop-binding-badge origin">' + esc(row.method) + '</span>'
+				: '<span class="itop-binding-badge origin unknown" title="'
+					+ esc(t('integration_itop', 'Linked before this app recorded how bindings were made'))
+					+ '">' + esc(t('integration_itop', 'unknown')) + '</span>'
+			return '<strong>' + esc(t('integration_itop', 'person {id}', { id: row.personId })) + '</strong> ' + origin
+		}
+		const s = state.suggestions[row.uid]
+		if (!s) {
 			return '<span class="itop-binding-muted">' + esc(t('integration_itop', 'not linked')) + '</span>'
 		}
-		// A pre-existing binding made before provenance was recorded has no method.
-		const origin = row.method
-			? '<span class="itop-binding-badge origin">' + esc(row.method) + '</span>'
-			: '<span class="itop-binding-badge origin unknown" title="'
-				+ esc(t('integration_itop', 'Linked before this app recorded how bindings were made'))
-				+ '">' + esc(t('integration_itop', 'unknown')) + '</span>'
-		return '<strong>' + esc(t('integration_itop', 'person {id}', { id: row.personId })) + '</strong> ' + origin
+		return describeTier(row, s)
 	}
 
 	/**
 	 * The value the matching rule compares for one account, as a muted line
-	 * under the tier.
+	 * under the tier in the status cell.
 	 *
 	 * Only worth the space on the two tiers where it answers a question the
 	 * admin already has: review ("these names differ -- what actually
@@ -165,19 +175,18 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
-	 * Render the tier cell for one row from its last /binding/suggest result.
+	 * Render the tier part of the status cell for one row, from its last
+	 * /binding/suggest result.
 	 *
 	 * Suggestions are requested on demand (see suggest()), never computed on
-	 * load, so most rows show nothing until the admin asks for matches.
+	 * load, so most rows never reach this at all -- describeStatus shows
+	 * "not linked" until the admin asks for matches.
 	 *
 	 * @param {object} row a row from /binding/users
-	 * @return {string} HTML for the tier cell
+	 * @param {object} s that row's suggestion, already known to exist
+	 * @return {string} HTML for the tier part of the status cell
 	 */
-	function describeTier(row) {
-		const uid = row.uid
-		const s = state.suggestions[uid]
-		if (!s) return '<span class="itop-binding-muted">—</span>'
-
+	function describeTier(row, s) {
 		if (s.status === 'excluded') {
 			return '<span class="itop-binding-muted">' + esc(t('integration_itop', 'excluded')) + '</span>'
 		}
@@ -217,71 +226,115 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
-	 * Row action for the tier cell, if any.
+	 * Live RowActions instances from the last repaint.
 	 *
-	 * conflict and none get no action deliberately: bind() refuses a
-	 * conflict on every path, so an Apply button would promise something the
-	 * server rejects. ambiguous gets no action here either -- its manual-link
-	 * route lives in the actions cell now, see describeLinkAction.
-	 *
-	 * An already-bound row gets no action either, even for an exact or
-	 * review tier: apply-one trusts the administrator and does not carry
-	 * the already_bound guard that apply() has, so a Confirm… button here
-	 * would be a one-click way to silently re-point an already-bound
-	 * account at a different person -- exactly what the bulk path refuses.
-	 * Moving a person stays the explicit two-step act: unlink, then apply.
-	 *
-	 * @param {object} row a row from /binding/users
-	 * @return {string} HTML for the tier action, or an empty string
+	 * Tracked because render() replaces the table's innerHTML wholesale: the
+	 * assignment orphans every mounted instance, and an orphaned Vue instance
+	 * keeps its watchers, its NcPopover (which lives on document.body, not in
+	 * the cell) and its reference to the row object. Twenty-five of them per
+	 * repaint, across a session of filtering and paging, is a leak that grows
+	 * without bound -- so destroyRowActions() runs before every such
+	 * assignment.
 	 */
-	function describeTierAction(row) {
-		if (row.bound) return ''
+	let rowActions = []
 
-		const uid = row.uid
-		const s = state.suggestions[uid]
-		if (!s || s.status !== 'resolved') return ''
+	/** @type {?Function} Vue.extend(RowActions), once the dynamic import has landed. */
+	let RowActionsCtor = null
 
-		if (s.tier === 'exact') {
-			return '<button type="button" data-apply="' + esc(uid) + '">'
-				+ esc(t('integration_itop', 'Apply')) + '</button>'
+	/** @type {?Promise} In-flight import, shared so a burst of repaints imports once. */
+	let rowActionsImport = null
+
+	/**
+	 * Bumped by every repaint. mountRowActions() carries the value it was
+	 * called with across its await and abandons the pass if another repaint
+	 * has happened since -- otherwise two overlapping passes would both mount
+	 * into the current cells and only the later set would ever be destroyed.
+	 */
+	let renderSeq = 0
+
+	/**
+	 * Tear down the RowActions instances mounted by the last repaint.
+	 *
+	 * Must be called before anything replaces the table's contents. $destroy()
+	 * does not remove the instance's element in Vue 2, which is fine here:
+	 * the innerHTML assignment that follows removes it anyway.
+	 */
+	function destroyRowActions() {
+		for (const instance of rowActions) {
+			instance.$destroy()
 		}
-		if (s.tier === 'review') {
-			return '<button type="button" data-confirm="' + esc(uid) + '">'
-				+ esc(t('integration_itop', 'Confirm…')) + '</button>'
-		}
-		return ''
+		rowActions = []
 	}
 
 	/**
-	 * Manual-link action for one row, if any.
+	 * Resolve the RowActions constructor, importing Vue and the component on
+	 * first use.
 	 *
-	 * Offered on every row that is not bound and not excluded -- regardless
-	 * of tier, and regardless of whether Suggest has even been run. That is
-	 * the point of the feature: an account the matcher cannot resolve (e.g.
-	 * no email to match on) would otherwise have no route to a link at all.
-	 * Lives in the actions cell beside Exclude rather than the tier cell:
-	 * the tier cell renders "—" when there is no suggestion, and an action
-	 * that works without one should not sit somewhere that looks empty.
+	 * Dynamically imported for the same reason as the scope and person
+	 * pickers: the Vue runtime is not parsed on a page without the
+	 * association table.
 	 *
-	 * The label is tier-dependent because the wording carries real meaning:
-	 * an ambiguous row already has known candidates to choose between, so it
-	 * reads "Choose…"; every other row -- including no suggestion at all --
-	 * opens an empty picker to search, so it reads "Link manually…". This is
-	 * the one and only manual-link button a row can show; it replaces the
-	 * old ambiguous-only "Choose…" that used to live in the tier cell.
-	 *
-	 * @param {object} row a row from /binding/users
-	 * @return {string} HTML for the action, or an empty string
+	 * @return {Promise<Function>} the component constructor
 	 */
-	function describeLinkAction(row) {
-		if (row.bound || row.excluded) return ''
+	function loadRowActions() {
+		if (RowActionsCtor) return Promise.resolve(RowActionsCtor)
+		if (!rowActionsImport) {
+			rowActionsImport = (async () => {
+				const { default: Vue } = await import('vue')
+				const { default: RowActions } = await import('./views/RowActions.vue')
+				RowActionsCtor = Vue.extend(RowActions)
+				return RowActionsCtor
+			})()
+		}
+		return rowActionsImport
+	}
 
-		const uid = row.uid
-		const s = state.suggestions[uid]
-		const label = (s && s.status === 'resolved' && s.tier === 'ambiguous')
-			? t('integration_itop', 'Choose…')
-			: t('integration_itop', 'Link manually…')
-		return '<button type="button" data-choose="' + esc(uid) + '">' + esc(label) + '</button>'
+	/**
+	 * Mount one RowActions into each row's actions cell.
+	 *
+	 * The component only emits; every handler below is the same function the
+	 * old delegated click handler called, so the guards that protect a bound
+	 * row live where they always did.
+	 *
+	 * @param {number} seq the renderSeq value of the repaint that scheduled this
+	 */
+	async function mountRowActions(seq) {
+		const table = document.getElementById('itop-binding-table')
+		if (!table || !table.querySelector('[data-actions]')) return
+
+		const Ctor = await loadRowActions()
+		// A newer repaint has already destroyed this pass's instances-to-be
+		// and replaced its cells; mounting now would leak into detached nodes.
+		if (seq !== renderSeq) return
+
+		for (const el of table.querySelectorAll('[data-actions]')) {
+			const uid = el.dataset.actions
+			const row = state.rows.find(r => r.uid === uid)
+			// Defensive: the cells were built from state.rows a tick ago.
+			if (!row) continue
+
+			const instance = new Ctor({
+				propsData: {
+					row,
+					suggestion: state.suggestions[uid] || null,
+				},
+			})
+			instance.$on('apply', applyOneExact)
+			instance.$on('confirm', confirmReview)
+			// Both open the same picker; the labels differ because an
+			// ambiguous row has candidates to choose between and every other
+			// row searches from scratch, but the route is identical.
+			instance.$on('choose', openPersonPicker)
+			instance.$on('link', openPersonPicker)
+			instance.$on('exclude', target => setExcluded([target], true))
+			instance.$on('restore', target => setExcluded([target], false))
+			instance.$on('unbind', unbind)
+			// Vue 2's $mount(el) replaces el, so the mount point is a child of
+			// the actions cell rather than the cell itself -- the cell has to
+			// survive as the row's grid track.
+			instance.$mount(el)
+			rowActions.push(instance)
+		}
 	}
 
 	/**
@@ -290,6 +343,10 @@ import { generateUrl } from '@nextcloud/router'
 	function render() {
 		const table = document.getElementById('itop-binding-table')
 		if (!table) return
+
+		// Before the innerHTML assignments below, which orphan them.
+		destroyRowActions()
+		renderSeq += 1
 
 		if (state.rows.length === 0) {
 			table.innerHTML = '<p class="itop-binding-muted">'
@@ -314,18 +371,13 @@ import { generateUrl } from '@nextcloud/router'
 				+ '<span class="itop-binding-account"><strong title="' + esc(row.displayName) + '">' + esc(row.displayName) + '</strong>'
 				+ '<span class="itop-binding-muted" title="' + esc(row.uid + (row.email ? ' · ' + row.email : '')) + '">' + esc(row.uid)
 				+ (row.email ? ' · ' + esc(row.email) : '') + '</span></span>'
-				+ '<span class="itop-binding-state">' + describeBinding(row) + '</span>'
-				+ '<span class="itop-binding-tier">' + describeTier(row) + '</span>'
+				+ '<span class="itop-binding-status">' + describeStatus(row) + '</span>'
+				// Empty mount point for this row's RowActions, filled by
+				// mountRowActions() once the dynamic import lands. Vue 2
+				// replaces it rather than rendering inside it, hence the
+				// wrapping cell.
 				+ '<span class="itop-binding-actions">'
-				+ describeTierAction(row)
-				+ describeLinkAction(row)
-				+ (row.bound
-					? '<button type="button" data-unbind="' + esc(row.uid) + '">'
-					+ esc(t('integration_itop', 'Unlink')) + '</button>'
-					: '')
-				+ (row.excluded
-					? '<button type="button" data-restore="' + esc(row.uid) + '">' + esc(t('integration_itop', 'Restore')) + '</button>'
-					: '<button type="button" data-exclude="' + esc(row.uid) + '">' + esc(t('integration_itop', 'Exclude')) + '</button>')
+				+ '<span data-actions="' + esc(row.uid) + '"></span>'
 				+ '</span>'
 				+ '</div>',
 			).join('')
@@ -334,6 +386,10 @@ import { generateUrl } from '@nextcloud/router'
 		renderBulkBar()
 		renderPager()
 		renderToolbarApplyExact()
+		// Deliberately not awaited: render() is synchronous for every caller,
+		// and the actions cells fill in on the microtask after the first
+		// import resolves.
+		mountRowActions(renderSeq)
 	}
 
 	/**
@@ -569,7 +625,7 @@ import { generateUrl } from '@nextcloud/router'
 	 * refuse those anyway (apply() binds exact only), but the label on this
 	 * button is a promise and the request itself should keep it. An
 	 * already-bound uid is excluded for the same reason described on
-	 * describeTierAction: moving a person is the explicit two-step act of
+	 * RowActions: moving a person is the explicit two-step act of
 	 * unlink then apply, never a side effect of a bulk button.
 	 *
 	 * @param {string[]} candidateUids uids to consider
@@ -622,10 +678,10 @@ import { generateUrl } from '@nextcloud/router'
 	 * @param {string} uid Nextcloud user id
 	 */
 	async function confirmReview(uid) {
-		// Defense in depth: describeTierAction never renders this row's
-		// button once bound, but a stale DOM node (e.g. a click queued
-		// before a reload finished) must not reach apply-one, which trusts
-		// the administrator and has no already_bound guard of its own.
+		// Defense in depth: RowActions never offers Confirm… once the row
+		// is bound, but a stale instance (e.g. a click queued before a
+		// reload finished) must not reach apply-one, which trusts the
+		// administrator and has no already_bound guard of its own.
 		const row = state.rows.find(r => r.uid === uid)
 		if (row && row.bound) return
 		const s = state.suggestions[uid]
@@ -687,8 +743,8 @@ import { generateUrl } from '@nextcloud/router'
 	 * Open the person picker for one account, for either a known-ambiguous
 	 * row (seeded with that row's own candidates so the obvious choices need
 	 * no search) or any other unbound, non-excluded row (opened empty, so
-	 * the administrator searches) -- see describeLinkAction for which label
-	 * leads here.
+	 * the administrator searches) -- see RowActions for which label leads
+	 * here.
 	 *
 	 * Mounted on demand, like the scope picker, so the Vue runtime is not
 	 * parsed on a page where the association table is absent -- which here
@@ -697,10 +753,10 @@ import { generateUrl } from '@nextcloud/router'
 	 * @param {string} uid Nextcloud user id
 	 */
 	async function openPersonPicker(uid) {
-		// Same stale-DOM reasoning as confirmReview: describeLinkAction never
-		// renders this button on a bound or excluded row, but a click queued
-		// before a reload finished must not open a picker whose only outcome
-		// would be a refusal from apply-one.
+		// Same stale-instance reasoning as confirmReview: RowActions never
+		// offers this on a bound or excluded row, but a click queued before a
+		// reload finished must not open a picker whose only outcome would be
+		// a refusal from apply-one.
 		const row = state.rows.find(r => r.uid === uid)
 		if (row && (row.bound || row.excluded)) return
 
@@ -804,23 +860,9 @@ import { generateUrl } from '@nextcloud/router'
 				return
 			}
 
-			const rowExclude = e.target.closest('button[data-exclude]')
-			if (rowExclude) { setExcluded([rowExclude.dataset.exclude], true); return }
-
-			const rowRestore = e.target.closest('button[data-restore]')
-			if (rowRestore) { setExcluded([rowRestore.dataset.restore], false); return }
-
-			const rowUnbind = e.target.closest('button[data-unbind]')
-			if (rowUnbind) { unbind(rowUnbind.dataset.unbind); return }
-
-			const rowApply = e.target.closest('button[data-apply]')
-			if (rowApply) { applyOneExact(rowApply.dataset.apply); return }
-
-			const rowConfirm = e.target.closest('button[data-confirm]')
-			if (rowConfirm) { confirmReview(rowConfirm.dataset.confirm); return }
-
-			const rowChoose = e.target.closest('button[data-choose]')
-			if (rowChoose) { openPersonPicker(rowChoose.dataset.choose); return }
+			// Per-row actions are not delegated: they are NcActionButtons
+			// inside each row's RowActions component, which emits to the
+			// handlers wired in mountRowActions().
 
 			if (e.target.closest('#itop-binding-bulk-exclude')) {
 				setExcluded([...state.selected], true); return

@@ -37,35 +37,32 @@
 }
 
 /*
- * The actions cell can hold up to three buttons (a tier action such as
- * "Apply…" or "Confirm…", the manual-link action, and Exclude/Restore), and
- * every label is translated -- some languages run longer than English.
+ * Five tracks: selection, avatar, account, status, actions.
  *
- * Neither a bare `max-content` nor a bare `minmax(140px, 1fr)` works here on
- * its own: `max-content` grows unbounded -- a label set roughly twice the
- * length of German's pushed the last button off the card and off the
- * viewport -- and a fixed `1fr` cap forces buttons to wrap even in English,
- * on a row that already has room to spare.
+ * The actions cell holds a single NcActions -- one labelled button, plus a
+ * fixed-width "⋯" toggle on a row that has more than one action. Only one
+ * translated label is ever on screen per row, which is what dissolves the
+ * old problem here: three labelled buttons abreast could not be sized so
+ * that they neither wrapped in English nor overflowed the card in a longer
+ * locale.
  *
- * `minmax(min-content, max-content)` is both at once. For this flex-wrap
- * container, `min-content` is the width of its single widest button, so the
- * track takes `max-content` (every button on one line) whenever the row has
- * room, and only shrinks toward one-button-wide -- triggering the
- * `flex-wrap: wrap` safety net below -- when it genuinely does not fit.
- * Overflow is never acceptable; a wrap is, so that is the floor this track
- * is allowed to be squeezed to, not the account column's floor.
+ * `minmax(min-content, max-content)` is kept, now for a simpler reason. The
+ * track sits at the content's natural width whenever the row has room, and
+ * `min-content` -- one label plus the toggle, the label being `nowrap` --
+ * is the floor it can be squeezed to, so a long German or French label
+ * shortens the account column rather than pushing the row past the card.
  *
- * The account column's own overflow under a long but still-realistic label
- * set (German "Verknüpfung entfernen" / "Manuell verknüpfen…" /
- * "Ausschließen" squeezing it to its 150px floor) was never this track's
- * fault either: a grid item's default `min-width: auto` meant the account
- * column could not actually shrink to that floor, it just kept demanding
- * its content's full intrinsic width instead. That is fixed on
- * `.itop-binding-account` itself (`min-width: 0` plus an ellipsis).
+ * The status track carries what used to be two columns (binding state or
+ * match tier, never both at once), so it takes the wider of their two old
+ * floors.
+ *
+ * The account column's floor only bites because `.itop-binding-account`
+ * sets `min-width: 0`; a grid item's default `min-width: auto` would keep
+ * demanding its content's full intrinsic width instead of truncating.
  */
 .itop-binding-row {
 	display: grid;
-	grid-template-columns: 32px 32px minmax(150px, 2fr) minmax(110px, 1fr) minmax(140px, 1fr) minmax(min-content, max-content);
+	grid-template-columns: 32px 32px minmax(150px, 2fr) minmax(160px, 1fr) minmax(min-content, max-content);
 	gap: 8px;
 	align-items: center;
 	padding: 6px 4px;
@@ -73,19 +70,17 @@
 }
 
 /*
- * Narrower than the row can comfortably fit six tracks (mobile, or a
- * resized admin-settings window): drop to two lines instead of letting
- * individual cells wrap or overflow. Selection, avatar and account stay on
- * the first line; state, tier and actions move to a second line that spans
- * the full width, with actions wrapping onto its own row if it must.
+ * Narrower than the row can comfortably fit five tracks (mobile, or a
+ * resized admin-settings window): stack instead of letting individual cells
+ * overflow. Selection, avatar and account stay on the first line; status and
+ * actions each take a full-width line below.
  */
 @media (max-width: 600px) {
 	.itop-binding-row {
 		grid-template-columns: 32px 32px 1fr;
 		grid-template-areas:
 			"select avatar account"
-			"state  state  state"
-			"tier   tier   tier"
+			"status status status"
 			"actions actions actions";
 		row-gap: 4px;
 	}
@@ -102,17 +97,12 @@
 		grid-area: account;
 	}
 
-	.itop-binding-state {
-		grid-area: state;
-	}
-
-	.itop-binding-tier {
-		grid-area: tier;
+	.itop-binding-status {
+		grid-area: status;
 	}
 
 	.itop-binding-actions {
 		grid-area: actions;
-		flex-wrap: wrap;
 	}
 }
 
@@ -144,43 +134,28 @@
 }
 
 /*
- * A real flex row, not the default inline span, so the three possible
- * buttons (tier action, manual-link, Exclude/Restore) lay out side by side.
- * `white-space: nowrap` on the buttons keeps each individual label on one
- * line. `flex-wrap: wrap` is the actual mechanism, not just a fallback: the
- * column's track is `minmax(min-content, max-content)` (see
- * .itop-binding-row), so it sits at `max-content` -- every button on one
- * line -- whenever the row has room, and only shrinks toward one button
- * wide when a translated label set genuinely does not fit, at which point
- * this wrap is what keeps the surplus buttons inside the card instead of
- * spilling past its edge. Below the 600px breakpoint, the column's own
- * width is capped to `1fr` and the same wrap applies there too.
+ * Wrapper for the row's RowActions. Vue 2's $mount(el) replaces the mount
+ * point, so NcActions' own root element ends up here as the single child --
+ * the cell itself has to survive as the row's grid track, and the mount
+ * point cannot be the cell.
+ *
+ * `justify-content: flex-end` keeps every row's action aligned to the card's
+ * right edge even though the buttons have different widths; without it the
+ * "⋯" toggles form a ragged column.
  */
 .itop-binding-actions {
 	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
+	justify-content: flex-end;
 	align-items: center;
 	min-width: 0;
 }
 
-/* nowrap is kept deliberately, and it sets this layout's one known limit.
- *
- * The actions track is `minmax(min-content, max-content)`, and for a wrapping
- * flex row `min-content` is its widest single item -- with nowrap, a whole
- * translated label. So a single label wider than the space left after the other
- * columns' minimums cannot be accommodated, and the row would extend past the
- * card rather than wrap.
- *
- * Measured against the shipped locales this does not happen: English leaves
- * 32px of slack and German-length labels 133px. It took labels around twice
- * German length to reach the edge.
- *
- * `overflow-wrap: anywhere` was tried and reverted: it drops min-content to
- * near zero, so the buttons wrap in every language and English rows grow from
- * 55px to 152px. Trading the real-world rendering for a synthetic case is the
- * wrong way round. If a future locale does overflow, truncate the label with an
- * ellipsis plus a title rather than removing nowrap. */
+/* One label per row now, so `nowrap` is no longer the sizing constraint it
+ * was when three of them had to share this track -- it just stops a two-word
+ * label such as "Link manually…" breaking mid-phrase and making one row
+ * taller than its neighbours. The track's `min-content` floor is this label
+ * plus the fixed-width toggle (see .itop-binding-row), which leaves far more
+ * headroom for a long locale than the three-button layout ever had. */
 .itop-binding-actions button {
 	white-space: nowrap;
 }
@@ -235,7 +210,7 @@
  * where it answers a question the admin already has -- a review row ("these
  * names differ, what matched?") and a none row ("why no match, what did it even
  * look for?") -- so it stays on its own muted line, and is clipped rather than
- * allowed to widen the tier column and push the names around.
+ * allowed to widen the status column and push the names around.
  */
 .itop-binding-source-value {
 	display: block;
