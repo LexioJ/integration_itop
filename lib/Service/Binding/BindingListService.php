@@ -58,14 +58,19 @@ class BindingListService {
 		// this runs once per account on the instance.
 		$restrict = $restrictUids === null ? null : array_fill_keys($restrictUids, true);
 
+		// Read once, not per account: BindingConfig::isExcluded() re-reads and
+		// json_decodes the whole exclusion list on every call, so asking it per
+		// row meant one decode per account on the instance.
+		$excluded = array_fill_keys($this->bindingConfig->getExcludedUsers(), true);
+
 		$rows = [];
-		$this->userManager->callForAllUsers(function (IUser $user) use (&$rows, $filter, $search, $restrict) {
+		$this->userManager->callForAllUsers(function (IUser $user) use (&$rows, $filter, $search, $restrict, $excluded) {
 			// Checked before describe(), which costs four config reads.
 			if ($restrict !== null && !isset($restrict[$user->getUID()])) {
 				return;
 			}
 
-			$row = $this->describe($user);
+			$row = $this->describe($user, $excluded);
 
 			if (!$this->matchesSearch($row, $search)) {
 				return;
@@ -89,11 +94,12 @@ class BindingListService {
 	}
 
 	/**
+	 * @param array<string,true> $excluded hash set of excluded uids, read once by list()
 	 * @return array{uid: string, displayName: string, email: string, bound: bool,
 	 *               personId: ?string, userId: ?string, method: ?string,
 	 *               boundAt: ?int, excluded: bool}
 	 */
-	private function describe(IUser $user): array {
+	private function describe(IUser $user, array $excluded): array {
 		$uid = $user->getUID();
 
 		$personId = $this->userConfig->getValueString($uid, Application::APP_ID, 'person_id', '');
@@ -110,7 +116,7 @@ class BindingListService {
 			'userId' => $userId !== '' ? $userId : null,
 			'method' => $method !== '' ? $method : null,
 			'boundAt' => $boundAt !== '' ? (int)$boundAt : null,
-			'excluded' => $this->bindingConfig->isExcluded($uid),
+			'excluded' => isset($excluded[$uid]),
 		];
 	}
 

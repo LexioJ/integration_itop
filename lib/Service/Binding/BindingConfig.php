@@ -147,10 +147,18 @@ class BindingConfig {
 	}
 
 	/**
-	 * @return string[] Nextcloud user ids excluded from matching
+	 * Nextcloud user ids excluded from matching.
+	 *
+	 * Stored lazily. As a non-lazy app-config key the whole JSON list would be
+	 * loaded on every request by every user on the instance, and only the admin
+	 * binding screens and occ itop:bind ever need it. Every read and write of
+	 * this key must pass lazy: true -- a value written lazily and read
+	 * non-lazily comes back as the default, i.e. no exclusions at all.
+	 *
+	 * @return string[]
 	 */
 	public function getExcludedUsers(): array {
-		$json = $this->appConfig->getValueString(Application::APP_ID, 'binding_excluded_users', '');
+		$json = $this->appConfig->getValueString(Application::APP_ID, 'binding_excluded_users', '', true);
 		if ($json === '') {
 			return [];
 		}
@@ -161,6 +169,13 @@ class BindingConfig {
 		return array_values(array_filter($decoded, 'is_string'));
 	}
 
+	/**
+	 * Single-account check, for callers that look at one uid.
+	 *
+	 * A caller iterating many accounts must not use this in a loop: it re-reads
+	 * and re-decodes the whole list per call. Read getExcludedUsers() once and
+	 * build a hash set instead, as BindingListService::list() does.
+	 */
 	public function isExcluded(string $uid): bool {
 		return in_array($uid, $this->getExcludedUsers(), true);
 	}
@@ -171,6 +186,6 @@ class BindingConfig {
 			? array_values(array_unique([...$current, $uid]))
 			: array_values(array_diff($current, [$uid]));
 
-		$this->appConfig->setValueString(Application::APP_ID, 'binding_excluded_users', json_encode($next));
+		$this->appConfig->setValueString(Application::APP_ID, 'binding_excluded_users', json_encode($next), true);
 	}
 }
