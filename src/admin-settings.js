@@ -319,6 +319,10 @@ import { generateUrl } from '@nextcloud/router'
 					warning.classList.toggle('hidden', !data.source_user_mutable)
 				}
 				showNotification(t('integration_itop', 'Matching rule saved'), false)
+				// A tier computed under the old rule is a claim that is no
+				// longer true. admin-binding.js listens for this to drop any
+				// suggestions it is holding.
+				document.dispatchEvent(new CustomEvent('itop:binding-rule-changed'))
 			})
 			.catch(() => {
 				showNotification(t('integration_itop', 'Could not save the matching rule'), true)

@@ -25,6 +25,10 @@ import { generateUrl } from '@nextcloud/router'
 		total: 0,
 		rows: [],
 		selected: new Set(),
+		// Last /binding/suggest result per uid, for rows currently on screen.
+		// Never cached server-side, so it is dropped whenever a row leaves
+		// view or the matching rule changes underneath it.
+		suggestions: {},
 	}
 
 	/**
@@ -74,6 +78,11 @@ import { generateUrl } from '@nextcloud/router'
 			const visible = new Set(state.rows.map(r => r.uid))
 			for (const uid of [...state.selected]) {
 				if (!visible.has(uid)) state.selected.delete(uid)
+			}
+			// Same reasoning as selections above: a suggestion for a row the
+			// admin can no longer see must never be acted on.
+			for (const uid of Object.keys(state.suggestions)) {
+				if (!visible.has(uid)) delete state.suggestions[uid]
 			}
 			render()
 		} catch (e) {
@@ -131,6 +140,81 @@ import { generateUrl } from '@nextcloud/router'
 	}
 
 	/**
+	 * Render the tier cell for one row from its last /binding/suggest result.
+	 *
+	 * Suggestions are requested on demand (see suggest()), never computed on
+	 * load, so most rows show nothing until the admin asks for matches.
+	 *
+	 * @param {string} uid Nextcloud user id
+	 * @return {string} HTML for the tier cell
+	 */
+	function describeTier(uid) {
+		const s = state.suggestions[uid]
+		if (!s) return '<span class="itop-binding-muted">—</span>'
+
+		if (s.status === 'excluded') {
+			return '<span class="itop-binding-muted">' + esc(t('integration_itop', 'excluded')) + '</span>'
+		}
+		if (s.status === 'unknown') {
+			return '<span class="itop-binding-muted">' + esc(t('integration_itop', 'unknown')) + '</span>'
+		}
+		if (s.status === 'failed') {
+			return '<span class="itop-binding-badge error">'
+				+ esc(s.message || t('integration_itop', 'Suggestion failed')) + '</span>'
+		}
+		if (s.status !== 'resolved') {
+			return '<span class="itop-binding-muted">—</span>'
+		}
+
+		switch (s.tier) {
+		case 'exact':
+			return '<span class="itop-binding-badge tier-exact">'
+				+ esc(t('integration_itop', '{name} (person {id})', { name: s.itopName, id: s.personId }))
+				+ '</span>'
+		case 'review':
+			return '<span class="itop-binding-tier-compare">'
+				+ esc(s.ncName) + ' <span class="itop-binding-muted">vs</span> ' + esc(s.itopName)
+				+ '</span>'
+		case 'ambiguous':
+			return '<span class="itop-binding-badge tier-ambiguous">'
+				+ esc(t('integration_itop', '{count} candidates', { count: s.candidates.length }))
+				+ '</span>'
+		case 'conflict':
+			return '<span class="itop-binding-badge tier-conflict">'
+				+ esc(t('integration_itop', 'already linked to {uid}', { uid: s.conflictUid }))
+				+ '</span>'
+		case 'none':
+		default:
+			return '<span class="itop-binding-muted">' + esc(t('integration_itop', 'no match')) + '</span>'
+		}
+	}
+
+	/**
+	 * Row action for the tier cell, if any.
+	 *
+	 * conflict and none get no action deliberately: bind() refuses a
+	 * conflict on every path, so an Apply button would promise something the
+	 * server rejects.
+	 *
+	 * @param {string} uid Nextcloud user id
+	 * @return {string} HTML for the tier action, or an empty string
+	 */
+	function describeTierAction(uid) {
+		const s = state.suggestions[uid]
+		if (!s || s.status !== 'resolved') return ''
+
+		if (s.tier === 'exact') {
+			return '<button type="button" data-apply="' + esc(uid) + '">'
+				+ esc(t('integration_itop', 'Apply')) + '</button>'
+		}
+		if (s.tier === 'review') {
+			return '<button type="button" data-confirm="' + esc(uid) + '">'
+				+ esc(t('integration_itop', 'Confirm…')) + '</button>'
+		}
+		return ''
+	}
+
+	/**
 	 * Repaint the table, bulk bar and pager from state.
 	 */
 	function render() {
@@ -157,7 +241,9 @@ import { generateUrl } from '@nextcloud/router'
 				+ '<span class="itop-binding-muted">' + esc(row.uid)
 				+ (row.email ? ' · ' + esc(row.email) : '') + '</span></span>'
 				+ '<span class="itop-binding-state">' + describeBinding(row) + '</span>'
+				+ '<span class="itop-binding-tier">' + describeTier(row.uid) + '</span>'
 				+ '<span class="itop-binding-actions">'
+				+ describeTierAction(row.uid)
 				+ (row.bound
 					? '<button type="button" data-unbind="' + esc(row.uid) + '">'
 					+ esc(t('integration_itop', 'Unlink')) + '</button>'
@@ -189,6 +275,8 @@ import { generateUrl } from '@nextcloud/router'
 		bar.innerHTML = '<strong>'
 			+ esc(t('integration_itop', '{count} selected', { count: state.selected.size }))
 			+ '</strong>'
+			+ '<button type="button" id="itop-binding-suggest">' + esc(t('integration_itop', 'Suggest matches')) + '</button>'
+			+ '<button type="button" id="itop-binding-apply-exact">' + esc(t('integration_itop', 'Apply exact only')) + '</button>'
 			+ '<button type="button" id="itop-binding-bulk-exclude">' + esc(t('integration_itop', 'Exclude from matching')) + '</button>'
 			+ '<button type="button" id="itop-binding-bulk-restore">' + esc(t('integration_itop', 'Restore')) + '</button>'
 			+ '<button type="button" id="itop-binding-bulk-clear">' + esc(t('integration_itop', 'Clear selection')) + '</button>'
@@ -253,6 +341,165 @@ import { generateUrl } from '@nextcloud/router'
 			await load()
 		} catch (e) {
 			showError(t('integration_itop', 'Could not remove the link: {msg}', { msg: e.message }))
+			await load()
+		}
+	}
+
+	/**
+	 * Request match suggestions for a set of uids and merge them into
+	 * state.suggestions, then repaint.
+	 *
+	 * One iTop call per account, so this is not instant for a full page --
+	 * the triggering buttons are disabled and relabelled for the duration,
+	 * the same loading affordance used for every other async action here.
+	 *
+	 * @param {string[]} uids accounts to suggest matches for
+	 */
+	async function suggest(uids) {
+		if (uids.length === 0) {
+			showError(t('integration_itop', 'No accounts to suggest matches for'))
+			return
+		}
+		const buttons = [
+			document.getElementById('itop-binding-suggest'),
+			document.getElementById('itop-binding-toolbar-suggest'),
+		].filter(Boolean)
+		const originalLabels = buttons.map(b => b.textContent)
+		buttons.forEach(b => {
+			b.disabled = true
+			b.textContent = t('integration_itop', 'Suggesting…')
+		})
+		try {
+			const data = await apiCall('/binding/suggest', {
+				method: 'POST',
+				body: JSON.stringify({ uids }),
+			})
+			const results = data.results || {}
+			for (const uid of uids) {
+				if (uid in results) state.suggestions[uid] = results[uid]
+			}
+		} catch (e) {
+			showError(t('integration_itop', 'Could not suggest matches: {msg}', { msg: e.message }))
+		} finally {
+			// render() repaints the bulk bar from scratch, so only the static
+			// toolbar button needs its own label restored here.
+			buttons.forEach((b, i) => {
+				if (document.body.contains(b)) {
+					b.disabled = false
+					b.textContent = originalLabels[i]
+				}
+			})
+			render()
+		}
+	}
+
+	/**
+	 * The uids to act on when nothing is explicitly selected: the current
+	 * selection if there is one, otherwise every row on the current page.
+	 *
+	 * @return {string[]} uids
+	 */
+	function selectionOrPage() {
+		return state.selected.size > 0 ? [...state.selected] : state.rows.map(r => r.uid)
+	}
+
+	/**
+	 * Summarize per-uid /binding/apply results into a short, human-readable
+	 * line, so "already_bound" -- left alone because a link already exists
+	 * -- reads differently from a fresh "bound".
+	 *
+	 * @param {object} results uid -> {status, ...} as returned by /binding/apply
+	 * @return {string} summary text
+	 */
+	function summarizeApplyResults(results) {
+		const labelFns = {
+			bound: count => t('integration_itop', '{count} bound', { count }),
+			already_bound: count => t('integration_itop', '{count} already linked', { count }),
+			skipped: count => t('integration_itop', '{count} skipped', { count }),
+			excluded: count => t('integration_itop', '{count} excluded', { count }),
+			unknown: count => t('integration_itop', '{count} unknown', { count }),
+			failed: count => t('integration_itop', '{count} failed', { count }),
+		}
+		const counts = {}
+		for (const r of Object.values(results)) {
+			counts[r.status] = (counts[r.status] || 0) + 1
+		}
+		return Object.keys(labelFns)
+			.filter(status => counts[status])
+			.map(status => labelFns[status](counts[status]))
+			.join(', ')
+	}
+
+	/**
+	 * Bind every uid in a set whose current suggestion is tier exact.
+	 *
+	 * Filtered client-side so "Apply exact only" can never send a uid whose
+	 * suggestion is review, ambiguous, conflict or none -- the server would
+	 * refuse those anyway (apply() binds exact only), but the label on this
+	 * button is a promise and the request itself should keep it.
+	 *
+	 * @param {string[]} candidateUids uids to consider
+	 */
+	async function applyExact(candidateUids) {
+		const uids = candidateUids.filter(uid => {
+			const s = state.suggestions[uid]
+			return s && s.status === 'resolved' && s.tier === 'exact'
+		})
+		if (uids.length === 0) {
+			showError(t('integration_itop', 'No exact matches to apply. Run "Suggest matches" first.'))
+			return
+		}
+		try {
+			const data = await apiCall('/binding/apply', {
+				method: 'POST',
+				body: JSON.stringify({ uids }),
+			})
+			const results = data.results || {}
+			const summary = summarizeApplyResults(results) || t('integration_itop', 'No changes')
+			const failed = Object.values(results).some(r => r.status === 'failed')
+			if (failed) showError(summary)
+			else showSuccess(summary)
+			state.selected.clear()
+			await load()
+		} catch (e) {
+			showError(t('integration_itop', 'Could not apply matches: {msg}', { msg: e.message }))
+			await load()
+		}
+	}
+
+	/**
+	 * Apply the exact suggestion already held for one row.
+	 *
+	 * @param {string} uid Nextcloud user id
+	 */
+	async function applyOneExact(uid) {
+		await applyExact([uid])
+	}
+
+	/**
+	 * Confirm and apply a review-tier suggestion for one row.
+	 *
+	 * Confirmed first, naming both names being matched, because review tier
+	 * means they disagreed and a human is the one deciding they are in fact
+	 * the same person.
+	 *
+	 * @param {string} uid Nextcloud user id
+	 */
+	async function confirmReview(uid) {
+		const s = state.suggestions[uid]
+		if (!s || s.status !== 'resolved' || s.tier !== 'review') return
+		const ok = window.confirm(t('integration_itop',
+			'Link {ncName} to {itopName} in iTop?', { ncName: s.ncName, itopName: s.itopName }))
+		if (!ok) return
+		try {
+			await apiCall('/binding/apply-one', {
+				method: 'POST',
+				body: JSON.stringify({ uid, personId: s.personId }),
+			})
+			showSuccess(t('integration_itop', 'Linked {uid} to person {id}', { uid, id: s.personId }))
+			await load()
+		} catch (e) {
+			showError(t('integration_itop', 'Could not apply the match: {msg}', { msg: e.message }))
 			await load()
 		}
 	}
@@ -340,6 +587,12 @@ import { generateUrl } from '@nextcloud/router'
 			const rowUnbind = e.target.closest('button[data-unbind]')
 			if (rowUnbind) { unbind(rowUnbind.dataset.unbind); return }
 
+			const rowApply = e.target.closest('button[data-apply]')
+			if (rowApply) { applyOneExact(rowApply.dataset.apply); return }
+
+			const rowConfirm = e.target.closest('button[data-confirm]')
+			if (rowConfirm) { confirmReview(rowConfirm.dataset.confirm); return }
+
 			if (e.target.closest('#itop-binding-bulk-exclude')) {
 				setExcluded([...state.selected], true); return
 			}
@@ -348,6 +601,20 @@ import { generateUrl } from '@nextcloud/router'
 			}
 			if (e.target.closest('#itop-binding-bulk-clear')) {
 				state.selected.clear(); render(); return
+			}
+
+			// Both the bulk-bar and standalone toolbar buttons suggest or apply
+			// over the current selection, falling back to the whole page when
+			// nothing is selected -- the toolbar copies exist so a full-page
+			// pass never requires selecting every row first.
+			if (e.target.closest('#itop-binding-suggest') || e.target.closest('#itop-binding-toolbar-suggest')) {
+				suggest(selectionOrPage()); return
+			}
+			if (e.target.closest('#itop-binding-apply-exact')) {
+				applyExact([...state.selected]); return
+			}
+			if (e.target.closest('#itop-binding-toolbar-apply-exact')) {
+				applyExact(selectionOrPage()); return
 			}
 
 			if (e.target.closest('#itop-binding-prev')) {
@@ -367,5 +634,13 @@ import { generateUrl } from '@nextcloud/router'
 		attachHandlers()
 		mountScopePicker()
 		load()
+
+		// A tier computed under the old matching rule is a claim that is no
+		// longer true. admin-settings.js dispatches this after a successful
+		// rule save.
+		document.addEventListener('itop:binding-rule-changed', function() {
+			state.suggestions = {}
+			render()
+		})
 	})
 })()

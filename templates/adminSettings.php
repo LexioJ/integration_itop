@@ -130,6 +130,13 @@ $ciClassLabels = [
 					<button type="button" class="itop-binding-filter" data-filter="bound"><?php p($l->t('Bound')); ?></button>
 					<button type="button" class="itop-binding-filter" data-filter="excluded"><?php p($l->t('Excluded')); ?></button>
 				</span>
+				<!--
+					Duplicates the bulk-bar actions of the same name so suggesting
+					and applying exact matches are reachable with nothing selected
+					-- a full-page pass is the common case, not the exception.
+				-->
+				<button type="button" id="itop-binding-toolbar-suggest"><?php p($l->t('Suggest matches')); ?></button>
+				<button type="button" id="itop-binding-toolbar-apply-exact"><?php p($l->t('Apply exact only')); ?></button>
 			</div>
 
 			<div id="itop-binding-bulk" class="itop-binding-bulk hidden"></div>
