@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Self-service discovery (`POST /binding/discover`)**: a third binding route lets a user link their own account from personal settings, without an administrator and without an iTop personal token. It is **off by default** — administrator binding is backed by the administrator's own application token, and personal-token binding proves identity because iTop resolves the token to its own contact, but discovery lets the user's own attribute decide which identity they receive, so it starts opt-in and an administrator must enable it from Admin settings → iTop. A second, independent toggle covers the existing personal-token route, on by default to preserve current behaviour; the personal-token endpoint returns 403 when its toggle is off, and both discovery endpoints refuse when discovery is off. Like `occ itop:bind`, discovery binds only on an **exact match** — where the matched attribute and the name agree; review (names differ), ambiguous (several candidates) and conflict (person already linked to another account) each get their own explanation and point the user to an administrator, and none of these ever names the matched person, so a result that cannot be linked automatically gives no clue who it almost matched. An already-linked account is never re-bound by discovery — an administrator must unlink first. The discovery and confirmation endpoints take no parameters and are rate-limited to 5 calls per minute per user. A successful bind is recorded in the audit log with the account, the person, the method (`discovery`) and the attribute that matched. Personal settings now shows only the binding methods an administrator has enabled, and tells portal-only users to ask an administrator instead, since iTop issues personal tokens to back-end users only
+
+---
+
 ## [1.5.0] - 2026-10-26
 
 ### 🔗 Identity Binding & Deprecated API Cleanup
