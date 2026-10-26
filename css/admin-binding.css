@@ -164,6 +164,23 @@
 	min-width: 0;
 }
 
+/* nowrap is kept deliberately, and it sets this layout's one known limit.
+ *
+ * The actions track is `minmax(min-content, max-content)`, and for a wrapping
+ * flex row `min-content` is its widest single item -- with nowrap, a whole
+ * translated label. So a single label wider than the space left after the other
+ * columns' minimums cannot be accommodated, and the row would extend past the
+ * card rather than wrap.
+ *
+ * Measured against the shipped locales this does not happen: English leaves
+ * 32px of slack and German-length labels 133px. It took labels around twice
+ * German length to reach the edge.
+ *
+ * `overflow-wrap: anywhere` was tried and reverted: it drops min-content to
+ * near zero, so the buttons wrap in every language and English rows grow from
+ * 55px to 152px. Trading the real-world rendering for a synthetic case is the
+ * wrong way round. If a future locale does overflow, truncate the label with an
+ * ellipsis plus a title rather than removing nowrap. */
 .itop-binding-actions button {
 	white-space: nowrap;
 }
