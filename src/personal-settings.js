@@ -12,13 +12,29 @@ import { generateUrl } from '@nextcloud/router'
 (function() {
 	'use strict'
 
-	// Discovery outcomes that leave the user unable to link their own account
-	// and with nothing to do but ask an administrator -- so these, and only
-	// these, get the request-access links. Deliberately excludes
-	// `already_bound`: that account is linked and has nothing to request.
-	// `disabled` is excluded too -- when both self-service methods are off the
-	// static template already offers the links, and this button does not exist.
-	const ASK_ADMIN_STATUSES = ['not_self_serviceable', 'excluded']
+	// Which request form each discovery outcome should offer, if any. One link,
+	// never both: being unable to link *because of policy* is a service request
+	// ('assistance'), while trying to link and having it *break* is an incident
+	// ('problem'). The two typically carry different SLAs.
+	//
+	// Every status lib/Service/Binding/DiscoveryService.php can produce is
+	// listed, so a null is a deliberate "nothing to request" rather than an
+	// oversight:
+	//   excluded            policy -- this account is excluded from matching
+	//   disabled            policy -- self-service was turned off after load
+	//   not_self_serviceable  discovery ran and could not link them
+	//   failed              iTop could not be reached
+	//   already_bound       linked already; nothing to request
+	//   proposal, bound     working as intended
+	const REQUEST_LINK_BY_STATUS = {
+		excluded: 'assistance',
+		disabled: 'assistance',
+		not_self_serviceable: 'problem',
+		failed: 'problem',
+		already_bound: null,
+		proposal: null,
+		bound: null,
+	}
 
 	document.addEventListener('DOMContentLoaded', function() {
 
@@ -215,8 +231,11 @@ import { generateUrl } from '@nextcloud/router'
 		 * @param message
 		 * @param isError
 		 * @param userInfo
+		 * @param {?string} requestLinkKind which request form to offer below an
+		 *   error message -- 'problem' where the binding attempt itself broke,
+		 *   or null for none. Ignored on success.
 		 */
-		function showResult(message, isError = false, userInfo = null) {
+		function showResult(message, isError = false, userInfo = null, requestLinkKind = null) {
 			// Update status cards if we have user info
 			if (userInfo) {
 				updateStatusCards(userInfo)
@@ -252,6 +271,7 @@ import { generateUrl } from '@nextcloud/router'
 				mainRow.appendChild(closeButton)
 
 				resultDiv.appendChild(mainRow)
+				appendRequestLink(resultDiv, requestLinkKind)
 				resultDiv.classList.remove('hidden')
 			} else {
 				// For success, only show Nextcloud notification
@@ -423,12 +443,25 @@ import { generateUrl } from '@nextcloud/router'
 							showResult('Failed to parse server response', true)
 						}
 					} else {
+						// A token was submitted and the binding did not happen:
+						// the token was rejected, iTop could not be reached, or
+						// the person is already taken. That is an attempt to
+						// link that broke, so it offers the incident form. The
+						// one exception is 403, which setConfig() returns only
+						// for "token binding is disabled by your administrator"
+						// -- policy, so assistance. A save with no token in it
+						// is not a binding attempt and gets no link at all.
+						const tokenWasSubmitted = typeof params.personal_token !== 'undefined'
+						let linkKind = null
+						if (tokenWasSubmitted) {
+							linkKind = req.status === 403 ? 'assistance' : 'problem'
+						}
 						try {
 							const response = req.responseText ? JSON.parse(req.responseText) : {}
 							const errorMessage = response.error || response.message || 'Failed to save settings'
-							showResult(errorMessage, true)
+							showResult(errorMessage, true, null, linkKind)
 						} catch (e) {
-							showResult('Server error (status: ' + req.status + ')', true)
+							showResult('Server error (status: ' + req.status + ')', true, null, linkKind)
 						}
 					}
 				}
@@ -548,7 +581,26 @@ import { generateUrl } from '@nextcloud/router'
 			// server-side (DiscoveryController::notSelfServiceableMessage()), and
 			// intentionally names no one regardless of tier.
 			const message = body.message || t('integration_itop', 'Your account could not be linked automatically. Please ask an administrator to link it for you.')
-			showDiscoveryMessage(message, status !== 200, ASK_ADMIN_STATUSES.includes(body.status))
+			showDiscoveryMessage(message, status !== 200, requestLinkKindFor(body.status, status))
+		}
+
+		/**
+		 * Which request form a discovery outcome should offer, or null for none.
+		 *
+		 * An unrecognised status that arrives with an error is breakage, the
+		 * same as `failed` -- that is DiscoveryController's `default` branch,
+		 * HTTP 500 -- so it offers the incident form. An unrecognised status at
+		 * HTTP 200 offers nothing: nothing there says the user is stuck.
+		 *
+		 * @param {string|undefined} bodyStatus the `status` field of the parsed body
+		 * @param {number} httpStatus the HTTP status code
+		 * @return {?string} 'assistance', 'problem', or null
+		 */
+		function requestLinkKindFor(bodyStatus, httpStatus) {
+			if (Object.prototype.hasOwnProperty.call(REQUEST_LINK_BY_STATUS, bodyStatus)) {
+				return REQUEST_LINK_BY_STATUS[bodyStatus]
+			}
+			return httpStatus === 200 ? null : 'problem'
 		}
 
 		/**
@@ -599,11 +651,10 @@ import { generateUrl } from '@nextcloud/router'
 		 *
 		 * @param {string} message the text to display
 		 * @param {boolean} isError whether to style it as an error
-		 * @param {boolean} withRequestLinks whether to append the request-access
-		 *   links, for the outcomes that leave the user with nothing to do but
-		 *   ask an administrator
+		 * @param {?string} requestLinkKind which request form to offer below the
+		 *   message -- 'assistance', 'problem', or null for none
 		 */
-		function showDiscoveryMessage(message, isError, withRequestLinks = false) {
+		function showDiscoveryMessage(message, isError, requestLinkKind = null) {
 			discoverResult.innerHTML = ''
 			discoverResult.className = isError ? 'itop-discover-result error' : 'itop-discover-result'
 
@@ -611,25 +662,29 @@ import { generateUrl } from '@nextcloud/router'
 			text.textContent = message
 			discoverResult.appendChild(text)
 
-			if (withRequestLinks) {
-				appendRequestLinks(discoverResult)
-			}
+			appendRequestLink(discoverResult, requestLinkKind)
 
 			discoverResult.classList.remove('hidden')
 		}
 
 		/**
-		 * Appends the administrator-configured request-access links, if any.
+		 * Appends one administrator-configured request-access link.
 		 *
 		 * The markup is cloned from the <template> the server rendered, so the
 		 * URL pattern and the labels exist in exactly one place
 		 * (lib/Settings/Personal.php) and nothing untrusted is interpolated
-		 * here. Absent template -- no ids configured -- appends nothing.
+		 * here. A kind whose id is not configured has no template, and appends
+		 * nothing -- never the other kind, which would file the wrong sort of
+		 * ticket.
 		 *
 		 * @param {HTMLElement} target the element to append to
+		 * @param {?string} kind 'assistance', 'problem', or null for none
 		 */
-		function appendRequestLinks(target) {
-			const template = document.getElementById('itop-request-access-template')
+		function appendRequestLink(target, kind) {
+			if (!kind) {
+				return
+			}
+			const template = document.getElementById('itop-request-access-template-' + kind)
 			if (!template || !template.content) {
 				return
 			}

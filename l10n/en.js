@@ -430,7 +430,6 @@ OC.L10N.register(
     "Remove the iTop link for {uid}? They will not see their tickets until they are linked again." : "Remove the iTop link for {uid}? They will not see their tickets until they are linked again.",
     "Report a problem" : "Report a problem",
     "Request" : "Request",
-    "Request access" : "Request access",
     "Request assistance" : "Request assistance",
     "Request(s):" : "Request(s):",
     "Requests" : "Requests",

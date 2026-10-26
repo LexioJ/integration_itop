@@ -20,26 +20,30 @@ $ciClassLabels = [
 	'Software' => $l->t('Software Catalog')
 ];
 
-// Request-access links, pre-built in lib/Settings/Personal.php. Rendered in two
-// places -- inline where self-service is off, and inside a <template> that
-// src/personal-settings.js clones after a discovery that cannot link -- so the
-// markup lives in this one closure rather than being written twice.
+// Request-access links, pre-built in lib/Settings/Personal.php and keyed by the
+// situation each answers: 'assistance' where policy prevents linking,
+// 'problem' where linking broke. Rendered inline where self-service is off, and
+// inside the two <template> elements src/personal-settings.js clones from after
+// a discovery, so the markup lives in this one closure rather than being
+// written four times.
+//
+// A kind whose id an administrator has not configured renders nothing at all --
+// not the other kind, and not the hint line either.
 $requestLinks = $_['request_links'] ?? [];
-$renderRequestLinks = function () use ($requestLinks, $l) {
-	if (empty($requestLinks)) {
+$renderRequestLink = function (string $kind) use ($requestLinks, $l) {
+	if (!isset($requestLinks[$kind])) {
 		return;
 	}
+	$requestLink = $requestLinks[$kind];
 	?>
 	<div class="itop-request-access">
 		<p class="hint"><?php p($l->t('You can ask for this here:')); ?></p>
 		<ul class="itop-request-access-links">
-			<?php foreach ($requestLinks as $requestLink): ?>
 			<li>
 				<a href="<?php p($requestLink['url']); ?>" target="_blank" rel="noopener noreferrer">
 					<?php p($requestLink['label']); ?> ↗
 				</a>
 			</li>
-			<?php endforeach; ?>
 		</ul>
 	</div>
 	<?php
@@ -55,12 +59,18 @@ $showFeatures = ($_['person_id_configured'] ?? false) || $showTokenHelp || ($_['
 ?>
 
 <div id="itop_prefs" class="section">
-	<?php if (!empty($requestLinks)): ?>
-	<!-- Page-level, not nested in a field: src/personal-settings.js clones this
-	     onto the discovery outcomes that end at "ask an administrator", and it
-	     has to be reachable independently of which self-service toggles are on.
-	     Inert markup -- a <template> is never rendered as-is. -->
-	<template id="itop-request-access-template"><?php $renderRequestLinks(); ?></template>
+	<?php /* Page-level, not nested in a field: src/personal-settings.js clones
+	         one of these onto a discovery outcome, picking by what went wrong,
+	         and they have to be reachable independently of which self-service
+	         toggles are on. One element per kind, each gated on its own id being
+	         configured, so an absent template means "that kind is not offered
+	         here" and the JS appends nothing. Inert markup -- a <template> is
+	         never rendered as-is. */ ?>
+	<?php if (isset($requestLinks['assistance'])): ?>
+	<template id="itop-request-access-template-assistance"><?php $renderRequestLink('assistance'); ?></template>
+	<?php endif; ?>
+	<?php if (isset($requestLinks['problem'])): ?>
+	<template id="itop-request-access-template-problem"><?php $renderRequestLink('problem'); ?></template>
 	<?php endif; ?>
 	<div class="itop-personal-header">
 		<div class="icon-container">
@@ -156,11 +166,13 @@ $showFeatures = ($_['person_id_configured'] ?? false) || $showTokenHelp || ($_['
 			<?php /* Token binding on, discovery off, and no token obtainable: a
 			         portal user is told to ask an administrator with no way to do
 			         it. The likeliest configuration to reach that message, so the
-			         links belong here too -- not only in the both-toggles-off
+			         link belongs here too -- not only in the both-toggles-off
 			         case below. Suppressed once the account is linked: there is
-			         then nothing left to request. */ ?>
+			         then nothing left to request.
+			         'assistance': an iTop profile that is not allowed personal
+			         tokens is a policy decision, not a malfunction. */ ?>
 			<?php if (!$_['binding_discovery_enabled'] && !$_['person_id_configured']): ?>
-				<?php $renderRequestLinks(); ?>
+				<?php $renderRequestLink('assistance'); ?>
 			<?php endif; ?>
 		</div>
 		<?php endif; ?>
@@ -188,7 +200,9 @@ $showFeatures = ($_['person_id_configured'] ?? false) || $showTokenHelp || ($_['
 		<?php if (!$_['person_id_configured'] && !$_['binding_token_enabled'] && !$_['binding_discovery_enabled']): ?>
 		<div class="field">
 			<p class="hint"><?php p($l->t('Self-service account linking is disabled. Please ask an administrator to link your account to %s.', [$_['display_name']])); ?></p>
-			<?php $renderRequestLinks(); ?>
+			<?php /* 'assistance': nothing is broken here, the server is
+			         configured not to let accounts link themselves. */ ?>
+			<?php $renderRequestLink('assistance'); ?>
 		</div>
 		<?php endif; ?>
 

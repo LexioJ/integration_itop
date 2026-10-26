@@ -148,44 +148,48 @@ class Personal implements ISettings {
 	}
 
 	/**
-	 * The request forms an administrator configured, as ready-to-render links.
+	 * The request forms an administrator configured, as ready-to-render links,
+	 * keyed by the situation each one answers.
 	 *
 	 * Built here and nowhere else: the static template and src/personal-settings.js
 	 * both need these, and two copies of the URL pattern would drift. The JS
 	 * clones the rendered markup rather than rebuilding a URL of its own.
 	 *
-	 * The same id in both fields is a supported configuration -- one form that
-	 * covers both cases -- and collapses to a single neutral link, because two
-	 * links to the same form reads as a bug.
+	 * Exactly one of these is ever offered at a time, and which one is decided
+	 * by what went wrong: being unable to link *because of policy* is a service
+	 * request ('assistance'), while trying to link and having it *break* is an
+	 * incident ('problem'). The two carry different SLAs, which is why an
+	 * administrator configures two ServiceSubcategory ids.
 	 *
-	 * @return list<array{url: string, label: string}> empty when nothing is configured
+	 * A key is absent when its id is unset, and a caller that finds its key
+	 * absent must render nothing rather than fall back to the other one:
+	 * offering "Report a problem" to somebody who merely cannot link their
+	 * account files the wrong kind of ticket, which is what this split exists
+	 * to prevent. The same id in both fields stays supported -- one form
+	 * covering both cases -- and each situation then shows its own label.
+	 *
+	 * @return array{assistance?: array{url: string, label: string}, problem?: array{url: string, label: string}}
 	 */
 	private function buildRequestLinks(string $adminUrl): array {
 		if ($adminUrl === '') {
 			return [];
 		}
 
-		$incidentId = $this->bindingConfig->getRequestIncidentId();
-		$userRequestId = $this->bindingConfig->getRequestUserRequestId();
-
-		if ($incidentId !== '' && $incidentId === $userRequestId) {
-			return [[
-				'url' => $this->requestFormUrl($adminUrl, $incidentId),
-				'label' => $this->l10n->t('Request access'),
-			]];
-		}
-
 		$links = [];
-		if ($incidentId !== '') {
-			$links[] = [
-				'url' => $this->requestFormUrl($adminUrl, $incidentId),
-				'label' => $this->l10n->t('Report a problem'),
-			];
-		}
+
+		$userRequestId = $this->bindingConfig->getRequestUserRequestId();
 		if ($userRequestId !== '') {
-			$links[] = [
+			$links['assistance'] = [
 				'url' => $this->requestFormUrl($adminUrl, $userRequestId),
 				'label' => $this->l10n->t('Request assistance'),
+			];
+		}
+
+		$incidentId = $this->bindingConfig->getRequestIncidentId();
+		if ($incidentId !== '') {
+			$links['problem'] = [
+				'url' => $this->requestFormUrl($adminUrl, $incidentId),
+				'label' => $this->l10n->t('Report a problem'),
 			];
 		}
 

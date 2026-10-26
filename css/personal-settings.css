@@ -1268,9 +1268,14 @@ body[data-theme-dark] .itop-discover-result.error {
     text-decoration: underline;
 }
 
-/* Only on the error background, where the primary link colour is unreadable
-   against the red. The 200 outcomes (not_self_serviceable) render with the
-   plain style and keep the normal link colour. */
-.itop-discover-result.error .itop-request-access-links a {
-    color: inherit;
+/* Only on the error backgrounds -- the discovery result and the save result
+   both have one. The 200 outcomes (not_self_serviceable) render with the plain
+   style and keep the normal link colour.
+   !important because Nextcloud's own `.error:not(.toastify) a` is declared
+   !important and paints links white, which it can do safely only on its own
+   dark-red error background; these two boxes are light red, so a white link is
+   invisible on them. Nothing short of !important outranks it. */
+.itop-discover-result.error .itop-request-access-links a,
+#itop-result.error .itop-request-access-links a {
+    color: inherit !important;
 }
