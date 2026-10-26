@@ -96,6 +96,11 @@ class BindUsers extends Command {
 		$failed = 0;
 		$stoppedAtLimit = false;
 
+		// Read once, not per account: BindingConfig::isExcluded() re-reads and
+		// json_decodes the whole exclusion list on every call, matching how
+		// BindingListService::list() avoids the same per-account cost.
+		$excluded = array_fill_keys($this->bindingConfig->getExcludedUsers(), true);
+
 		foreach ($users as $user) {
 			if ($limit !== null && $examined >= $limit) {
 				$stoppedAtLimit = true;
@@ -105,7 +110,7 @@ class BindUsers extends Command {
 
 			$uid = $user->getUID();
 
-			if ($this->bindingConfig->isExcluded($uid)) {
+			if (isset($excluded[$uid])) {
 				$skipped++;
 				continue;
 			}

@@ -54,6 +54,7 @@ class ConfigController extends Controller {
 		private IL10N $l10n,
 		private ItopAPIService $itopAPIService,
 		private CacheService $cacheService,
+		private IdentityBindingService $identityBindingService,
 		private LoggerInterface $logger,
 		private IAppManager $appManager,
 		private IClientService $clientService,
@@ -62,6 +63,18 @@ class ConfigController extends Controller {
 		private ?string $userId
 	) {
 		parent::__construct($appName, $request);
+	}
+
+	/**
+	 * Reads and decodes the raw JSON request body.
+	 *
+	 * Split out from setConfig() so tests can override it -- php://input
+	 * cannot be swapped per-test otherwise.
+	 *
+	 * @return mixed
+	 */
+	protected function getRequestInput() {
+		return json_decode(file_get_contents('php://input'), true);
 	}
 
 	/**
@@ -95,7 +108,7 @@ class ConfigController extends Controller {
 		}
 
 		// Get JSON data from request body
-		$input = json_decode(file_get_contents('php://input'), true);
+		$input = $this->getRequestInput();
 		if (!is_array($input)) {
 			return new DataResponse(['message' => $this->l10n->t('Invalid request data')], Http::STATUS_BAD_REQUEST);
 		}
@@ -230,6 +243,24 @@ class ConfigController extends Controller {
 		// Success! Store Person ID and User ID (NOT the token)
 		$personId = $validation['person_id'];
 		$userId = $validation['user_id'];
+
+		// Refuse rather than silently double-link: person_id is the authorisation
+		// boundary for everything downstream, so two Nextcloud accounts both
+		// holding a personal token for the same iTop person must never both end
+		// up bound to it. $this->userId is excepted so re-confirming one's own
+		// existing binding still succeeds.
+		$conflictUid = $this->identityBindingService->findConflictingUid($personId, $this->userId);
+		if ($conflictUid !== null) {
+			$this->logger->warning(
+				'iTop: refusing to bind user ' . $this->userId . ' to person ' . $personId
+				. ' - already linked to another Nextcloud account',
+				['app' => Application::APP_ID]
+			);
+			return new DataResponse([
+				'message' => $this->l10n->t('This iTop account is already linked to another Nextcloud user. Please contact your administrator.'),
+				'person_id_configured' => false
+			], Http::STATUS_CONFLICT);
+		}
 
 		// Drop derived state first, for the same reason as IdentityBindingService::bind():
 		// a failure part-way through must never leave a user_id belonging to a different
