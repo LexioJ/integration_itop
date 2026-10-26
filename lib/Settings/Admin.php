@@ -89,6 +89,10 @@ class Admin implements ISettings {
 			'admin_instance_url' => $adminInstanceUrl,
 			'user_facing_name' => $userFacingName,
 			'has_application_token' => $hasApplicationToken,
+			// Both are required before any iTop call can succeed, so a
+			// half-filled form still counts as unconfigured: the page hides
+			// everything except the connection form until both are present.
+			'is_configured' => $adminInstanceUrl !== '' && $hasApplicationToken,
 			'last_updated' => date('Y-m-d H:i:s'),
 			'version' => Application::getVersion($this->appManager),
 			// Notification configuration
